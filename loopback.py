@@ -6,6 +6,9 @@ import os
 import fcntl
 from video_mods import crop
 
+IN_WIDTH = 640
+IN_HEIGHT = 480
+
 OUT_WIDTH = 300
 OUT_HEIGHT = 300
 
@@ -42,7 +45,7 @@ def video_capture(w=640, h=480):
 
 def live_loop(mod):
     print("begin loopback write..")
-    with video_capture() as (cap, device):
+    with video_capture(IN_WIDTH, IN_HEIGHT) as (cap, device):
         # This is the loop that reads from the webcam, edits, and then writes to the loopback
         while True:
             ret, frame = cap.read()
