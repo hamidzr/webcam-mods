@@ -10,27 +10,19 @@ def frame_modr(frame):
 
 
 def crop(frame, w: int, h: int, x1=0, y1=0):
-    x2 = x1+w
-    y2 = y1+h
-    fw, fh, _ = frame.shape
+    # assuming frame is always of the same shape
+    # assuming w, h are smaller than the frame
+
+    fh, fw, _ = frame.shape
 
     # keep the output strictly WxH
-    # assuming w, h are smaller than the frame
-    if x2 > fw:
-        dx = fw - x2
-        x1 += dx
-        x2 = fw  # off by one?
-    if y2 > fh:
-        dy = fh - y2
-        y1 += dy
-        y2 = fh
     if x1 < 0:
-        dx = 0-x1
-        x2 += dx
         x1 = 0
+    if x1 > fw-w:
+        x1 = fw-w
     if y1 < 0:
-        dy = 0-y1
-        y2 += dy
         y1 = 0
+    if y1 > fh-h:
+        y1 = fh-h
 
-    return frame[y1:y2, x1:x2].copy()
+    return frame[y1:y1+h, x1:x1+w].copy()
