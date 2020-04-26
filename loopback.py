@@ -6,6 +6,8 @@ import os
 import fcntl
 from video_mods import crop
 
+# WARN output dimentions should smaller than input
+
 IN_WIDTH = 640
 IN_HEIGHT = 480
 
@@ -51,6 +53,8 @@ def live_loop(mod):
             ret, frame = cap.read()
             # WARN: frame dimensions and format has to match readV4l2
             frame = mod(frame)
+            # assert frame.shape[0] == OUT_HEIGHT
+            # assert frame.shape[1] == OUT_WIDTH
             device.write(cv2.cvtColor(frame, cv2.COLOR_BGR2YUV_I420))
 
 

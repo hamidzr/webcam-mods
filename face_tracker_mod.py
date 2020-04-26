@@ -1,29 +1,36 @@
-from loopback import live_loop, OUT_WIDTH, OUT_HEIGHT
+from loopback import live_loop, OUT_WIDTH, OUT_HEIGHT, IN_WIDTH, IN_HEIGHT
 from ultra_light import find_faces, draw_overlays
 from video_mods import crop
 import math
 
 
-# pad the face rectangels the easy way
-PAD = 50
-
-last_pos = (0, 0)
+cur_box = (0, 0, 200, 200)
 frame_count = 0
 
 
-def face_has_moved(new_x, new_y):
+def face_has_moved(new_box):
     MOVE_THRESHOLD = 50.0  # pixel
+    x1, y1, x2, y2 = new_box
+    # only consider the top left corner of the box
     # OPT or do a simpler faster check
-    dist = math.sqrt((new_x - last_pos[0])**2 + (new_y - last_pos[1])**2)
+    dist = math.sqrt((x1 - cur_box[0])**2 + (y1 - cur_box[1])**2)
     return dist > MOVE_THRESHOLD
 
 
-def crop_as_before(frame):
-    return crop(frame, OUT_WIDTH, OUT_HEIGHT, last_pos[0]-PAD, last_pos[1]-PAD)
+def align_box(frame):
+    # calculate the crop based to center the face box
+    x1, y1, x2, y2 = cur_box
+    bw = x2-x1  # box width
+    bh = y2-y1
+    pad_x = (OUT_WIDTH - bw) // 2
+    pad_y = (OUT_HEIGHT - bh) // 2
+    return crop(frame, OUT_WIDTH, OUT_HEIGHT, x1-pad_x, y1-pad_y)
+    # align the easy way: pad the face rectangels the easy way
+    # return crop(frame, OUT_WIDTH, OUT_HEIGHT, x1-50, y1-50)
 
 
 def track_face(frame):
-    global last_pos, frame_count
+    global cur_box, frame_count
     rate = 30  # predict once every n frame
     found_face = False
     skip_prediction = frame_count % rate != 0
@@ -36,15 +43,13 @@ def track_face(frame):
         #     draw_overlays(frame, boxes, probs)
 
     if not found_face or skip_prediction:
-        return crop_as_before(frame)
+        return align_box(frame)
 
     box = boxes[0, :]
-    x1, y1, x2, y2 = box
-    if face_has_moved(x1, y1):
-        last_pos = (x1, y1)
-        return crop(frame, OUT_WIDTH, OUT_HEIGHT, x1-PAD, y1-PAD)
-    else:
-        return crop_as_before(frame)
+    if face_has_moved(box):
+        cur_box = box
+
+    return align_box(frame)
 
 
 if __name__ == "__main__":
