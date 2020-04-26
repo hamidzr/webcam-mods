@@ -1,9 +1,25 @@
 from loopback import live_loop, OUT_WIDTH, OUT_HEIGHT
 from ultra_light import find_faces
 from video_mods import crop
+import math
+
+
+# pad the face rectangels the easy way
+PAD = 50
 
 last_pos = (0, 0)
 frame_count = 0
+
+
+def face_has_moved(new_x, new_y):
+    MOVE_THRESHOLD = 20.0  # pixel
+    # OPT or do a simpler faster check
+    dist = math.sqrt((new_x - last_pos[0])**2 + (new_y - last_pos[1])**2)
+    return dist > MOVE_THRESHOLD
+
+
+def crop_as_before(frame):
+    return crop(frame, OUT_WIDTH, OUT_HEIGHT, last_pos[0]-PAD, last_pos[1]-PAD)
 
 
 def track_face(frame):
@@ -17,16 +33,16 @@ def track_face(frame):
         boxes, probs = find_faces(frame)
         found_face = len(boxes) > 0
 
-    # pad the dumb way
-    pad = 50
-
     if not found_face or skip_prediction:
-        return crop(frame, OUT_WIDTH, OUT_HEIGHT, last_pos[0]-pad, last_pos[1]-pad)
+        return crop_as_before(frame)
 
     box = boxes[0, :]
     x1, y1, x2, y2 = box
-    last_pos = (x1, y1)
-    return crop(frame, OUT_WIDTH, OUT_HEIGHT, x1-pad, y1-pad)
+    if face_has_moved(x1, y1):
+        last_pos = (x1, y1)
+        return crop(frame, OUT_WIDTH, OUT_HEIGHT, x1-PAD, y1-PAD)
+    else:
+        return crop_as_before(frame)
 
 
 if __name__ == "__main__":
