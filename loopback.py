@@ -14,28 +14,31 @@ def frame_modr(frame):
     mapped_grad = cv2.applyColorMap(grad, cv2.COLORMAP_JET)
     return mapped_grad
 
+
 def crop(frame, w: int, h: int, x=0, y=0):
     return frame[y:y+h, x:x+w].copy()
 
 # v4l2 was last updated in 2010
+
+
 def readV4l2():
     with open('../v4l2/format.buffer', 'rb') as f:
         format = f.read()
     return (-1060088315, format)
 
 
-def run():
+def main():
     # Grab the webcam feed and get the dimensions of a frame
-    cap                   = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(0)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-    ret,im                = cap.read()
-    height,width,channels = im.shape
+    ret, im = cap.read()
+    height, width, channels = im.shape
 
     # Name and instantiate our loopback device
     devName = '/dev/video3'
     if not os.path.exists(devName):
-        print ("Warning: device does not exist", devName)
+        print("Warning: device does not exist", devName)
     device = open(devName, 'wb')
 
     req, format = readV4l2()
@@ -44,11 +47,11 @@ def run():
 
     # This is the loop that reads from the webcam, edits, and then writes to the loopback
     while True:
-        ret,im       = cap.read()
+        ret, im = cap.read()
         # modded_frame = frame_modr(im)
         modded_frame = crop(im, 300, 300, 0, 0)
         device.write(modded_frame)
 
 
 if __name__ == "__main__":
-    run()
+    main()
