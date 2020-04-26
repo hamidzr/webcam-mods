@@ -9,8 +9,8 @@ from video_mods import crop
 IN_WIDTH = 640
 IN_HEIGHT = 480
 
-OUT_WIDTH = 300
-OUT_HEIGHT = 300
+OUT_WIDTH = 320  # 240
+OUT_HEIGHT = 240  # 320
 
 
 def readV4l2():
