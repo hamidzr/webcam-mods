@@ -15,7 +15,7 @@ OUT_HEIGHT = 300
 
 def readV4l2():
     # v4l2 was last updated in 2010
-    with open(f'../v4l2/format_{OUT_WIDTH}x{OUT_HEIGHT}.buffer', 'rb') as f:
+    with open(f'../v4l2/v4l2_fd_{OUT_WIDTH}x{OUT_HEIGHT}.buffer', 'rb') as f:
         format = f.read()
     return (-1060088315, format)
 
@@ -49,8 +49,9 @@ def live_loop(mod):
         # This is the loop that reads from the webcam, edits, and then writes to the loopback
         while True:
             ret, frame = cap.read()
-            # WARN: frame dimensions has to match OUT_WIDTH OUT_HEIGHT
-            device.write(mod(frame))
+            # WARN: frame dimensions and format has to match readV4l2
+            frame = mod(frame)
+            device.write(cv2.cvtColor(frame, cv2.COLOR_BGR2YUV_I420))
 
 
 if __name__ == "__main__":
