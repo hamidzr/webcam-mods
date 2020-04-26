@@ -1,5 +1,5 @@
 from loopback import live_loop, OUT_WIDTH, OUT_HEIGHT
-from ultra_light import find_faces
+from ultra_light import find_faces, draw_overlays
 from video_mods import crop
 import math
 
@@ -12,7 +12,7 @@ frame_count = 0
 
 
 def face_has_moved(new_x, new_y):
-    MOVE_THRESHOLD = 20.0  # pixel
+    MOVE_THRESHOLD = 50.0  # pixel
     # OPT or do a simpler faster check
     dist = math.sqrt((new_x - last_pos[0])**2 + (new_y - last_pos[1])**2)
     return dist > MOVE_THRESHOLD
@@ -32,6 +32,8 @@ def track_face(frame):
     if not skip_prediction:
         boxes, probs = find_faces(frame)
         found_face = len(boxes) > 0
+        # if found_face:
+        #     draw_overlays(frame, boxes, probs)
 
     if not found_face or skip_prediction:
         return crop_as_before(frame)

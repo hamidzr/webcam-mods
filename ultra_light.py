@@ -28,7 +28,7 @@ def prepare_frame(frame):
     return img
 
 
-def show_with_overlays(boxes, probs):
+def draw_overlays(frame, boxes, probs):
     for i in range(boxes.shape[0]):
         box = boxes[i, :]
         x1, y1, x2, y2 = box
@@ -40,8 +40,6 @@ def show_with_overlays(boxes, probs):
         text = f"Face: {round(probs[i], 2)}"
         cv2.putText(frame, text, (x1 + 6, y2 - 6),
                     font, 0.3, (255, 255, 255), 1)
-
-    cv2.imshow('Video', frame)
 
 
 def find_faces(frame):
@@ -65,11 +63,12 @@ def interactive_webcam():
         ret, frame = cap.read()
         if frame is not None:
             boxes, probs = find_faces(frame)
-            show_with_overlays(boxes, probs)
+            draw_overlays(frame, boxes, probs)
         # Hit 'q' on the keyboard to quit!
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
+    # cv2.imshow('Video', frame)
     # release handle to the webcam
     cap.release()
     cv2.destroyAllWindows()
