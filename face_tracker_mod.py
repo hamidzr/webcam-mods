@@ -1,7 +1,8 @@
-from loopback import live_loop, OUT_WIDTH, OUT_HEIGHT, IN_WIDTH, IN_HEIGHT
+from loopback import live_loop, OUT_WIDTH, OUT_HEIGHT
 from ultra_light import find_faces, draw_overlays
 from video_mods import crop
 import math
+import numpy as np
 
 
 cur_box = (0, 0, 200, 200)
@@ -32,22 +33,17 @@ def align_box(frame):
 def track_face(frame):
     global cur_box, frame_count
     rate = 30  # predict once every n frame
-    found_face = False
     skip_prediction = frame_count % rate != 0
     frame_count += 1
 
     if not skip_prediction:
         boxes, probs = find_faces(frame)
-        found_face = len(boxes) > 0
-        # if found_face:
-        #     draw_overlays(frame, boxes, probs)
+        if len(boxes) > 0:  # if found at least one face
+            box = boxes[0, :]
+            if face_has_moved(box):
+                cur_box = box
 
-    if not found_face or skip_prediction:
-        return align_box(frame)
-
-    box = boxes[0, :]
-    if face_has_moved(box):
-        cur_box = box
+    # draw_overlays(frame, np.asarray([cur_box]))
 
     return align_box(frame)
 

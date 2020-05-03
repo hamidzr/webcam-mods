@@ -28,7 +28,7 @@ def prepare_frame(frame):
     return img
 
 
-def draw_overlays(frame, boxes, probs):
+def draw_overlays(frame, boxes, probs=None):
     for i in range(boxes.shape[0]):
         box = boxes[i, :]
         x1, y1, x2, y2 = box
@@ -37,7 +37,10 @@ def draw_overlays(frame, boxes, probs):
         cv2.rectangle(frame, (x1, y2 - 20), (x2, y2),
                       (80, 18, 236), cv2.FILLED)
         font = cv2.FONT_HERSHEY_DUPLEX
-        text = f"Face: {round(probs[i], 2)}"
+        if probs:
+            text = f"Face: {round(probs[i], 2)}"
+        else:
+            text = f"Face"
         cv2.putText(frame, text, (x1 + 6, y2 - 6),
                     font, 0.3, (255, 255, 255), 1)
 
