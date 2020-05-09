@@ -9,13 +9,12 @@ cur_box = (0, 0, 200, 200)
 frame_count = 0
 
 
-def face_has_moved(new_box):
-    MOVE_THRESHOLD = 50.0  # pixel
+def face_has_moved(new_box, move_threshold: int):
     x1, y1, x2, y2 = new_box
     # only consider the top left corner of the box
     # OPT or do a simpler faster check
     dist = math.sqrt((x1 - cur_box[0])**2 + (y1 - cur_box[1])**2)
-    return dist > MOVE_THRESHOLD
+    return dist > move_threshold
 
 
 def align_box(frame):
@@ -30,9 +29,9 @@ def align_box(frame):
     # return crop(frame, OUT_WIDTH, OUT_HEIGHT, x1-50, y1-50)
 
 
-def track_face(frame):
+def track_face(frame, draw_overlays=False, prediction_rate=30, move_threshold=50):
     global cur_box, frame_count
-    rate = 30  # predict once every n frame
+    rate = prediction_rate  # predict once every n frame
     skip_prediction = frame_count % rate != 0
     frame_count += 1
 
@@ -40,9 +39,10 @@ def track_face(frame):
         boxes, probs = find_faces(frame)
         if len(boxes) > 0:  # if found at least one face
             box = boxes[0, :]
-            if face_has_moved(box):
+            if face_has_moved(box, move_threshold):
                 cur_box = box
 
-    # draw_overlays(frame, np.asarray([cur_box]))
+    if draw_overlays:
+        draw_overlays(frame, np.asarray([cur_box]))
 
     return align_box(frame)
