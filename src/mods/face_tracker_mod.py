@@ -1,6 +1,6 @@
 from loopback import live_loop, OUT_WIDTH, OUT_HEIGHT
 from ultra_light import find_faces, draw_overlays
-from video_mods import crop
+from mods.video_mods import crop
 import math
 import numpy as np
 
@@ -46,7 +46,3 @@ def track_face(frame):
     # draw_overlays(frame, np.asarray([cur_box]))
 
     return align_box(frame)
-
-
-if __name__ == "__main__":
-    live_loop(track_face)

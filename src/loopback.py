@@ -4,7 +4,7 @@ from contextlib import contextmanager
 # We need to look at system information (os) and write to the device (fcntl)
 import os
 import fcntl
-from video_mods import crop
+from mods.video_mods import crop
 
 # WARN output dimentions should smaller than input
 
