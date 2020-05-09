@@ -36,6 +36,7 @@ def track_face(frame, draw_overlays=False, prediction_rate=30, move_threshold=50
     frame_count += 1
 
     if not skip_prediction:
+        # OTP use threading to move prediction to unblock live feed flow.
         boxes, probs = find_faces(frame)
         if len(boxes) > 0:  # if found at least one face
             box = boxes[0, :]
