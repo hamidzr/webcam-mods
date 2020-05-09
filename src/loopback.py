@@ -45,18 +45,21 @@ def video_capture(w=640, h=480):
         videoOut.close()
 
 
-def live_loop(mod):
+def live_loop(mod=None):
     print("begin loopback write..")
     with video_capture(IN_WIDTH, IN_HEIGHT) as (cap, device):
         # This is the loop that reads from the webcam, edits, and then writes to the loopback
         while True:
             ret, frame = cap.read()
             # WARN: frame dimensions and format has to match readV4l2
-            frame = mod(frame)
+            if mod:
+                frame = mod(frame)
+            else:
+                frame = crop(frame, OUT_WIDTH, OUT_HEIGHT, 0, 0)
             # assert frame.shape[0] == OUT_HEIGHT
             # assert frame.shape[1] == OUT_WIDTH
             device.write(cv2.cvtColor(frame, cv2.COLOR_BGR2YUV_I420))
 
 
 if __name__ == "__main__":
-    live_loop(lambda f: crop(f, OUT_WIDTH, OUT_HEIGHT, 0, 0))
+    live_loop()

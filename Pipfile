@@ -13,6 +13,7 @@ opencv-python = "==4.1.1.26"
 tensorflow = "==1.13.1"
 dlib = "*"
 imutils = "*"
+pynput = "*"
 
 [requires]
 python_version = "3.6"
