@@ -9,7 +9,7 @@ import onnxruntime as ort
 from onnx_tf.backend import prepare
 from time import sleep
 
-onnx_path = './ultra_light_640.onnx'
+onnx_path = 'data/ultra_light_640.onnx'
 onnx_model = onnx.load(onnx_path)
 predictor = prepare(onnx_model)
 ort_session = ort.InferenceSession(onnx_path)
