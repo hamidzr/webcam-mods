@@ -17,7 +17,7 @@ OUT_HEIGHT = 240  # 320
 
 def readV4l2():
     # v4l2 was last updated in 2010
-    with open(f'../v4l2/v4l2_fd_{OUT_WIDTH}x{OUT_HEIGHT}.buffer', 'rb') as f:
+    with open(f'data/v4l2_fd_{OUT_WIDTH}x{OUT_HEIGHT}.buffer', 'rb') as f:
         format = f.read()
     return (-1060088315, format)
 

@@ -11,7 +11,7 @@ JUMP = 10  # pixels
 def on_press(key):
     global shmem, cur_keys
     cur_keys.add(key)
-    if (not Key.ctrl in cur_keys):
+    if (Key.ctrl not in cur_keys):
         return
 
     if key == Key.right:
