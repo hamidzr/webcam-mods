@@ -1,12 +1,14 @@
-from loopback import live_loop, OUT_WIDTH, OUT_HEIGHT
 from ultra_light import find_faces, draw_overlays
+from loopback import OUT_WIDTH, OUT_HEIGHT
 from mods.video_mods import crop
 import math
 import numpy as np
+import time
+import threading
 
 
 cur_box = (0, 0, 200, 200)
-frame_count = 0
+shmem = [None]
 
 
 def face_has_moved(new_box, move_threshold: int):
@@ -29,21 +31,32 @@ def align_box(frame):
     # return crop(frame, OUT_WIDTH, OUT_HEIGHT, x1-50, y1-50)
 
 
-def track_face(frame, draw_overlays=False, prediction_rate=30, move_threshold=50):
-    global cur_box, frame_count
-    rate = prediction_rate  # predict once every n frame
-    skip_prediction = frame_count % rate != 0
-    frame_count += 1
+def init(prediction_rate=1, move_threshold=50):
+    # set up the prediction thread
+    def make_prediction():
+        global cur_box
+        while True:
+            if shmem[0] is None:
+                time.sleep(0.01)
+                continue
+            boxes, probs = find_faces(shmem[0])
+            if len(boxes) > 0:  # if found at least one face
+                box = boxes[0, :]
+                if face_has_moved(box, move_threshold):
+                    cur_box = box
+            time.sleep(1/prediction_rate)
 
-    if not skip_prediction:
-        # OTP use threading to move prediction to unblock live feed flow.
-        boxes, probs = find_faces(frame)
-        if len(boxes) > 0:  # if found at least one face
-            box = boxes[0, :]
-            if face_has_moved(box, move_threshold):
-                cur_box = box
+    pred_thread = threading.Thread(
+        target=make_prediction, daemon=True)
+    pred_thread.start()
+    return pred_thread
 
-    if draw_overlays:
+
+def track_face(frame, overlay=False):
+    global shmem
+    shmem[0] = frame
+
+    if overlay:
         draw_overlays(frame, np.asarray([cur_box]))
 
     return align_box(frame)

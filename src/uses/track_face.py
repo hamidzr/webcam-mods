@@ -1,5 +1,5 @@
 from loopback import live_loop
-from mods.face_tracker_mod import track_face
+import mods.face_tracker_mod as ft
 
-if __name__ == "__main__":
-    live_loop(track_face)
+ft.init(prediction_rate=0.5)
+live_loop(ft.track_face)
