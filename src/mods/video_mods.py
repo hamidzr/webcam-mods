@@ -18,11 +18,11 @@ def crop(frame, w: int, h: int, x1=0, y1=0):
     # keep the output strictly WxH
     if x1 < 0:
         x1 = 0
-    if x1 > fw-w:
+    elif x1 > fw-w:
         x1 = fw-w
     if y1 < 0:
         y1 = 0
-    if y1 > fh-h:
+    elif y1 > fh-h:
         y1 = fh-h
 
     return frame[y1:y1+h, x1:x1+w].copy()
