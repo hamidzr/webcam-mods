@@ -1,6 +1,7 @@
 from loopback import live_loop, OUT_WIDTH, OUT_HEIGHT
 from mods.video_mods import crop
 from pynput.keyboard import Key, Listener
+from mods.record_replay import engage
 
 cur_keys = set()
 shmem = [0, 0]
@@ -32,4 +33,10 @@ def on_release(key):
 key_listener = Listener(on_press=on_press, on_release=on_release)
 key_listener.start()
 
-live_loop(lambda f: crop(f, OUT_WIDTH, OUT_HEIGHT, shmem[0], shmem[1]))
+
+def frame_modr(frame):
+    frame = crop(frame, OUT_WIDTH, OUT_HEIGHT, shmem[0], shmem[1])
+    return engage(frame)
+
+
+live_loop(frame_modr)
