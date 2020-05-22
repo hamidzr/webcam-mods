@@ -1,7 +1,7 @@
 track-face:
 	pipenv run python src/uses/track_face.py
 
-crop_cam:
+crop-cam:
 	pipenv run python src/uses/crop_cam.py
 
 setup-webcam:
