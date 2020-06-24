@@ -1,5 +1,6 @@
 # TODO
 
+- stich webcams together to have a bigger source cam
 - record and replay
 - zoom support
 - CLI args for orientation and resolution
