@@ -4,7 +4,13 @@ from pynput.keyboard import Key, Listener
 from mods.record_replay import engage
 
 cur_keys = set()
+# TODO central config save and load support
 shmem = [0, 0]
+with open('.webcam.conf', 'r') as f:
+    line = f.readline()
+    if line != '':
+        shmem = [int(x) for x in line.split(',')]
+print("cam positioned at", shmem)
 
 JUMP = 10  # pixels
 
@@ -23,6 +29,8 @@ def on_press(key):
         shmem[1] -= JUMP
     elif key == Key.down:
         shmem[1] += JUMP
+    with open('.webcam.conf', 'w+') as f:
+        f.write(','.join([str(x) for x in shmem]))
 
 
 def on_release(key):
