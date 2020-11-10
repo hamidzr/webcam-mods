@@ -1,7 +1,9 @@
 import v4l2
 
+# Deprecated. This can be used if there the v4l2 package doesn't play nicely with Python3.
 
-def genV4l2(width, height, channels):
+
+def setup_fromat(width, height, channels):
     # Set up the formatting of our loopback device
     format = v4l2.v4l2_format()
     format.type = v4l2.V4L2_BUF_TYPE_VIDEO_OUTPUT
@@ -11,6 +13,11 @@ def genV4l2(width, height, channels):
     format.fmt.pix.height = height
     format.fmt.pix.bytesperline = width * channels
     format.fmt.pix.sizeimage = width * height * channels
+    return format
+
+
+def genV4l2(width, height, channels):
+    format = setup_fromat(width, height, channels)
 
     # print(dir(v4l2))
 

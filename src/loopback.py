@@ -1,4 +1,5 @@
 import cv2
+import v4l2
 from contextlib import contextmanager
 
 # We need to look at system information (os) and write to the device (fcntl)
@@ -15,12 +16,17 @@ OUT_WIDTH = 320  # 240
 OUT_HEIGHT = 240  # 320
 
 
-def readV4l2():
-    # v4l2 was last updated in 2010
-    with open(f'data/v4l2_fd_{OUT_WIDTH}x{OUT_HEIGHT}.buffer', 'rb') as f:
-        format = f.read()
-    return (-1060088315, format)
-
+def prep_v4l2_descriptor(width, height, channels):
+    # Set up the formatting of our loopback device
+    format = v4l2.v4l2_format()
+    format.type = v4l2.V4L2_BUF_TYPE_VIDEO_OUTPUT
+    format.fmt.pix.field = v4l2.V4L2_FIELD_NONE
+    format.fmt.pix.pixelformat = v4l2.V4L2_PIX_FMT_YUV420
+    format.fmt.pix.width = width
+    format.fmt.pix.height = height
+    format.fmt.pix.bytesperline = width * channels
+    format.fmt.pix.sizeimage = width * height * channels
+    return (v4l2.VIDIOC_S_FMT, format)
 
 @contextmanager
 def video_capture(w=640, h=480):
@@ -35,7 +41,7 @@ def video_capture(w=640, h=480):
         print("warning: device does not exist", devName)
     videoOut = open(devName, 'wb')
 
-    req, format = readV4l2()
+    req, format = prep_v4l2_descriptor(OUT_WIDTH, OUT_HEIGHT, 3)
     fcntl.ioctl(videoOut, req, format)
 
     try:
