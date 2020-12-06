@@ -36,7 +36,7 @@ def video_capture(w=640, h=480):
     videoIn.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
 
     # Name and instantiate our loopback device
-    devName = '/dev/video3'
+    devName = '/dev/video10'
     if not os.path.exists(devName):
         print("warning: device does not exist", devName)
     videoOut = open(devName, 'wb')
