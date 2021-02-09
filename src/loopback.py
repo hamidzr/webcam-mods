@@ -21,19 +21,17 @@ def available_camera_indices(end: int = 3):
     Check up to `end` video devices to find available ones.
     """
     index = 0
-    arr = []
     i = end
     while i > 0:
         cap = cv2.VideoCapture(index)
         if cap.read()[0]:
-            arr.append(index)
             cap.release()
+            yield index
         index += 1
         i -= 1
-    return arr
 
 
-VIDEO_IN = os.getenv('VIDEO_IN', available_camera_indices()[0])
+VIDEO_IN = os.getenv('VIDEO_IN', next(available_camera_indices()))
 VIDEO_OUT = 10
 
 def prep_v4l2_descriptor(width, height, channels):
