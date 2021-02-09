@@ -15,6 +15,9 @@ IN_HEIGHT = 480
 OUT_WIDTH = 320  # 240
 OUT_HEIGHT = 240  # 320
 
+VIDEO_IN = 1
+VIDEO_OUT = 10
+
 
 def prep_v4l2_descriptor(width, height, channels):
     # Set up the formatting of our loopback device
@@ -31,24 +34,21 @@ def prep_v4l2_descriptor(width, height, channels):
 @contextmanager
 def video_capture(w=640, h=480):
     # Grab the webcam feed and get the dimensions of a frame
-    videoIn = cv2.VideoCapture(0)
+    videoIn = cv2.VideoCapture(VIDEO_IN)
     videoIn.set(cv2.CAP_PROP_FRAME_WIDTH, w)
     videoIn.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
 
     # Name and instantiate our loopback device
-    devName = '/dev/video10'
+    devName = f'/dev/video{VIDEO_OUT}'
     if not os.path.exists(devName):
         print("warning: device does not exist", devName)
-    videoOut = open(devName, 'wb')
-
-    req, format = prep_v4l2_descriptor(OUT_WIDTH, OUT_HEIGHT, 3)
-    fcntl.ioctl(videoOut, req, format)
-
-    try:
-        yield videoIn, videoOut
-    finally:
-        videoIn.release()
-        videoOut.close()
+    with open(devName, 'wb') as videoOut:
+        req, format = prep_v4l2_descriptor(OUT_WIDTH, OUT_HEIGHT, 3)
+        try:
+            fcntl.ioctl(videoOut, req, format)
+            yield videoIn, videoOut
+        finally:
+            videoIn.release()
 
 
 def live_loop(mod=None):
