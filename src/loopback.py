@@ -12,12 +12,29 @@ from mods.video_mods import crop
 IN_WIDTH = 640
 IN_HEIGHT = 480
 
-OUT_WIDTH = 320  # 240
+OUT_WIDTH = 240  # 240
 OUT_HEIGHT = 240  # 320
 
-VIDEO_IN = 1
-VIDEO_OUT = 10
 
+def available_camera_indices(end: int = 3):
+    """
+    Check up to `end` video devices to find available ones.
+    """
+    index = 0
+    arr = []
+    i = end
+    while i > 0:
+        cap = cv2.VideoCapture(index)
+        if cap.read()[0]:
+            arr.append(index)
+            cap.release()
+        index += 1
+        i -= 1
+    return arr
+
+
+VIDEO_IN = os.getenv('VIDEO_IN', available_camera_indices()[0])
+VIDEO_OUT = 10
 
 def prep_v4l2_descriptor(width, height, channels):
     # Set up the formatting of our loopback device
@@ -52,7 +69,7 @@ def video_capture(w=640, h=480):
 
 
 def live_loop(mod=None):
-    print("begin loopback write..")
+    print(f'begin loopback write from dev #{VIDEO_IN} to #{VIDEO_OUT}')
     with video_capture(IN_WIDTH, IN_HEIGHT) as (cap, device):
         # This is the loop that reads from the webcam, edits, and then writes to the loopback
         while True:
