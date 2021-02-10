@@ -5,7 +5,7 @@ from contextlib import contextmanager
 # We need to look at system information (os) and write to the device (fcntl)
 import os
 import fcntl
-from mods.video_mods import crop
+from src.mods.video_mods import resize_and_pad
 from typing import cast
 import numpy as np
 
@@ -14,7 +14,7 @@ import numpy as np
 IN_WIDTH = 640
 IN_HEIGHT = 480
 
-OUT_WIDTH = 240  # 240
+OUT_WIDTH = 320  # 240
 OUT_HEIGHT = 240  # 320
 
 
@@ -35,11 +35,6 @@ def available_camera_indices(end: int = 3):
 
 VIDEO_IN = os.getenv('VIDEO_IN', next(available_camera_indices()))
 VIDEO_OUT = 10
-
-
-def resize_to_desired(frame: np.ndarray, w: int, h: int) -> np.ndarray:
-    frame = cv2.resize(frame, (OUT_WIDTH, OUT_HEIGHT))
-    return frame
 
 
 def prep_v4l2_descriptor(width, height, channels):
@@ -87,7 +82,7 @@ def live_loop(mod=None):
             if mod:
                 frame = mod(frame)
 
-            frame = resize_to_desired(frame, OUT_WIDTH, OUT_HEIGHT)
+            frame = resize_and_pad(frame, sw=OUT_WIDTH, sh=OUT_HEIGHT)
             # assert frame.shape[0] == OUT_HEIGHT
             # assert frame.shape[1] == OUT_WIDTH
             device.write(cv2.cvtColor(frame, cv2.COLOR_BGR2YUV_I420))
