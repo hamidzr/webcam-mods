@@ -6,6 +6,8 @@ from contextlib import contextmanager
 import os
 import fcntl
 from mods.video_mods import crop
+from typing import cast
+import numpy as np
 
 # WARN output dimentions should smaller than input
 
@@ -33,6 +35,12 @@ def available_camera_indices(end: int = 3):
 
 VIDEO_IN = os.getenv('VIDEO_IN', next(available_camera_indices()))
 VIDEO_OUT = 10
+
+
+def resize_to_desired(frame: np.ndarray, w: int, h: int) -> np.ndarray:
+    frame = cv2.resize(frame, (OUT_WIDTH, OUT_HEIGHT))
+    return frame
+
 
 def prep_v4l2_descriptor(width, height, channels):
     # Set up the formatting of our loopback device
@@ -72,11 +80,14 @@ def live_loop(mod=None):
         # This is the loop that reads from the webcam, edits, and then writes to the loopback
         while True:
             ret, frame = cap.read()
+            ret = cast(bool, ret)
+            if not ret:
+                continue
             # WARN: frame dimensions and format has to match readV4l2
             if mod:
                 frame = mod(frame)
-            else:
-                frame = crop(frame, OUT_WIDTH, OUT_HEIGHT, 0, 0)
+
+            frame = resize_to_desired(frame, OUT_WIDTH, OUT_HEIGHT)
             # assert frame.shape[0] == OUT_HEIGHT
             # assert frame.shape[1] == OUT_WIDTH
             device.write(cv2.cvtColor(frame, cv2.COLOR_BGR2YUV_I420))
