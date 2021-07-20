@@ -46,8 +46,7 @@ def blur_bg(frame, blur_size=BLUR_SIZE):
     return output_image
 
 
-def swap_bg(frame, path: str):
-    image, condition = mask(image)
-    bg_image = cv2.imread('/path/to/image/file')
+def swap_bg(frame, bg_image):
+    image, condition = mask(frame)
     output_image = np.where(condition, image, bg_image)
     return output_image
