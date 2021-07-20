@@ -3,6 +3,9 @@ default: setup-webcam
 track-face:
 	pipenv run python src/uses/track_face.py
 
+bg-swap:
+	pipenv run python src/uses/bg_removal.py
+
 crop-cam:
 	pipenv run python src/uses/crop_cam.py
 
