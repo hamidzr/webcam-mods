@@ -16,6 +16,7 @@ dlib = "*"
 imutils = "*"
 pynput = "*"
 v4l2 = {git = "https://github.com/antmicro/python3-v4l2.git"}
+mediapipe = "*"
 
 [requires]
-python_version = "3.6"
+python_version = "3.7"
