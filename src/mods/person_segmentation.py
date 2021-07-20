@@ -51,4 +51,3 @@ def swap_bg(frame, path: str):
     bg_image = cv2.imread('/path/to/image/file')
     output_image = np.where(condition, image, bg_image)
     return output_image
-

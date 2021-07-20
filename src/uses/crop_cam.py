@@ -50,4 +50,5 @@ def frame_modr(frame):
     return engage(frame)
 
 
-live_loop(frame_modr)
+if __name__ == '__main__':
+    live_loop(frame_modr)
