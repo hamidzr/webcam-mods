@@ -9,6 +9,24 @@ BLUR_SIZE = 45
 selfie_segmentation = mp.solutions.selfie_segmentation.SelfieSegmentation(model_selection=MODEL_SELECTION)
 # selfie_segmentation.close()
 
+def biggest_comp(image):
+    # find white blocks
+    nb_components, output, stats, centroids = cv2.connectedComponentsWithStats(image, connectivity=4)
+    sizes = stats[:, -1]
+
+    max_label = 1
+    max_size = sizes[0]
+    for i in range(0, nb_components):
+        if sizes[i] > max_size:
+            max_label = i
+            max_size = sizes[i]
+
+    img2 = np.zeros(output.shape)
+    img2[output == max_label] = 255
+    # cv2.imshow("Biggest component", img2)
+    return img2
+
+
 # given a frame generates a mask
 def mask(frame):
     image = frame
@@ -20,10 +38,24 @@ def mask(frame):
     # pass by reference.
     image.flags.writeable = False
     results = selfie_segmentation.process(image)
-    mask = results.segmentation_mask
+    result = results.segmentation_mask
 
     image.flags.writeable = True
     image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+
+
+    # condition = np.stack((result,) * 3, axis=-1) > 0.1
+    condition = result > 0.1
+
+    bg_image = np.zeros(result.shape, dtype=np.uint8)
+    bg_image[:] = (0,)
+    fg_image = np.zeros(result.shape, dtype=np.uint8)
+    fg_image[:] = (255,)
+    mask = np.where(condition, fg_image, bg_image)
+
+    # cv2.imshow('befoe', mask)
+    mask = biggest_comp(mask)
+    # cv2.imshow('after', mask)
 
     # To improve segmentation around boundaries, consider applying a joint
     # bilateral filter to "results.segmentation_mask" with "image".
@@ -31,21 +63,14 @@ def mask(frame):
     # sigmaColor = sigmaSpace = 75.
     # mask = cv2.bilateralFilter(mask, 3, 75, 75)
 
-    # se1 = cv2.getStructuringElement(cv2.MORPH_RECT, (20,20))
-    # mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, se1)
-    # remove rectangles smaller than 10x10
-    se2 = cv2.getStructuringElement(cv2.MORPH_RECT, (10,10))
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, se2)
+    se1 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (20,20))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, se1)
+    # se2 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (20,20))
+    # mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, se2)
 
-    mask = cv2.GaussianBlur(mask,(5,5),0)
+    # mask = cv2.GaussianBlur(mask,(5,5),0)
 
-    condition = np.stack((mask,) * 3, axis=-1) > 0.1
-
-    # bg_image = np.zeros(image.shape, dtype=np.uint8)
-    # bg_image[:] = (0, 0, 0)
-    # fg_image = np.zeros(image.shape, dtype=np.uint8)
-    # fg_image[:] = (255, 255, 255)
-    # output_image = np.where(condition, bg_image, fg_image)
+    # cv2.imshow('after more process', mask)
 
     # # Generate intermediate image; use morphological closing to keep parts of the brain together
     # gray = cv2.cvtColor(output_image, cv2.COLOR_RGB2GRAY)
@@ -60,7 +85,9 @@ def mask(frame):
     # cv2.drawContours(out, [cnt], 0, 255, cv2.FILLED)
 
     # condition = out > 192
+    condition = np.stack((mask,) * 3, axis=-1) > 0.1
 
+    # cv2.waitKey(100)
     return image, condition
 
 
