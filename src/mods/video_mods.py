@@ -48,6 +48,11 @@ def pad_inward_centered(frame: np.ndarray, horizontal=0, vertical=0, color=0):
     assert vertical % 2 == 0, "needs an even size"
     # print('input frame shape', frame.shape)
     fh, fw, _ = frame.shape
+
+    # ensure that inward padding isn't greated than the image dimensions
+    horizontal = min(fw, horizontal)
+    vertical = min(fh, vertical)
+
     crop_width = fw-horizontal
     crop_height = fh-vertical
     left_pad = horizontal//2
