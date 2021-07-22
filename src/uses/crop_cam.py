@@ -27,22 +27,22 @@ def on_press(key):
         return
     if (Key.ctrl in cur_keys):
         if key == Key.right:
-            shmem[0] += JUMP
-        elif key == Key.left:
             shmem[0] -= JUMP
+        elif key == Key.left:
+            shmem[0] += JUMP
         elif key == Key.up:
-            shmem[1] += JUMP
-        elif key == Key.down:
             shmem[1] -= JUMP
+        elif key == Key.down:
+            shmem[1] += JUMP
     if (Key.alt in cur_keys):
         if key == Key.right:
-            shmem[2] += JUMP
-        elif key == Key.left:
             shmem[2] -= JUMP
+        elif key == Key.left:
+            shmem[2] += JUMP
         elif key == Key.up:
-            shmem[3] += JUMP
-        elif key == Key.down:
             shmem[3] -= JUMP
+        elif key == Key.down:
+            shmem[3] += JUMP
     # TODO reduce unnecessary writes
     val_max = max(OUT_WIDTH, OUT_HEIGHT)
     shmem = [min(max(x,0), val_max) for x in shmem] # limit the values albeit poorly
