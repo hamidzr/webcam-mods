@@ -45,16 +45,16 @@ def mask(frame):
 
 
     # condition = np.stack((result,) * 3, axis=-1) > 0.1
-    condition = result > 0.1
+    # condition = result > 0.1
 
-    bg_image = np.zeros(result.shape, dtype=np.uint8)
-    bg_image[:] = (0,)
-    fg_image = np.zeros(result.shape, dtype=np.uint8)
-    fg_image[:] = (255,)
-    mask = np.where(condition, fg_image, bg_image)
+    # bg_image = np.zeros(result.shape, dtype=np.uint8)
+    # bg_image[:] = (0,)
+    # fg_image = np.zeros(result.shape, dtype=np.uint8)
+    # fg_image[:] = (255,)
+    # mask = np.where(condition, fg_image, bg_image)
 
-    # cv2.imshow('befoe', mask)
-    mask = biggest_comp(mask)
+    # # cv2.imshow('befoe', mask)
+    # mask = biggest_comp(mask)
     # cv2.imshow('after', mask)
 
     # To improve segmentation around boundaries, consider applying a joint
@@ -63,8 +63,8 @@ def mask(frame):
     # sigmaColor = sigmaSpace = 75.
     # mask = cv2.bilateralFilter(mask, 3, 75, 75)
 
-    se1 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (20,20))
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, se1)
+    # se1 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (20,20))
+    # mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, se1)
     # se2 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (20,20))
     # mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, se2)
 
