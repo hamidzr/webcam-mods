@@ -61,7 +61,7 @@ key_listener.start()
 
 def frame_modr(frame):
     frame = crop(frame, OUT_WIDTH, OUT_HEIGHT, shmem[0], shmem[1])
-    frame = pad_inward_centered(frame, horizontal=shmem[2], vertical=shmem[3])
+    # frame = pad_inward_centered(frame, horizontal=shmem[2], vertical=shmem[3])
     return engage(frame)
 
 

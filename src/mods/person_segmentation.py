@@ -4,7 +4,7 @@ import numpy as np
 
 BG_COLOR = (192, 192, 192) # gray
 MODEL_SELECTION = 0
-BLUR_SIZE = 45
+BLUR_SIZE = 24
 
 selfie_segmentation = mp.solutions.selfie_segmentation.SelfieSegmentation(model_selection=MODEL_SELECTION)
 # selfie_segmentation.close()
@@ -85,7 +85,8 @@ def mask(frame):
     # cv2.drawContours(out, [cnt], 0, 255, cv2.FILLED)
 
     # condition = out > 192
-    condition = np.stack((mask,) * 3, axis=-1) > 0.1
+    # condition = np.stack((mask,) * 3, axis=-1) > 0.1
+    condition = np.stack((result,) * 3, axis=-1)
 
     # cv2.waitKey(100)
     return image, condition
@@ -95,18 +96,20 @@ def color_bg(frame, color=BG_COLOR):
     image, condition = mask(frame)
     bg_image = np.zeros(image.shape, dtype=np.uint8)
     bg_image[:] = BG_COLOR
-    output_image = np.where(condition, image, bg_image)
-    return output_image
+    return apply_alpha_mask(fg=image, bg=bg_image, mask=condition)
 
 
 def blur_bg(frame, blur_size=BLUR_SIZE):
     image, condition = mask(frame)
     bg_image = cv2.GaussianBlur(image,(blur_size,blur_size),0)
-    output_image = np.where(condition, image, bg_image)
-    return output_image
+    return apply_alpha_mask(fg=image, bg=bg_image, mask=condition)
 
 
 def swap_bg(frame, bg_image):
     image, condition = mask(frame)
-    output_image = np.where(condition, image, bg_image)
-    return output_image
+    return apply_alpha_mask(fg=image, bg=bg_image, mask=condition)
+
+# mask: matrix with values 0-1
+def apply_alpha_mask(fg, bg, mask):
+    output_image = fg * mask + bg * (1-mask)
+    return output_image.astype(np.uint8)
