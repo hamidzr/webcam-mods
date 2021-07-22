@@ -12,6 +12,7 @@ import numpy as np
 def crop(frame, w: int, h: int, x1=0, y1=0):
     """
     x1, y1: top left corner of the crop area.
+    w, h: crop width and height
     # assuming frame is always of the same shape
     # assuming w, h are smaller than the frame
     """
@@ -31,6 +32,34 @@ def crop(frame, w: int, h: int, x1=0, y1=0):
     return frame[y1:y1+h, x1:x1+w].copy()
 
 
+# pad frame with pixels on each side.
+def pad(frame: np.ndarray, left=0, top=0, right=0, bottom=0, color=[0,0,0]):
+    # color image but only one color provided
+    if len(frame.shape) is 3 and not isinstance(color, (list, tuple, np.ndarray)):
+        color = [color]*3
+
+    return cv2.copyMakeBorder(frame, top, bottom, left, right,
+        cv2.BORDER_CONSTANT, None, color)
+
+
+# given a frame pad inward while keeping the image centered
+def pad_inward_centered(frame: np.ndarray, horizontal=0, vertical=0, color=0):
+    assert horizontal % 2 == 0, "needs an even size"
+    assert vertical % 2 == 0, "needs an even size"
+    # print('input frame shape', frame.shape)
+    fh, fw, _ = frame.shape
+    crop_width = fw-horizontal
+    crop_height = fh-vertical
+    left_pad = horizontal//2
+    top_pad = vertical//2
+    frame = crop(frame, crop_width, crop_height, left_pad, top_pad)
+    # print('cropped frame shape', frame.shape, (crop_height, crop_width))
+    padded = pad(frame, left_pad, top_pad, left_pad, top_pad, color)
+    # print('padded shape', padded.shape)
+    return padded
+
+
+# TODO add a desc
 def resize_and_pad(img: np.ndarray, sw: int, sh: int, padColor=0) -> np.ndarray:
     assert isinstance(img, np.ndarray)
     h, w = img.shape[:2]
@@ -64,12 +93,8 @@ def resize_and_pad(img: np.ndarray, sw: int, sh: int, padColor=0) -> np.ndarray:
         new_h, new_w = sh, sw
         pad_left, pad_right, pad_top, pad_bot = 0, 0, 0, 0
 
-    # set pad color
-    if len(img.shape) is 3 and not isinstance(padColor, (list, tuple, np.ndarray)): # color image but only one color provided
-        padColor = [padColor]*3
-
     # scale and pad
     scaled_img = cv2.resize(img, (new_w, new_h), interpolation=interp)
-    scaled_img = cv2.copyMakeBorder(scaled_img, pad_top, pad_bot, pad_left, pad_right, borderType=cv2.BORDER_CONSTANT, value=padColor)
+    scaled_img = pad(scaled_img, pad_left, pad_top, pad_right, pad_bot, padColor)
 
     return scaled_img
