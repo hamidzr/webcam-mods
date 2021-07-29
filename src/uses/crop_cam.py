@@ -1,53 +1,79 @@
-from loopback import live_loop, OUT_WIDTH, OUT_HEIGHT
+from loopback import live_loop, IN_WIDTH, IN_HEIGHT, OUT_WIDTH, OUT_HEIGHT
 from mods.video_mods import crop, pad_inward_centered
 from pynput.keyboard import Key, Listener
 from mods.record_replay import engage
 import os.path
 
 cur_keys = set()
-# TODO central config save and load support
-CONF_FILE = '.webcam.conf'
-shmem = [0, 0, 0, 0] # pos, pos, horizontal_pad, vertical_pad
-if os.path.isfile(CONF_FILE):
-    with open(CONF_FILE, 'r') as f:
-        line = f.readline()
-        if line != '':
-            shmem = [int(x) for x in line.split(',')]
-print("cam position config", shmem)
+
+class Config:
+    def __init__(self, path = '.webcam.conf'):
+        # self.crop_shape = (100, 100) # w, h
+        self.crop_pos = [0, 0] # x1, h1
+        self.pad_size = [0, 0] # horizontal, vertical
+        self._path = path
+        if os.path.isfile(path):
+            conf = self.load(path)
+            self.crop_pos = conf['crop_pos']
+            self.crop_pos = conf['pad_size']
+        print("starting with config", self)
+
+
+    def load(self, path: str = None):
+        # path = self._path if path == None else path
+        path = path or self._path
+        with open(path, 'r') as f:
+            line = f.readline()
+            # if line != '':
+            vals = [int(x) for x in line.split(',')]
+            assert len(vals) == 4
+            return {'crop_pos': [vals[0], vals[1]], 'pad_size': [vals[2], vals[3]]}
+
+    def persist(self, path: str = None):
+        path = path or self._path
+        # shmem = [min(max(x,0), val_max) for x in shmem] # limit the values albeit poorly
+        vals = [*self.crop_pos, *self.pad_size]
+        with open(path, 'w+') as f:
+            f.write(','.join([str(x) for x in vals]))
+
+    def __repr__(self):
+        return str({'crop_pos': self.crop_pos, 'pad_size': self.pad_size})
+
+cf = Config('.webcam.conf')
 
 JUMP = 10  # pixels
 
 
-
 def on_press(key):
-    global shmem, cur_keys
+    global cf, cur_keys
     cur_keys.add(key)
     target_keys = [Key.ctrl, Key.alt]
     if not any(key in cur_keys for key in target_keys):
         return
     if (Key.ctrl in cur_keys):
         if key == Key.right:
-            shmem[0] -= JUMP
+            cf.crop_pos[0] = max(0, cf.crop_pos[0] - JUMP)
         elif key == Key.left:
-            shmem[0] += JUMP
+            cf.crop_pos[0] = min(IN_WIDTH, cf.crop_pos[0] + JUMP)
         elif key == Key.up:
-            shmem[1] -= JUMP
+            cf.crop_pos[1] = max(0, cf.crop_pos[1] - JUMP)
         elif key == Key.down:
-            shmem[1] += JUMP
+            cf.crop_pos[1] = min(IN_HEIGHT, cf.crop_pos[1] + JUMP)
     if (Key.alt in cur_keys):
         if key == Key.right:
-            shmem[2] -= JUMP
+            cf.pad_size[0] = max(0, cf.pad_size[0] - JUMP)
         elif key == Key.left:
-            shmem[2] += JUMP
+            cf.pad_size[0] += JUMP
         elif key == Key.up:
-            shmem[3] -= JUMP
+            cf.pad_size[1] = max(0, cf.pad_size[1] - JUMP)
         elif key == Key.down:
-            shmem[3] += JUMP
-    # TODO reduce unnecessary writes
-    val_max = max(OUT_WIDTH, OUT_HEIGHT)
-    shmem = [min(max(x,0), val_max) for x in shmem] # limit the values albeit poorly
-    with open(CONF_FILE, 'w+') as f:
-        f.write(','.join([str(x) for x in shmem]))
+            cf.pad_size[1] += JUMP
+
+    # val_max = max(OUT_WIDTH, OUT_HEIGHT)
+    # shmem = [min(max(x,0), val_max) for x in shmem] # limit the values albeit poorly
+    # with open(CONF_FILE, 'w+') as f:
+    #     f.write(','.join([str(x) for x in shmem]))
+    cf.persist() # TODO reduce unnecessary writes
 
 
 def on_release(key):
@@ -60,8 +86,8 @@ key_listener.start()
 
 
 def frame_modr(frame):
-    frame = crop(frame, OUT_WIDTH, OUT_HEIGHT, shmem[0], shmem[1])
-    frame = pad_inward_centered(frame, horizontal=shmem[2], vertical=shmem[3], color=0)
+    frame = crop(frame, OUT_WIDTH, OUT_HEIGHT, x1=cf.crop_pos[0], y1=cf.crop_pos[1])
+    frame = pad_inward_centered(frame, horizontal=cf.pad_size[0], vertical=cf.pad_size[1], color=0)
     return engage(frame)
 
 
