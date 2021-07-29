@@ -8,36 +8,38 @@ cur_keys = set()
 
 class Config:
     def __init__(self, path = '.webcam.conf'):
-        # self.crop_shape = (100, 100) # w, h
+        self.crop_dims = [100, 100] # dimenstions: w, h
         self.crop_pos = [0, 0] # x1, h1
         self.pad_size = [0, 0] # horizontal, vertical
         self._path = path
         if os.path.isfile(path):
             conf = self.load(path)
+            self.crop_dims = conf['crop_dims']
             self.crop_pos = conf['crop_pos']
-            self.crop_pos = conf['pad_size']
+            self.pad_size = conf['pad_size']
         print("starting with config", self)
 
 
     def load(self, path: str = None):
-        # path = self._path if path == None else path
         path = path or self._path
         with open(path, 'r') as f:
             line = f.readline()
             # if line != '':
             vals = [int(x) for x in line.split(',')]
-            assert len(vals) == 4
-            return {'crop_pos': [vals[0], vals[1]], 'pad_size': [vals[2], vals[3]]}
+            assert len(vals) == 6
+            return {'crop_dims': vals[0:2], 'crop_pos': vals[2:4], 'pad_size': vals[4:6]}
 
     def persist(self, path: str = None):
         path = path or self._path
-        # shmem = [min(max(x,0), val_max) for x in shmem] # limit the values albeit poorly
-        vals = [*self.crop_pos, *self.pad_size]
+        vals = [*self.crop_dims, *self.crop_pos, *self.pad_size]
         with open(path, 'w+') as f:
             f.write(','.join([str(x) for x in vals]))
 
+    def to_dict(self):
+        return {'crop_dims': self.crop_dims, 'crop_pos': self.crop_pos, 'pad_size': self.pad_size}
+
     def __repr__(self):
-        return str({'crop_pos': self.crop_pos, 'pad_size': self.pad_size})
+        return str(self.to_dict())
 
 cf = Config('.webcam.conf')
 
@@ -51,14 +53,25 @@ def on_press(key):
     if not any(key in cur_keys for key in target_keys):
         return
     if (Key.ctrl in cur_keys):
-        if key == Key.right:
-            cf.crop_pos[0] = max(0, cf.crop_pos[0] - JUMP)
-        elif key == Key.left:
-            cf.crop_pos[0] = min(IN_WIDTH, cf.crop_pos[0] + JUMP)
-        elif key == Key.up:
-            cf.crop_pos[1] = max(0, cf.crop_pos[1] - JUMP)
-        elif key == Key.down:
-            cf.crop_pos[1] = min(IN_HEIGHT, cf.crop_pos[1] + JUMP)
+        if (Key.shift in cur_keys):
+            if key == Key.right:
+                cf.crop_dims[0] = min(IN_WIDTH, cf.crop_dims[0] + JUMP)
+            elif key == Key.left:
+                cf.crop_dims[0] = max(0, cf.crop_dims[0] - JUMP)
+            elif key == Key.up:
+                cf.crop_dims[1] = min(IN_HEIGHT, cf.crop_dims[1] + JUMP)
+            elif key == Key.down:
+                cf.crop_dims[1] = max(0, cf.crop_dims[1] - JUMP)
+        else:
+            # left and right are reversed to compensate for mirror effects
+            if key == Key.right:
+                cf.crop_pos[0] = max(0, cf.crop_pos[0] - JUMP)
+            elif key == Key.left:
+                cf.crop_pos[0] = min(IN_WIDTH, cf.crop_pos[0] + JUMP)
+            elif key == Key.up:
+                cf.crop_pos[1] = max(0, cf.crop_pos[1] - JUMP)
+            elif key == Key.down:
+                cf.crop_pos[1] = min(IN_HEIGHT, cf.crop_pos[1] + JUMP)
     if (Key.alt in cur_keys):
         if key == Key.right:
             cf.pad_size[0] = max(0, cf.pad_size[0] - JUMP)
