@@ -9,7 +9,7 @@ from src.mods.video_mods import resize_and_pad
 from typing import cast
 import numpy as np
 
-# WARN output dimentions should smaller than input
+# WARN output dimentions should be smaller than input.. for now
 
 IN_WIDTH = 640
 IN_HEIGHT = 480

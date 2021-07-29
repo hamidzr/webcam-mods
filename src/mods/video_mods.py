@@ -64,8 +64,12 @@ def pad_inward_centered(frame: np.ndarray, horizontal=0, vertical=0, color=0):
     return padded
 
 
-# TODO add a desc
-def resize_and_pad(img: np.ndarray, sw: int, sh: int, padColor=0) -> np.ndarray:
+def resize_and_pad(img: np.ndarray, sw: int, sh: int, pad_color=0) -> np.ndarray:
+    """
+    Resize while keeping the aspect ratio of the input frame by padding horizontally or vertically.
+    sw: target width
+    sh: target height
+    """
     assert isinstance(img, np.ndarray)
     h, w = img.shape[:2]
 
@@ -79,18 +83,18 @@ def resize_and_pad(img: np.ndarray, sw: int, sh: int, padColor=0) -> np.ndarray:
         interp = cv2.INTER_CUBIC
 
     # aspect ratio of image
-    aspect = w/h  # if on Python 2, you might need to cast as a float: float(w)/h
+    aspect_ratio = w/h
 
     # compute scaling and pad sizing
-    if aspect > 1: # horizontal image
+    if aspect_ratio > 1: # horizontal image
         new_w = sw
-        new_h = np.round(new_w/aspect).astype(int)
+        new_h = np.round(new_w/aspect_ratio).astype(int)
         pad_vert = (sh-new_h)/2
         pad_top, pad_bot = np.floor(pad_vert).astype(int), np.ceil(pad_vert).astype(int)
         pad_left, pad_right = 0, 0
-    elif aspect < 1: # vertical image
+    elif aspect_ratio < 1: # vertical image
         new_h = sh
-        new_w = np.round(new_h*aspect).astype(int)
+        new_w = np.round(new_h*aspect_ratio).astype(int)
         pad_horz = (sw-new_w)/2
         pad_left, pad_right = np.floor(pad_horz).astype(int), np.ceil(pad_horz).astype(int)
         pad_top, pad_bot = 0, 0
@@ -100,6 +104,6 @@ def resize_and_pad(img: np.ndarray, sw: int, sh: int, padColor=0) -> np.ndarray:
 
     # scale and pad
     scaled_img = cv2.resize(img, (new_w, new_h), interpolation=interp)
-    scaled_img = pad(scaled_img, pad_left, pad_top, pad_right, pad_bot, padColor)
+    scaled_img = pad(scaled_img, pad_left, pad_top, pad_right, pad_bot, pad_color)
 
     return scaled_img
