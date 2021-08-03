@@ -1,4 +1,5 @@
 import cv2
+import math
 import numpy as np
 
 
@@ -49,7 +50,7 @@ def pad_inward_centered(frame: np.ndarray, horizontal=0, vertical=0, color=0):
     # print('input frame shape', frame.shape)
     fh, fw, _ = frame.shape
 
-    # ensure that inward padding isn't greated than the image dimensions
+    # ensure that inward padding isn't greater than the image dimensions
     horizontal = min(fw, horizontal)
     vertical = min(fh, vertical)
 
@@ -63,6 +64,60 @@ def pad_inward_centered(frame: np.ndarray, horizontal=0, vertical=0, color=0):
     # print('padded shape', padded.shape)
     return padded
 
+# given a frame pad inward while keeping the image centered
+def pad_outward_centered(frame: np.ndarray, horizontal=0, vertical=0, color=0):
+    # TODO remove the need for even dims
+    assert horizontal % 2 == 0, "needs an even size"
+    assert vertical % 2 == 0, "needs an even size"
+    return pad(frame, horizontal//2, vertical//2, horizontal//2, vertical//2, color)
+
+
+def resize_to_box(img, tw: int, th: int):
+    """
+    Resize to a bounding box while keeping aspect ratio
+    tw: width of the target bounding box
+    th: height of the bounding box
+    """
+    assert isinstance(img, np.ndarray)
+    h, w = img.shape[:2]
+
+    if h == th and w == tw:
+        return img
+
+    h_scale = th / h # 5, 5
+    w_scale = tw / w # 2, 0.1
+
+    scale = min(h_scale, w_scale)
+
+    # interpolation method
+    if scale < 1: # shrinking image
+        interp = cv2.INTER_AREA
+    else: # stretching image
+        interp = cv2.INTER_CUBIC
+
+    # compute new even dimensions. FIXME we shouldn't need to care about making the frame even here
+    new_w = math.floor(w * scale / 2) * 2
+    new_h = math.floor(h * scale / 2) * 2
+
+    # scale and pad
+    scaled_img = cv2.resize(img, (new_w, new_h), interpolation=interp)
+    print('resize to bounding box', tw, th, f'scaled image, {scaled_img.shape}')
+    return scaled_img
+
+
+def pad_to_box(img, tw: int, th: int, color=0):
+    """
+    pad an input frame to an equal or bigger bounding box.
+    tw: width of the target bounding box
+    th: height of the bounding box
+    """
+    h, w = img.shape[:2]
+
+    assert h <= th, "frame does not fit the target"
+    assert w <= tw, "frame does not fit the target"
+
+    return pad_outward_centered(img, tw-w, th-h, color)
+
 
 def resize_and_pad(img: np.ndarray, sw: int, sh: int, pad_color=0) -> np.ndarray:
     """
@@ -70,40 +125,6 @@ def resize_and_pad(img: np.ndarray, sw: int, sh: int, pad_color=0) -> np.ndarray
     sw: target width
     sh: target height
     """
-    assert isinstance(img, np.ndarray)
-    h, w = img.shape[:2]
 
-    if h == sh and w == sw:
-        return img
-
-    # interpolation method
-    if h > sh or w > sw: # shrinking image
-        interp = cv2.INTER_AREA
-    else: # stretching image
-        interp = cv2.INTER_CUBIC
-
-    # aspect ratio of image
-    aspect_ratio = w/h
-
-    # compute scaling and pad sizing
-    if aspect_ratio > 1: # horizontal image
-        new_w = sw
-        new_h = np.round(new_w/aspect_ratio).astype(int)
-        pad_vert = (sh-new_h)/2
-        pad_top, pad_bot = np.floor(pad_vert).astype(int), np.ceil(pad_vert).astype(int)
-        pad_left, pad_right = 0, 0
-    elif aspect_ratio < 1: # vertical image
-        new_h = sh
-        new_w = np.round(new_h*aspect_ratio).astype(int)
-        pad_horz = (sw-new_w)/2
-        pad_left, pad_right = np.floor(pad_horz).astype(int), np.ceil(pad_horz).astype(int)
-        pad_top, pad_bot = 0, 0
-    else: # square image
-        new_h, new_w = sh, sw
-        pad_left, pad_right, pad_top, pad_bot = 0, 0, 0, 0
-
-    # scale and pad
-    scaled_img = cv2.resize(img, (new_w, new_h), interpolation=interp)
-    scaled_img = pad(scaled_img, pad_left, pad_top, pad_right, pad_bot, pad_color)
-
-    return scaled_img
+    img = resize_to_box(img, sw, sh)
+    return pad_to_box(img, sw, sh, pad_color)

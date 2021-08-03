@@ -1,4 +1,4 @@
-from loopback import live_loop, IN_WIDTH, IN_HEIGHT, OUT_WIDTH, OUT_HEIGHT
+from loopback import live_loop, IN_HEIGHT, IN_WIDTH
 from mods.video_mods import crop, pad_inward_centered
 from pynput.keyboard import Key, Listener
 from mods.record_replay import engage
@@ -9,8 +9,7 @@ cur_keys = set()
 class Config:
     def __init__(self, path = '.webcam.conf'):
         self.crop_dims = [100, 100] # dimenstions: w, h
-        self.crop_pos = [0, 0] # x1, h1
-        self.pad_size = [0, 0] # horizontal, vertical
+        self.reset_dependents()
         self._path = path
         if os.path.isfile(path):
             conf = self.load(path)
@@ -18,6 +17,10 @@ class Config:
             self.crop_pos = conf['crop_pos']
             self.pad_size = conf['pad_size']
         print("starting with config", self)
+
+    def reset_dependents(self):
+        self.crop_pos = [0, 0] # x1, h1
+        self.pad_size = [0, 0] # horizontal, vertical
 
 
     def load(self, path: str = None):
@@ -54,6 +57,7 @@ def on_press(key):
         return
     if (Key.ctrl in cur_keys):
         if (Key.shift in cur_keys): # control crop dimensions
+            cf.reset_dependents()
             if key == Key.right:
                 cf.crop_dims[0] = min(IN_WIDTH, cf.crop_dims[0] + JUMP)
             elif key == Key.left:
@@ -67,23 +71,22 @@ def on_press(key):
             if key == Key.right:
                 cf.crop_pos[0] = max(0, cf.crop_pos[0] - JUMP)
             elif key == Key.left:
-                cf.crop_pos[0] = min(IN_WIDTH, cf.crop_pos[0] + JUMP)
+                cf.crop_pos[0] = min(cf.crop_dims[0], cf.crop_pos[0] + JUMP)
             elif key == Key.up:
                 cf.crop_pos[1] = max(0, cf.crop_pos[1] - JUMP)
             elif key == Key.down:
-                cf.crop_pos[1] = min(IN_HEIGHT, cf.crop_pos[1] + JUMP)
+                cf.crop_pos[1] = min(cf.crop_dims[1], cf.crop_pos[1] + JUMP)
     if (Key.alt in cur_keys): # control frame padding
         if key == Key.right:
             cf.pad_size[0] = max(0, cf.pad_size[0] - JUMP)
         elif key == Key.left:
-            cf.pad_size[0] = min(IN_WIDTH, cf.pad_size[0] + JUMP)
+            cf.pad_size[0] = min(cf.crop_dims[0], cf.pad_size[0] + JUMP)
         elif key == Key.up:
             cf.pad_size[1] = max(0, cf.pad_size[1] - JUMP)
         elif key == Key.down:
-            cf.pad_size[1] = min(IN_HEIGHT, cf.pad_size[1] + JUMP)
+            cf.pad_size[1] = min(cf.crop_dims[1], cf.pad_size[1] + JUMP)
 
     cf.persist() # TODO reduce unnecessary writes
-    print(cf)
 
 
 def on_release(key):
@@ -96,7 +99,8 @@ key_listener.start()
 
 
 def frame_modr(frame):
-    frame = crop(frame, OUT_WIDTH, OUT_HEIGHT, x1=cf.crop_pos[0], y1=cf.crop_pos[1])
+    print(cf)
+    frame = crop(frame, cf.crop_dims[0], cf.crop_dims[1], x1=cf.crop_pos[0], y1=cf.crop_pos[1])
     frame = pad_inward_centered(frame, horizontal=cf.pad_size[0], vertical=cf.pad_size[1], color=0)
     return engage(frame)
 
