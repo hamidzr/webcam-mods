@@ -42,6 +42,11 @@ System dependencies:
 
 - v4l2loopback
 
+
+## Upgrading
+
+If you run into an issue upgrading try removing the old config file at `.webcam.conf`
+
 ## TODO
 
 house cleaning:
@@ -49,6 +54,7 @@ house cleaning:
 - set up a code formatter
 - set up a language server for development with Vim and VSCode
 - replace the facetracking model with mediapipe
+- move the config file to `$XDG_CONFIG_HOME`
 
 features:
 - more stable edges for person segmentation
@@ -57,6 +63,10 @@ features:
 
 bugs:
 - bug what?
+
+ideas from https://github.com/fangfufu/Linux-Fake-Background-Webcam/blob/master/fake.py#L285
+- post processing, sigmoid
+- on demand processing
 
 ## Contact
 
