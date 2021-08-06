@@ -1,6 +1,6 @@
 # Webcam Mods
 
-Tested on Arch Linux.
+Tested on MacOS & Arch Linux.
 
 Checkout my other repository for some ffmpeg-only solutions [here](https://github.com/hamidzr/scripts/tree/master/ffmpeg)
 
@@ -24,6 +24,7 @@ We have mods based on this to swap the background with:
 ### Cropping
 
 Interactively move your camera around with arrow keys `ctrl+arrowkeys`
+Resize the cropped frame using `ctrl+shift+arrowkeys`
 
 ### Padding
 
@@ -55,6 +56,14 @@ Python dependencies are listed in `Pipfile`. Install them using [Pipenv](https:/
 
 If you run into an issue upgrading try removing the old config file at `.webcam.conf`
 
+## Settings
+
+If you have multiple video input devices, aka webcams, you can pick the one you want by providing its
+index through by setting the `VIDEO_IN` environment variable. eg `export VIDEO_IN=0`
+
+When you use the interactive controls to move the camera around the resulting parameters are saved in
+a text file to your disk currently named `.webcam.conf`
+
 ## TODO
 
 house cleaning:
@@ -68,6 +77,7 @@ features:
 - more stable edges for person segmentation
 - zoom support
 - MacOS and Windows support?
+- convert/migrate env variables to cli arguments
 
 bugs:
 - bug what?
@@ -75,6 +85,8 @@ bugs:
 ideas from https://github.com/fangfufu/Linux-Fake-Background-Webcam/blob/master/fake.py#L285
 - post processing, sigmoid
 - on demand processing
+
+a demo video showcasing the features
 
 ## Contact
 

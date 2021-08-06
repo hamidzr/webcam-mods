@@ -33,7 +33,7 @@ def available_camera_indices(end: int = 3):
         i -= 1
 
 
-VIDEO_IN = os.getenv('VIDEO_IN', next(available_camera_indices()))
+VIDEO_IN = int(os.getenv('VIDEO_IN', next(available_camera_indices())))
 VIDEO_OUT = 10
 
 
