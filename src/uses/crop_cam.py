@@ -1,5 +1,5 @@
 from loopback import live_loop, IN_HEIGHT, IN_WIDTH
-from mods.video_mods import crop, pad_inward_centered
+from mods.video_mods import crop, pad_inward_centered, is_crop_valid
 from pynput.keyboard import Key, Listener
 from mods.record_replay import engage
 import os.path
@@ -57,25 +57,40 @@ def on_press(key):
         return
     if (Key.ctrl in cur_keys):
         if (Key.shift in cur_keys): # control crop dimensions
-            cf.reset_dependents()
             if key == Key.right:
-                cf.crop_dims[0] = min(IN_WIDTH, cf.crop_dims[0] + JUMP)
+                cf.crop_dims[0] += JUMP
+                if not is_crop_valid((IN_WIDTH, IN_HEIGHT), cf.crop_pos, cf.crop_dims):
+                    cf.crop_dims[0] -= JUMP
             elif key == Key.left:
-                cf.crop_dims[0] = max(0, cf.crop_dims[0] - JUMP)
+                cf.crop_dims[0] -= JUMP
+                if not is_crop_valid((IN_WIDTH, IN_HEIGHT), cf.crop_pos, cf.crop_dims):
+                    cf.crop_dims[0] += JUMP
             elif key == Key.up:
-                cf.crop_dims[1] = min(IN_HEIGHT, cf.crop_dims[1] + JUMP)
+                cf.crop_dims[1] += JUMP
+                if not is_crop_valid((IN_WIDTH, IN_HEIGHT), cf.crop_pos, cf.crop_dims):
+                    cf.crop_dims[1] -= JUMP
             elif key == Key.down:
-                cf.crop_dims[1] = max(0, cf.crop_dims[1] - JUMP)
+                cf.crop_dims[1] -= JUMP
+                if not is_crop_valid((IN_WIDTH, IN_HEIGHT), cf.crop_pos, cf.crop_dims):
+                    cf.crop_dims[1] += JUMP
         else: # control crop position
             # left and right are reversed to compensate for mirror effects
             if key == Key.right:
-                cf.crop_pos[0] = max(0, cf.crop_pos[0] - JUMP)
+                cf.crop_pos[0] -= JUMP
+                if not is_crop_valid((IN_WIDTH, IN_HEIGHT), cf.crop_pos, cf.crop_dims):
+                    cf.crop_pos[0] += JUMP
             elif key == Key.left:
-                cf.crop_pos[0] = min(cf.crop_dims[0], cf.crop_pos[0] + JUMP)
+                cf.crop_pos[0] += JUMP
+                if not is_crop_valid((IN_WIDTH, IN_HEIGHT), cf.crop_pos, cf.crop_dims):
+                    cf.crop_pos[0] -= JUMP
             elif key == Key.up:
-                cf.crop_pos[1] = max(0, cf.crop_pos[1] - JUMP)
+                cf.crop_pos[1] -= JUMP
+                if not is_crop_valid((IN_WIDTH, IN_HEIGHT), cf.crop_pos, cf.crop_dims):
+                    cf.crop_pos[1] += JUMP
             elif key == Key.down:
-                cf.crop_pos[1] = min(cf.crop_dims[1], cf.crop_pos[1] + JUMP)
+                cf.crop_pos[1] += JUMP
+                if not is_crop_valid((IN_WIDTH, IN_HEIGHT), cf.crop_pos, cf.crop_dims):
+                    cf.crop_pos[1] -= JUMP
     if (Key.alt in cur_keys): # control frame padding
         if key == Key.right:
             cf.pad_size[0] = max(0, cf.pad_size[0] - JUMP)
@@ -99,7 +114,7 @@ key_listener.start()
 
 
 def frame_modr(frame):
-    print(cf)
+    # print(cf)
     frame = crop(frame, cf.crop_dims[0], cf.crop_dims[1], x1=cf.crop_pos[0], y1=cf.crop_pos[1])
     frame = pad_inward_centered(frame, horizontal=cf.pad_size[0], vertical=cf.pad_size[1], color=0)
     return engage(frame)

@@ -1,6 +1,7 @@
 import cv2
 import math
 import numpy as np
+from typing import Tuple, Optional
 
 
 # def frame_modr(frame):
@@ -10,7 +11,27 @@ import numpy as np
 #     return mapped_grad
 
 
-def crop(frame, w: int, h: int, x1=0, y1=0):
+def is_crop_valid(frame: Tuple[int, int], start: Tuple[int, int], dims: Tuple[int, int]) -> bool:
+    """
+    Checks whether the rectangle defined by `start` and `dims` represent a valid section in `frame`.
+    frame: frame dimensions
+    """
+    # Make sure start is within frame
+    if (start[0] > frame[0]) or (start[0] < 0) or (start[1] > frame[1]) or (start[1] < 0):
+        return False
+
+    # Make sure that dims are positive numbers, <0 not supported
+    if dims[0] < 0 or dims[1] < 0:
+        return False
+
+    # Make sure start + dims are still within the frame
+    if (start[0] + dims[0] > frame[0]) or (start[1] + dims[1] > frame[1]):
+        return False
+
+    return True
+
+
+def crop(frame, w: int, h: int, x1=0, y1=0) -> Optional[np.ndarray]:
     """
     x1, y1: top left corner of the crop area.
     w, h: crop width and height
@@ -18,7 +39,11 @@ def crop(frame, w: int, h: int, x1=0, y1=0):
     # assuming w, h are smaller than the frame
     """
 
+
     fh, fw, _ = frame.shape
+
+    if not is_crop_valid((fw, fh), (x1, y1), (w, h)):
+        return None
 
     # keep the output strictly WxH
     if x1 < 0:
@@ -101,7 +126,6 @@ def resize_to_box(img, tw: int, th: int):
 
     # scale and pad
     scaled_img = cv2.resize(img, (new_w, new_h), interpolation=interp)
-    print('resize to bounding box', tw, th, f'scaled image, {scaled_img.shape}')
     return scaled_img
 
 
