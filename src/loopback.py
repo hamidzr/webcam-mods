@@ -39,7 +39,7 @@ VIDEO_OUT = 10
 
 def live_loop(mod=None):
     print(f'begin loopback write from dev #{VIDEO_IN} to #{VIDEO_OUT}')
-    with video_capture(IN_WIDTH, IN_HEIGHT, f'/dev/video{VIDEO_IN}') as cap:
+    with video_capture(IN_WIDTH, IN_HEIGHT, VIDEO_IN) as cap:
         # This is the loop that reads from the webcam, edits, and then writes to the loopback
         with pyvirtualcam.Camera(width=OUT_WIDTH, height=OUT_HEIGHT, fps=30, fmt=PixelFormat.BGR, print_fps=True) as cam:
             print(f'Using virtual camera: {cam.device}')

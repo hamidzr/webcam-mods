@@ -17,7 +17,7 @@ def prep_v4l2_descriptor(width, height, channels):
     return (v4l2.VIDIOC_S_FMT, format)
 
 @contextmanager
-def video_capture(w=640, h=480, input_dev='/dev/video0'):
+def video_capture(w=640, h=480, input_dev=0):
     # Grab the webcam feed and get the dimensions of a frame
     videoIn = cv2.VideoCapture(input_dev)
     if not videoIn.isOpened():
@@ -36,7 +36,7 @@ def video_capture(w=640, h=480, input_dev='/dev/video0'):
 
 
 @contextmanager
-def video_output(out_w=320, out_h=240, output_dev='/dev/video10'):
+def video_output(out_w=320, out_h=240, output_dev=10):
     # Name and instantiate our loopback device
     if not os.path.exists(output_dev):
         print("warning: device does not exist", output_dev)
