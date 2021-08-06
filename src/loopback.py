@@ -1,11 +1,11 @@
 import cv2
-import v4l2
-from contextlib import contextmanager
+import pyvirtualcam
+from pyvirtualcam import PixelFormat
 
 # We need to look at system information (os) and write to the device (fcntl)
 import os
-import fcntl
 from src.mods.video_mods import resize_and_pad
+from src.raw_v4l2 import video_capture
 from typing import cast
 import numpy as np
 
@@ -37,55 +37,26 @@ VIDEO_IN = os.getenv('VIDEO_IN', next(available_camera_indices()))
 VIDEO_OUT = 10
 
 
-def prep_v4l2_descriptor(width, height, channels):
-    # Set up the formatting of our loopback device
-    format = v4l2.v4l2_format()
-    format.type = v4l2.V4L2_BUF_TYPE_VIDEO_OUTPUT
-    format.fmt.pix.field = v4l2.V4L2_FIELD_NONE
-    format.fmt.pix.pixelformat = v4l2.V4L2_PIX_FMT_YUV420
-    format.fmt.pix.width = width
-    format.fmt.pix.height = height
-    format.fmt.pix.bytesperline = width * channels
-    format.fmt.pix.sizeimage = width * height * channels
-    return (v4l2.VIDIOC_S_FMT, format)
-
-@contextmanager
-def video_capture(w=640, h=480):
-    # Grab the webcam feed and get the dimensions of a frame
-    videoIn = cv2.VideoCapture(VIDEO_IN)
-    videoIn.set(cv2.CAP_PROP_FRAME_WIDTH, w)
-    videoIn.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
-
-    # Name and instantiate our loopback device
-    devName = f'/dev/video{VIDEO_OUT}'
-    if not os.path.exists(devName):
-        print("warning: device does not exist", devName)
-    with open(devName, 'wb') as videoOut:
-        req, format = prep_v4l2_descriptor(OUT_WIDTH, OUT_HEIGHT, 3)
-        try:
-            fcntl.ioctl(videoOut, req, format)
-            yield videoIn, videoOut
-        finally:
-            videoIn.release()
-
-
 def live_loop(mod=None):
     print(f'begin loopback write from dev #{VIDEO_IN} to #{VIDEO_OUT}')
-    with video_capture(IN_WIDTH, IN_HEIGHT) as (cap, device):
+    with video_capture(IN_WIDTH, IN_HEIGHT, f'/dev/video{VIDEO_IN}') as cap:
         # This is the loop that reads from the webcam, edits, and then writes to the loopback
-        while True:
-            ret, frame = cap.read()
-            ret = cast(bool, ret)
-            if not ret:
-                continue
-            # WARN: frame dimensions and format has to match readV4l2
-            if mod:
-                frame = mod(frame)
+        with pyvirtualcam.Camera(width=OUT_WIDTH, height=OUT_HEIGHT, fps=30, fmt=PixelFormat.BGR, print_fps=True) as cam:
+            print(f'Using virtual camera: {cam.device}')
+            while True:
+                ret, frame = cap.read()
+                ret = cast(bool, ret)
+                if not ret:
+                    continue
+                # WARN: frame dimensions and format has to match readV4l2
+                if mod:
+                    frame = mod(frame)
 
-            frame = resize_and_pad(frame, sw=OUT_WIDTH, sh=OUT_HEIGHT)
-            # assert frame.shape[0] == OUT_HEIGHT
-            # assert frame.shape[1] == OUT_WIDTH
-            device.write(cv2.cvtColor(frame, cv2.COLOR_BGR2YUV_I420))
+                frame = resize_and_pad(frame, sw=OUT_WIDTH, sh=OUT_HEIGHT)
+                # assert frame.shape[0] == OUT_HEIGHT
+                # assert frame.shape[1] == OUT_WIDTH
+                cam.send(frame)
+                cam.sleep_until_next_frame()
 
 
 if __name__ == "__main__":

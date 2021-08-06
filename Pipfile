@@ -15,8 +15,8 @@ tensorflow = "==1.13.1"
 dlib = "*"
 imutils = "*"
 pynput = "*"
-v4l2 = {git = "https://github.com/antmicro/python3-v4l2.git"}
 mediapipe = "*"
+pyvirtualcam = "*"
 
 [requires]
 python_version = "3.7"
