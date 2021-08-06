@@ -32,15 +32,23 @@ framesize fixed.
 
 ## Installation
 
-You might need to include `src` directory in your `$PYTHONPATH`
+You might need to include `src` directory in your `$PYTHONPATH`. To do so run the following:
+
+`export PYTHONPATH="./src:$PYTHONPATH"`
 
 ### Dependencies
 
-Python dependencies are listed in `Pipfile`. Install them using [Pipenv](https://pipenv-fork.readthedocs.io/en/latest/)
-
 System dependencies:
 
-- v4l2loopback
+- A virtual camera device: [Linux] v4l2loopback [Windows or MacOS] [OBS](https://obsproject.com/).
+Follow [pyvirtualcam's instructions](https://github.com/letmaik/pyvirtualcam#supported-virtual-cameras) to set this up.
+- python 3.7
+
+Python dependencies are listed in `Pipfile`. Install them using [Pipenv](https://pipenv-fork.readthedocs.io/en/latest/) (recommended)
+
+1. create a virtual environment: `pipenv --python 3.7`
+2. activate it `pipenv shell`
+3. install the dependencies `pipenv install --skip-lock`
 
 
 ## Upgrading
