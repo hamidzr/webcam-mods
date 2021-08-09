@@ -14,7 +14,8 @@ def frame_modr(frame):
     frame = crop(frame, cf.crop_dims[0], cf.crop_dims[1], x1=cf.crop_pos[0], y1=cf.crop_pos[1])
     resized_bg = resize_and_pad(bg_image, cf.crop_dims[0], cf.crop_dims[1]) # TODO we probably want to resize and avoid adding padding.
     frame = pad_inward_centered(frame, horizontal=cf.pad_size[0], vertical=cf.pad_size[1], color=0)
-    frame = swap_bg(frame, resized_bg)
+    # frame = swap_bg(frame, resized_bg)
+    frame = color_bg(frame)
     return frame
 
 

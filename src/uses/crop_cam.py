@@ -8,7 +8,7 @@ cur_keys = set()
 
 class Config:
     def __init__(self, path = '.webcam.conf'):
-        self.crop_dims = [100, 100] # dimenstions: w, h
+        self.crop_dims = [IN_WIDTH, IN_HEIGHT] # dimenstions: w, h
         self.reset_dependents()
         self._path = path
         if os.path.isfile(path):
