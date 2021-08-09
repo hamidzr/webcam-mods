@@ -51,6 +51,9 @@ Follow [pyvirtualcam's instructions](https://github.com/letmaik/pyvirtualcam#sup
 
 Python dependencies are listed in `Pipfile`. Install them using [Pipenv](https://pipenv-fork.readthedocs.io/en/latest/) (recommended)
 
+[WARN] If you don't use `pipenv` for dependency and virtual env management you'd need to find replacements wherever you
+see `pipenv` mentioned => `grep -R pipenv .`
+
 1. create a virtual environment: `pipenv --python 3.7`
 2. activate it `pipenv shell`
 3. install the dependencies `pipenv install --skip-lock`
