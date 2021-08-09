@@ -4,6 +4,10 @@ Tested on MacOS & Arch Linux.
 
 Checkout my other repository for some ffmpeg-only solutions [here](https://github.com/hamidzr/scripts/tree/master/ffmpeg)
 
+## Demo
+
+Installation and a work-in-progress demo: [https://youtu.be/idp7ei-pF40](https://youtu.be/idp7ei-pF40)
+
 ## Included Mods
 
 ### Face Tracking
