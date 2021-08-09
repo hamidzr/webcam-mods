@@ -76,7 +76,8 @@ house cleaning:
 features:
 - more stable edges for person segmentation
 - zoom support
-- MacOS and Windows support?
+- [x] MacOS support
+- Windows support?
 - convert/migrate env variables to cli arguments
 
 bugs:
