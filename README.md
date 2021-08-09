@@ -45,9 +45,11 @@ You might need to include `src` directory in your `$PYTHONPATH`. To do so run th
 
 System dependencies:
 
+- python 3.7
 - A virtual camera device: [Linux] v4l2loopback [Windows or MacOS] [OBS](https://obsproject.com/).
 Follow [pyvirtualcam's instructions](https://github.com/letmaik/pyvirtualcam#supported-virtual-cameras) to set this up.
-- python 3.7
+
+On Linux once you have the v4l module installed you can run `sudo make add-video-dev` to add a virtual camera device with some pre-set flags.
 
 Python dependencies are listed in `Pipfile`. Install them using [Pipenv](https://pipenv-fork.readthedocs.io/en/latest/) (recommended)
 
@@ -62,6 +64,12 @@ see `pipenv` mentioned => `grep -R pipenv .`
 ## Upgrading
 
 If you run into an issue upgrading try removing the old config file at `.webcam.conf`
+
+## Running the Mods
+
+After you've successfully followed installation steps, you can run the different python files in the
+`src/uses` directory directly to use the different modes.
+Some of these files have Make targets for ease of use. For example using the `make crop-cam` target activates the virtual env using pipenv and executes `python src/uses/crop_cam.py`
 
 ## Settings
 
