@@ -11,8 +11,8 @@ import numpy as np
 
 # WARN output dimentions should be smaller than input.. for now
 
-IN_WIDTH = 640
-IN_HEIGHT = 480
+IN_WIDTH = int(os.getenv('IN_WIDTH', 640))
+IN_HEIGHT = int(os.getenv('IN_HEIGHT', 480))
 
 OUT_WIDTH = 320  # 240
 OUT_HEIGHT = 240  # 320
@@ -39,16 +39,17 @@ VIDEO_OUT = 10
 
 def live_loop(mod=None):
     print(f'begin loopback write from dev #{VIDEO_IN} to #{VIDEO_OUT}')
-    with video_capture(IN_WIDTH, IN_HEIGHT, VIDEO_IN) as cap:
+    with video_capture(width=IN_WIDTH, height=IN_HEIGHT, input_dev=VIDEO_IN) as (cap, in_width, in_height, in_fps):
         # This is the loop that reads from the webcam, edits, and then writes to the loopback
-        with pyvirtualcam.Camera(width=OUT_WIDTH, height=OUT_HEIGHT, fps=30, fmt=PixelFormat.BGR, print_fps=True) as cam:
+        out_fps = min(30, in_fps)
+        with pyvirtualcam.Camera(width=OUT_WIDTH, height=OUT_HEIGHT, fps=out_fps, fmt=PixelFormat.BGR, print_fps=True) as cam:
             print(f'Using virtual camera: {cam.device}')
+            print(f'input: ({in_width}, {in_height}, {in_fps}), output: ({OUT_WIDTH}, {OUT_HEIGHT}, {out_fps}))')
             while True:
                 ret, frame = cap.read()
                 ret = cast(bool, ret)
-                if not ret:
+                if not ret or frame is None:
                     continue
-                # WARN: frame dimensions and format has to match readV4l2
                 if mod:
                     frame = mod(frame)
 

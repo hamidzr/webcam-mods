@@ -23,3 +23,9 @@ add-video-dev:
 
 # setup-webcam: add-video-dev
 # 	v4l2loopback-ctl set-caps 'video/x-raw,format=I420,width=320,height=240' /dev/video10
+
+# describe video devices on Linux
+.PHONY: describe-devices
+describe-devices:
+	v4l2-ctl --list-device
+	v4l2-ctl --list-formats-ext

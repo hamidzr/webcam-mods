@@ -17,7 +17,7 @@ def prep_v4l2_descriptor(width, height, channels):
     return (v4l2.VIDIOC_S_FMT, format)
 
 @contextmanager
-def video_capture(w=640, h=480, input_dev=0):
+def video_capture(width=None, height=None, input_dev=0):
     # Grab the webcam feed and get the dimensions of a frame
     videoIn = cv2.VideoCapture(input_dev)
     if not videoIn.isOpened():
@@ -26,11 +26,15 @@ def video_capture(w=640, h=480, input_dev=0):
     # width = int(videoIn.get(cv2.CAP_PROP_FRAME_WIDTH))
     # height = int(videoIn.get(cv2.CAP_PROP_FRAME_HEIGHT))
     # fps = videoIn.get(cv2.CAP_PROP_FPS)
-    videoIn.set(cv2.CAP_PROP_FRAME_WIDTH, w)
-    videoIn.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
+    if (width is not None and height is not None):
+        videoIn.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+        videoIn.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
     # videoIn.set(cv2.CAP_PROP_FPS, 30)
+    in_width = int(videoIn.get(cv2.CAP_PROP_FRAME_WIDTH))
+    in_height = int(videoIn.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps = videoIn.get(cv2.CAP_PROP_FPS)
     try:
-        yield videoIn
+        yield (videoIn, in_width, in_height, fps)
     finally:
         videoIn.release()
 
