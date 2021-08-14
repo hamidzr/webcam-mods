@@ -114,4 +114,5 @@ Use [GitHub Issues](https://github.com/hamidzr/webcam-mods/issues/new) to reach 
 ## Credits
 
 - [Google/mediapipe](https://github.com/google/mediapipe) for their selfie segmentation model.
-- There are more, I'll add them later..
+- [fangfufu/Linux-Fake-Background-Webcam](https://github.com/fangfufu/Linux-Fake-Background-Webcam) 
+- [letmaik/pyvirtualcam](https://github.com/letmaik/pyvirtualcam)

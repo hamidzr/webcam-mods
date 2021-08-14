@@ -10,6 +10,9 @@ selfie_segmentation = mp.solutions.selfie_segmentation.SelfieSegmentation(model_
 # selfie_segmentation.close()
 
 def biggest_comp(image):
+    """
+    Find the biggest connected component in a black and white mask
+    """
     # find white blocks
     nb_components, output, stats, centroids = cv2.connectedComponentsWithStats(image, connectivity=4)
     sizes = stats[:, -1]
@@ -25,6 +28,14 @@ def biggest_comp(image):
     img2[output == max_label] = 255
     # cv2.imshow("Biggest component", img2)
     return img2
+
+def sigmoid(x, a=5., b=-10.):
+    """
+    Converts the 0-1 value to a sigmoid going from zero to 1 in the same range
+    """
+    z = np.exp(a + b * x)
+    sig = 1 / (1 + z)
+    return sig
 
 
 # given a frame generates a mask
@@ -43,6 +54,11 @@ def mask(frame):
     image.flags.writeable = True
     image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
 
+    # post processing
+    result = cv2.dilate(result, np.ones((5, 5), np.uint8), iterations=1)
+    result = cv2.blur(result.astype(float), (10, 10))
+
+    result = sigmoid(result)
 
     # condition = np.stack((result,) * 3, axis=-1) > 0.1
     # condition = result > 0.1
@@ -54,8 +70,7 @@ def mask(frame):
     # mask = np.where(condition, fg_image, bg_image)
 
     # # cv2.imshow('befoe', mask)
-    # mask = biggest_comp(mask)
-    # cv2.imshow('after', mask)
+    # mask = biggest_comp(mask) cv2.imshow('after', mask)
 
     # To improve segmentation around boundaries, consider applying a joint
     # bilateral filter to "results.segmentation_mask" with "image".
