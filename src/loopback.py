@@ -20,6 +20,7 @@ NO_SIGNAL_IMG = f'{Path.cwd()}/data/nosignal.jpg'
 
 OUT_WIDTH = 320  # 240
 OUT_HEIGHT = 240  # 320
+MAX_OUT_FPS = int(os.getenv('MAX_OUT_FPS', 30))
 
 no_signal = cv2.imread(NO_SIGNAL_IMG)
 
@@ -56,7 +57,7 @@ def live_loop(mod=None, on_demand=False):
 
     # This is the loop that reads from the webcam, edits, and then writes to the loopback
     cap, in_width, in_height, in_fps = open_video_capture(width=IN_WIDTH, height=IN_HEIGHT, input_dev=VIDEO_IN)
-    out_fps = min(30, in_fps)
+    out_fps = min(MAX_OUT_FPS, in_fps)
     # cap.release()
     with pyvirtualcam.Camera(width=OUT_WIDTH, height=OUT_HEIGHT, fps=out_fps, fmt=PixelFormat.BGR, print_fps=True) as cam:
         print(f'Using virtual camera: {cam.device}')
