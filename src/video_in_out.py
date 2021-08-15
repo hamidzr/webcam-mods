@@ -2,6 +2,7 @@ import cv2
 import fcntl
 import os
 from contextlib import contextmanager
+import time
 
 def prep_v4l2_descriptor(width, height, channels):
     import v4l2
@@ -16,11 +17,15 @@ def prep_v4l2_descriptor(width, height, channels):
     format.fmt.pix.sizeimage = width * height * channels
     return (v4l2.VIDIOC_S_FMT, format)
 
+
 def open_video_capture(width=None, height=None, input_dev=0):
     # Grab the webcam feed and get the dimensions of a frame
     videoIn = cv2.VideoCapture(input_dev)
     if not videoIn.isOpened():
-        raise ValueError("error opening video")
+        # raise ValueError("error opening video")
+        print(f"failed to open video input device #{input_dev}")
+        time.sleep(1) # FIXME
+        return (videoIn, 0, 0 , 0)
     # length = int(videoIn.get(cv2.CAP_PROP_FRAME_COUNT))
     # width = int(videoIn.get(cv2.CAP_PROP_FRAME_WIDTH))
     # height = int(videoIn.get(cv2.CAP_PROP_FRAME_HEIGHT))

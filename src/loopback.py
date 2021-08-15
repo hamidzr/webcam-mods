@@ -72,19 +72,21 @@ def live_loop(mod=None, on_demand=False):
                             consumers += 1
                     if consumers > 0:
                         paused = False
-                        cap, *_ = open_video_capture(width=IN_WIDTH, height=IN_HEIGHT, input_dev=VIDEO_IN)
                         print("Consumers:", consumers)
                     else:
                         consumers = 0
                         paused = True
-                        # if cap.isOpened():
-                        cap.release()
+                        if cap.isOpened():
+                            cap.release()
                         print("No consumers remaining, paused")
             frame = None
             if paused:
                 frame = paused_frame
-                time.sleep(0.5)
+                time.sleep(0.5) # lower the fps when paused
             else:
+                if not cap.isOpened():
+                    cap, *_ = open_video_capture(width=IN_WIDTH, height=IN_HEIGHT, input_dev=VIDEO_IN)
+
                 ret, frame = cap.read()
                 ret = cast(bool, ret)
                 if not ret or frame is None:
