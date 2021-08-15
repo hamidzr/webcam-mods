@@ -5,6 +5,7 @@ from mods.record_replay import engage
 import os.path
 
 cur_keys = set()
+JUMP = 10  # pixels
 
 class Config:
     def __init__(self, path = '.webcam.conf'):
@@ -45,9 +46,6 @@ class Config:
         return str(self.to_dict())
 
 cf = Config('.webcam.conf')
-
-JUMP = 10  # pixels
-
 
 def on_press(key):
     global cf, cur_keys

@@ -44,7 +44,7 @@ def live_loop(mod=None):
         out_fps = min(30, in_fps)
         with pyvirtualcam.Camera(width=OUT_WIDTH, height=OUT_HEIGHT, fps=out_fps, fmt=PixelFormat.BGR, print_fps=True) as cam:
             print(f'Using virtual camera: {cam.device}')
-            print(f'input: ({in_width}, {in_height}, {in_fps}), output: ({OUT_WIDTH}, {OUT_HEIGHT}, {out_fps}))')
+            print(f'input: ({in_width}, {in_height}, {in_fps}), output: ({OUT_WIDTH}, {OUT_HEIGHT}, {out_fps})')
             while True:
                 ret, frame = cap.read()
                 ret = cast(bool, ret)

@@ -17,6 +17,7 @@ imutils = "*"
 pynput = "*"
 mediapipe = "*"
 pyvirtualcam = "*"
+typer = "*"
 
 [requires]
 python_version = "3.7"
