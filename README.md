@@ -72,11 +72,27 @@ Some of these files have Make targets for ease of use. For example using the `ma
 
 ## Settings
 
-If you have multiple video input devices, aka webcams, you can pick the one you want by providing its
-index through by setting the `VIDEO_IN` environment variable. eg `export VIDEO_IN=0`
-
 When you use the interactive controls to move the camera around the resulting parameters are saved in
 a text file to your disk currently named `.webcam.conf`
+
+### Environment Variables
+
+Environment variables are used to configure different parameters. Read more about how to set or
+persist them [here](https://lmgtfy.app/?q=how+to+set+environment+variables+in+linux)
+
+- `VIDEO_IN` & `VIDEO_OUT`:
+If you have multiple video input devices, aka webcams, you can pick the one you want by providing its
+index through by setting the `VIDEO_IN` environment variable. eg `export VIDEO_IN=0`. Same if you have
+multiple output devices.
+
+- `MAX_OUT_FPS`: [Default: 30] set an upper limit for output FPS.
+
+- `IN_WIDTH` [Default: 640], `IN_HEIGHT` [Default: 480]: Your video input device likely support
+multiple resolution and FPS settings use these env variables to pick and persist the one you want.
+
+- `ON_DEMAND` [Default: False, Linux only]: set to True to lower cpu usage while the output camera device isn't actively
+used.
+
 
 ## TODO
 
@@ -86,6 +102,7 @@ house cleaning:
 - set up a language server for development with Vim and VSCode
 - replace the facetracking model with mediapipe
 - move the config file to `$XDG_CONFIG_HOME`
+- cli support for settings currently supported by env variables
 
 features:
 - more stable edges for person segmentation
