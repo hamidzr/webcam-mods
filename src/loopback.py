@@ -8,7 +8,7 @@ import time
 # We need to look at system information (os) and write to the device (fcntl)
 import os
 from src.mods.video_mods import resize_and_pad
-from src.raw_v4l2 import open_video_capture
+from src.video_in_out import open_video_capture
 from typing import cast
 import numpy as np
 

@@ -97,9 +97,6 @@ features:
 bugs:
 - bug what?
 
-ideas from https://github.com/fangfufu/Linux-Fake-Background-Webcam/blob/master/fake.py#L285
-- on demand processing
-
 a demo video showcasing the features
 
 ## Contact
@@ -112,5 +109,6 @@ Use [GitHub Issues](https://github.com/hamidzr/webcam-mods/issues/new) to reach 
 ## Credits
 
 - [Google/mediapipe](https://github.com/google/mediapipe) for their selfie segmentation model.
-- [fangfufu/Linux-Fake-Background-Webcam](https://github.com/fangfufu/Linux-Fake-Background-Webcam) 
+- [fangfufu/Linux-Fake-Background-Webcam](https://github.com/fangfufu/Linux-Fake-Background-Webcam)
+For mask post processing and automatic ondemand pause and restart.
 - [letmaik/pyvirtualcam](https://github.com/letmaik/pyvirtualcam)
