@@ -1,3 +1,4 @@
+from src.mods.video_mods import ensure_rgb_color
 import cv2
 import mediapipe as mp
 import numpy as np
@@ -110,7 +111,7 @@ def mask(frame):
 def color_bg(frame, color=BG_COLOR):
     image, condition = mask(frame)
     bg_image = np.zeros(image.shape, dtype=np.uint8)
-    bg_image[:] = BG_COLOR
+    bg_image[:] = ensure_rgb_color(color)
     return apply_alpha_mask(fg=image, bg=bg_image, mask=condition)
 
 

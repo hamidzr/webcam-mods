@@ -27,13 +27,13 @@ def crop_cam():
 
 
 @app.command()
-def bg_remove(bg_color: int = 0):
+def bg_color(color: int = 192):
     """
     Basic controls + a solid color background
     """
     def frame_mod(frame):
         frame = base_mod(frame)
-        frame = color_bg(frame, bg_color)
+        frame = color_bg(frame, color)
         return frame
     live_loop(frame_mod)
 

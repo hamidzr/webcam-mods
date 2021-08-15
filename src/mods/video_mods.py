@@ -57,13 +57,15 @@ def crop(frame, w: int, h: int, x1=0, y1=0) -> Optional[np.ndarray]:
 
     return frame[y1:y1+h, x1:x1+w].copy()
 
+def ensure_rgb_color(color):
+    # color image but only one color provided
+    if not isinstance(color, (list, tuple, np.ndarray)):
+        color = [color]*3
+    return color
 
 # pad frame with pixels on each side.
 def pad(frame: np.ndarray, left=0, top=0, right=0, bottom=0, color=[0,0,0]):
-    # color image but only one color provided
-    if len(frame.shape) is 3 and not isinstance(color, (list, tuple, np.ndarray)):
-        color = [color]*3
-
+    color = ensure_rgb_color(color)
     return cv2.copyMakeBorder(frame, top, bottom, left, right,
         cv2.BORDER_CONSTANT, None, color)
 
