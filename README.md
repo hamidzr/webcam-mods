@@ -98,7 +98,6 @@ bugs:
 - bug what?
 
 ideas from https://github.com/fangfufu/Linux-Fake-Background-Webcam/blob/master/fake.py#L285
-- post processing, sigmoid
 - on demand processing
 
 a demo video showcasing the features

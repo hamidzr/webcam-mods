@@ -11,6 +11,8 @@ import typer
 app = typer.Typer()
 
 DEFAULT_BG_IMAGE = f'{Path.cwd()}/data/bg.jpg'
+ON_DEMAND = os.getenv('ON_DEMAND') == 'True'
+
 
 def base_mod(frame):
     frame = crop(frame, cf.crop_dims[0], cf.crop_dims[1], x1=cf.crop_pos[0], y1=cf.crop_pos[1])
@@ -23,7 +25,7 @@ def crop_cam():
     """
     Basic mods with interactive camera control
     """
-    live_loop(base_mod)
+    live_loop(base_mod, on_demand=ON_DEMAND)
 
 
 @app.command()
@@ -35,7 +37,7 @@ def bg_color(color: int = 192):
         frame = base_mod(frame)
         frame = color_bg(frame, color)
         return frame
-    live_loop(frame_mod)
+    live_loop(frame_mod, on_demand=ON_DEMAND)
 
 
 @app.command()
@@ -60,7 +62,7 @@ def bg_blur(kernel_size: int = 31):
     def frame_mod(frame):
         frame = base_mod(frame)
         return blur_bg(frame, kernel_size)
-    live_loop(frame_mod)
+    live_loop(frame_mod, on_demand=ON_DEMAND)
 
 
 if __name__ == "__main__":

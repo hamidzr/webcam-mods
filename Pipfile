@@ -18,6 +18,7 @@ pynput = "*"
 mediapipe = "*"
 pyvirtualcam = "*"
 typer = "*"
+inotify-simple = "*"
 
 [requires]
 python_version = "3.7"
