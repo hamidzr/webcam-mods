@@ -3,12 +3,6 @@ default: add-video-dev
 track-face:
 	pipenv run python src/uses/track_face.py
 
-bg-remove:
-	pipenv run python src/entry.py bg-remove
-
-bg-swap:
-	pipenv run python src/entry.py bg-swap
-
 crop-cam:
 	pipenv run python src/entry.py crop-cam
 

@@ -5,7 +5,6 @@ import numpy as np
 
 BG_COLOR = (192, 192, 192) # gray
 MODEL_SELECTION = 0
-BLUR_SIZE = 24
 
 selfie_segmentation = mp.solutions.selfie_segmentation.SelfieSegmentation(model_selection=MODEL_SELECTION)
 # selfie_segmentation.close()
@@ -115,9 +114,10 @@ def color_bg(frame, color=BG_COLOR):
     return apply_alpha_mask(fg=image, bg=bg_image, mask=condition)
 
 
-def blur_bg(frame, blur_size=BLUR_SIZE):
+def blur_bg(frame, kernel_size):
     image, condition = mask(frame)
-    bg_image = cv2.GaussianBlur(image,(blur_size,blur_size),0)
+    # bg_image = cv2.GaussianBlur(image,(kernel_size,kernel_size),0) # more cpu intensive
+    bg_image = cv2.blur(image,(kernel_size,kernel_size))
     return apply_alpha_mask(fg=image, bg=bg_image, mask=condition)
 
 

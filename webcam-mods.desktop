@@ -16,7 +16,7 @@ Comment=Webcam Modifiers
 # Path=$HOME/projects/python/webcam
 
 # The executable of the application, possibly with arguments.
-Exec=sh -c "cd $HOME/projects/python/webcam; make crop-cam"
+Exec=sh -c "cd $HOME/projects/python/webcam; pipenv run python src/uses/entry.py crop-cam"
 
 # The name of the icon that will be used to display this entry
 # Icon=jmemorize

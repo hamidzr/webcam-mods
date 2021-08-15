@@ -52,13 +52,14 @@ def bg_swap(img_path: str = DEFAULT_BG_IMAGE):
 
 
 @app.command()
-def bg_blur():
+def bg_blur(kernel_size: int = 31):
     """
-    Basic controls + a blurred background
+    Basic controls + a blurred background.
+    kernel-size is in pixels and needs to be an odd number.
     """
     def frame_mod(frame):
         frame = base_mod(frame)
-        return blur_bg(frame)
+        return blur_bg(frame, kernel_size)
     live_loop(frame_mod)
 
 
