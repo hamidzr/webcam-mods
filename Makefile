@@ -4,15 +4,13 @@ track-face:
 	pipenv run python src/uses/track_face.py
 
 bg-remove:
-	pipenv run python src/uses/bg_removal.py
+	pipenv run python src/entry.py bg-remove
 
 bg-swap:
-	# TODO fix background resizing
-	# using bg-remove for now
-	$(MAKE) bg-remove
+	pipenv run python src/entry.py bg-swap
 
 crop-cam:
-	pipenv run python src/uses/crop_cam.py
+	pipenv run python src/entry.py crop-cam
 
 # create a virtual video device on Linux
 add-video-dev:

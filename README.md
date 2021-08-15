@@ -67,9 +67,10 @@ If you run into an issue upgrading try removing the old config file at `.webcam.
 
 ## Running the Mods
 
-After you've successfully followed installation steps, you can run the different python files in the
+After you've successfully followed installation steps, you can run the different modes by
+calling `python src/uses/entry.py --help`.
 `src/uses` directory directly to use the different modes.
-Some of these files have Make targets for ease of use. For example using the `make crop-cam` target activates the virtual env using pipenv and executes `python src/uses/crop_cam.py`
+Some of these files have Make targets for ease of use. For example using the `make crop-cam` target activates the virtual env using pipenv and executes `python src/uses/entry.py crop-cam`
 
 ## Settings
 

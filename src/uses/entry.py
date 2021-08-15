@@ -1,49 +1,66 @@
-from src.mods.video_mods import resize_and_pad, pad_inward_centered
-from loopback import live_loop, OUT_WIDTH, OUT_HEIGHT
+from loopback import live_loop
 from mods.person_segmentation import color_bg, blur_bg, swap_bg
-from uses.crop_cam import cf, crop
-import os.path
+from mods.record_replay import engage
 from pathlib import Path
+from src.mods.video_mods import resize_and_pad, pad_inward_centered, crop
+from uses.interactive_controls import cf
 import cv2
+import os.path
 import typer
 
 app = typer.Typer()
 
+DEFAULT_BG_IMAGE = f'{Path.cwd()}/data/bg.jpg'
 
-bg_image = cv2.imread(f'{Path.cwd()}/data/bg.jpg')
-# bg_image = cv2.resize(, (OUT_WIDTH, OUT_HEIGHT))
-
-def engage_crop_cam(frame):
-    # TODO this should be more modular
+def base_mod(frame):
     frame = crop(frame, cf.crop_dims[0], cf.crop_dims[1], x1=cf.crop_pos[0], y1=cf.crop_pos[1])
     frame = pad_inward_centered(frame, horizontal=cf.pad_size[0], vertical=cf.pad_size[1], color=0)
-    # frame = swap_bg(frame, resized_bg)
-    frame = color_bg(frame)
-    return frame
-
-def bg_removal(frame):
-    frame = engage_crop_cam(frame)
-    # frame = swap_bg(frame, resized_bg)
-    frame = color_bg(frame)
-    return frame
+    return engage(frame)
 
 
 @app.command()
-def bg_remove():
+def crop_cam():
+    """
+    Basic mods with interactive camera control
+    """
+    live_loop(base_mod)
+
+
+@app.command()
+def bg_remove(bg_color: int = 0):
+    """
+    Basic controls + a solid color background
+    """
     def frame_mod(frame):
-        frame = engage_crop_cam(frame)
-        frame = color_bg(frame)
+        frame = base_mod(frame)
+        frame = color_bg(frame, bg_color)
         return frame
     live_loop(frame_mod)
 
+
 @app.command()
-def bg_swap():
+def bg_swap(img_path: str = DEFAULT_BG_IMAGE):
+    """
+    Basic controls + a swapped background with the provided image
+    """
+    bg_image = cv2.imread(img_path)
     def frame_mod(frame):
-        frame = engage_crop_cam(frame)
-        resized_bg = resize_and_pad(bg_image, cf.crop_dims[0], cf.crop_dims[1]) # TODO we probably want to resize and avoid adding padding.
-        frame = swap_bg(frame, resized_bg)
-        return frame
+        frame = base_mod(frame)
+        resized_bg = crop(bg_image, cf.crop_dims[0], cf.crop_dims[1])
+        return swap_bg(frame, resized_bg)
     live_loop(frame_mod)
+
+
+@app.command()
+def bg_blur():
+    """
+    Basic controls + a blurred background
+    """
+    def frame_mod(frame):
+        frame = base_mod(frame)
+        return blur_bg(frame)
+    live_loop(frame_mod)
+
 
 if __name__ == "__main__":
     app()

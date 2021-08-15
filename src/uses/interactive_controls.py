@@ -1,8 +1,7 @@
+import os.path
 from loopback import live_loop, IN_HEIGHT, IN_WIDTH
 from mods.video_mods import crop, pad_inward_centered, is_crop_valid
 from pynput.keyboard import Key, Listener
-from mods.record_replay import engage
-import os.path
 
 cur_keys = set()
 JUMP = 10  # pixels
@@ -109,14 +108,3 @@ def on_release(key):
 
 key_listener = Listener(on_press=on_press, on_release=on_release)
 key_listener.start()
-
-
-def frame_modr(frame):
-    # print(cf)
-    frame = crop(frame, cf.crop_dims[0], cf.crop_dims[1], x1=cf.crop_pos[0], y1=cf.crop_pos[1])
-    frame = pad_inward_centered(frame, horizontal=cf.pad_size[0], vertical=cf.pad_size[1], color=0)
-    return engage(frame)
-
-
-if __name__ == '__main__':
-    live_loop(frame_modr)
