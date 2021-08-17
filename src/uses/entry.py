@@ -1,9 +1,9 @@
-from loopback import live_loop
-from mods.person_segmentation import color_bg, blur_bg, swap_bg
-from mods.record_replay import engage
+from src.loopback import live_loop
+from src.mods.person_segmentation import color_bg, blur_bg, swap_bg
+from src.mods.record_replay import engage
 from pathlib import Path
-from src.mods.video_mods import resize_and_pad, pad_inward_centered, crop
-from uses.interactive_controls import cf
+from src.mods.video_mods import pad_inward_centered, crop
+from src.uses.interactive_controls import cf
 import cv2
 import os.path
 import typer

@@ -1,6 +1,6 @@
-from ultra_light import find_faces, draw_overlays
-from loopback import OUT_WIDTH, OUT_HEIGHT
-from mods.video_mods import crop
+from src.ultra_light import find_faces, draw_overlays
+from src.loopback import OUT_WIDTH, OUT_HEIGHT
+from src.mods.video_mods import crop
 import math
 import numpy as np
 import time

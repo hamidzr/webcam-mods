@@ -1,6 +1,6 @@
-from loopback import live_loop
-import mods.face_tracker_mod as ft
-from mods.record_replay import engage
+from src.loopback import live_loop
+import src.mods.face_tracker_mod as ft
+from src.mods.record_replay import engage
 
 ft.init(prediction_rate=0.5)
 

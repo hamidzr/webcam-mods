@@ -1,6 +1,6 @@
 import os.path
-from loopback import live_loop, IN_HEIGHT, IN_WIDTH
-from mods.video_mods import crop, pad_inward_centered, is_crop_valid
+from src.loopback import IN_HEIGHT, IN_WIDTH
+from src.mods.video_mods import is_crop_valid
 from pynput.keyboard import Key, Listener
 
 cur_keys = set()

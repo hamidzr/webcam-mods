@@ -35,9 +35,9 @@ framesize fixed.
 
 ## Installation
 
-You might need to include `src` directory in your `$PYTHONPATH`. To do so run the following:
+You might need to include the root directory in your `$PYTHONPATH`. To do so run the following:
 
-`export PYTHONPATH="./src:$PYTHONPATH"`
+`export PYTHONPATH="$PYTHONPATH:./"`
 
 ### Dependencies
 

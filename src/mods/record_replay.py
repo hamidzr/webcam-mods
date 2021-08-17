@@ -1,5 +1,5 @@
 import time
-from utils.cli_input import inp
+from src.utils.cli_input import inp
 
 memory = []  # memory consumption w*h*channels*1
 replay_idx = -1
