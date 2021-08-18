@@ -50,7 +50,7 @@ def bg_swap(img_path: str = DEFAULT_BG_IMAGE):
         frame = base_mod(frame)
         resized_bg = crop(bg_image, cf.crop_dims[0], cf.crop_dims[1])
         return swap_bg(frame, resized_bg)
-    live_loop(frame_mod)
+    live_loop(frame_mod, on_demand=ON_DEMAND)
 
 
 @app.command()
