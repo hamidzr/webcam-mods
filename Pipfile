@@ -7,8 +7,8 @@ verify_ssl = true
 flake8 = "*"
 
 [packages]
-opencv-python = "==4.1.1.26"
-tensorflow = "==1.13.1"
+opencv-python = "*"
+tensorflow = "*"
 pynput = "*"
 mediapipe = "*"
 pyvirtualcam = "*"
@@ -16,4 +16,4 @@ typer = "*"
 inotify-simple = "*"
 
 [requires]
-python_version = "3.7"
+python_version = "3.8"
