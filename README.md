@@ -33,6 +33,13 @@ Resize the cropped frame using `ctrl+shift+arrowkeys`
 Interactively pad your camera output with arrow keys `alt+arrowkeys` while keeping the output
 framesize fixed.
 
+#### Record & Replay
+
+Record and replay your camera feed on the fly. While you're in any of the other modes above
+press `r` to start recording and press `p` to stop recording and start replaying in a loop.
+
+_For entertainment purposes only_
+
 ## Installation
 
 You might need to include the root directory in your `$PYTHONPATH`. To do so run the following:
