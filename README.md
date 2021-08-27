@@ -112,11 +112,14 @@ house cleaning:
 - cli support for settings currently supported by env variables
 
 features:
-- more stable edges for person segmentation
-- zoom support
+- [x] more stable edges for person segmentation
+- including headphones in the mask 
+- [x] zoom support. done through resizing.
+  - the controls could be more intuitive
 - [x] MacOS support
-- Windows support?
+- [x] Windows support? should be there with `pyvirtualcam`
 - convert/migrate env variables to cli arguments
+- brightness control. (and hue, saturation?)
 
 bugs:
 - bug what?
