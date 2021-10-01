@@ -4,7 +4,7 @@ track-face:
 	pipenv run python src/uses/track_face.py
 
 crop-cam:
-	pipenv run python src/uses/entry.py crop-cam
+	pipenv run python entry.py crop-cam
 
 # create a virtual video device on Linux
 add-video-dev:
