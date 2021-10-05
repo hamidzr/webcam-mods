@@ -1,5 +1,5 @@
 import os.path
-from src.loopback import IN_HEIGHT, IN_WIDTH
+from src.config import IN_HEIGHT, IN_WIDTH
 from src.mods.video_mods import is_crop_valid
 from pynput.keyboard import Key, Listener
 
@@ -16,7 +16,8 @@ class Config:
             self.crop_dims = conf['crop_dims']
             self.crop_pos = conf['crop_pos']
             self.pad_size = conf['pad_size']
-        print("starting with config", self)
+
+        print("starting with config", self) # TODO use a logger
 
     def reset_dependents(self):
         self.crop_pos = [0, 0] # x1, h1
@@ -106,5 +107,5 @@ def on_release(key):
         cur_keys.remove(key)
 
 
+# TODO avoid always engaging these
 key_listener = Listener(on_press=on_press, on_release=on_release)
-key_listener.start()

@@ -90,7 +90,7 @@ def track_face():
             crop_box = (int(bbox.width*fw), int(bbox.height*fh), int(bbox.xmin*fw), int(bbox.ymin*fh))
             frame = crop(frame, crop_box[0], crop_box[1], crop_box[2], crop_box[3])
         return frame
-    live_loop(frame_mod, on_demand=ON_DEMAND)
+    live_loop(frame_mod, on_demand=ON_DEMAND, interactive_listener=None)
 
 if __name__ == "__main__":
     app()
