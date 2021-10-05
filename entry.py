@@ -84,9 +84,11 @@ def track_face():
     Crop around the first detected face.
     """
     def frame_mod(frame):
-        b = predict(frame)
-        if b is not None:
-            frame = crop(frame, b[0], b[1], b[2], b[3])
+        fh, fw, _ = frame.shape
+        bbox = predict(frame)
+        if bbox is not None:
+            crop_box = (int(bbox.width*fw), int(bbox.height*fh), int(bbox.xmin*fw), int(bbox.ymin*fh))
+            frame = crop(frame, crop_box[0], crop_box[1], crop_box[2], crop_box[3])
         return frame
     live_loop(frame_mod, on_demand=ON_DEMAND)
 

@@ -13,7 +13,11 @@ def init() -> face_detection.FaceDetection:
 
 def predict(frame) -> Optional[Tuple[int, int, int, int]]:
   """
-  predicts a bounding box around the first face found: (w, h, x1, y1)
+  predicts a bounding box around the first face found:
+  xmin: 0.43449878692626953
+  ymin: 0.47915118932724
+  width: 0.1905471682548523
+  height: 0.2540317177772522
   """
   image = frame
   fh, fw, _ = frame.shape
@@ -26,6 +30,4 @@ def predict(frame) -> Optional[Tuple[int, int, int, int]]:
   # print('Nose tip:')
   # print(face_detection.get_key_point(
   #     detection, face_detection.FaceKeyPoint.NOSE_TIP))
-  print(detection.location_data.relative_bounding_box)
-  bbox = detection.location_data.relative_bounding_box
-  return (int(bbox.width*fw), int(bbox.height*fh), int(bbox.xmin*fw), int(bbox.ymin*fh))
+  return detection.location_data.relative_bounding_box
