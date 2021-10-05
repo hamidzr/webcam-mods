@@ -1,3 +1,4 @@
+from sys import stderr
 import cv2
 from pathlib import Path
 import pyvirtualcam
@@ -43,7 +44,7 @@ VIDEO_IN = int(os.getenv('VIDEO_IN', next(available_camera_indices())))
 VIDEO_OUT = 10
 
 
-def live_loop(mod=None, on_demand=False):
+def live_loop(mod, on_demand=False):
     print(f'begin loopback write from dev #{VIDEO_IN} to #{VIDEO_OUT}')
 
     consumers = -1
@@ -63,6 +64,7 @@ def live_loop(mod=None, on_demand=False):
         print(f'Using virtual camera: {cam.device}')
         print(f'input: ({in_width}, {in_height}, {in_fps}), output: ({OUT_WIDTH}, {OUT_HEIGHT}, {out_fps})')
         paused_frame = resize_and_pad(no_signal, sw=OUT_WIDTH, sh=OUT_HEIGHT)
+        last_frame = paused_frame
         while True:
             if on_demand:
                 for event in inotify.read(0):
@@ -92,10 +94,15 @@ def live_loop(mod=None, on_demand=False):
                 ret = cast(bool, ret)
                 if not ret or frame is None:
                     continue
-                if mod:
+                try:
                     frame = mod(frame)
+                    frame = resize_and_pad(
+                        frame, sw=OUT_WIDTH, sh=OUT_HEIGHT)
+                    last_frame = frame
+                except Exception as e:
+                    print(f"failed to process frame: {e}", file=stderr)
+                    frame = last_frame
 
-            frame = resize_and_pad(frame, sw=OUT_WIDTH, sh=OUT_HEIGHT)
             # assert frame.shape[0] == OUT_HEIGHT
             # assert frame.shape[1] == OUT_WIDTH
             cam.send(frame)
