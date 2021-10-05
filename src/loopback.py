@@ -1,7 +1,9 @@
+from sys import stderr
 import cv2
-from pathlib import Path
 import pyvirtualcam
+from .config import IN_HEIGHT, IN_WIDTH, MAX_OUT_FPS, no_signal_img, OUT_HEIGHT, OUT_WIDTH
 from pyvirtualcam import PixelFormat
+from src.uses.interactive_controls import key_listener
 from inotify_simple import INotify, flags
 import time
 
@@ -13,16 +15,6 @@ from typing import cast
 import numpy as np
 
 # WARN output dimentions should be smaller than input.. for now
-
-IN_WIDTH = int(os.getenv('IN_WIDTH', 640))
-IN_HEIGHT = int(os.getenv('IN_HEIGHT', 480))
-NO_SIGNAL_IMG = f'{Path.cwd()}/data/nosignal.jpg'
-
-OUT_WIDTH = 320  # 240
-OUT_HEIGHT = 240  # 320
-MAX_OUT_FPS = int(os.getenv('MAX_OUT_FPS', 30))
-
-no_signal = cv2.imread(NO_SIGNAL_IMG)
 
 def available_camera_indices(end: int = 3):
     """
@@ -43,9 +35,11 @@ VIDEO_IN = int(os.getenv('VIDEO_IN', next(available_camera_indices())))
 VIDEO_OUT = 10
 
 
-def live_loop(mod=None, on_demand=False):
+def live_loop(mod, on_demand=False, interactive_listener=key_listener):
     print(f'begin loopback write from dev #{VIDEO_IN} to #{VIDEO_OUT}')
 
+    if interactive_listener is not None:
+        interactive_listener.start()
     consumers = -1
     paused = False
     inotify = INotify(nonblocking=True)
@@ -62,7 +56,8 @@ def live_loop(mod=None, on_demand=False):
     with pyvirtualcam.Camera(width=OUT_WIDTH, height=OUT_HEIGHT, fps=out_fps, fmt=PixelFormat.BGR, print_fps=True) as cam:
         print(f'Using virtual camera: {cam.device}')
         print(f'input: ({in_width}, {in_height}, {in_fps}), output: ({OUT_WIDTH}, {OUT_HEIGHT}, {out_fps})')
-        paused_frame = resize_and_pad(no_signal, sw=OUT_WIDTH, sh=OUT_HEIGHT)
+        paused_frame = resize_and_pad(no_signal_img, sw=OUT_WIDTH, sh=OUT_HEIGHT)
+        last_frame = paused_frame
         while True:
             if on_demand:
                 for event in inotify.read(0):
@@ -92,10 +87,15 @@ def live_loop(mod=None, on_demand=False):
                 ret = cast(bool, ret)
                 if not ret or frame is None:
                     continue
-                if mod:
+                try:
                     frame = mod(frame)
+                    frame = resize_and_pad(
+                        frame, sw=OUT_WIDTH, sh=OUT_HEIGHT)
+                    last_frame = frame
+                except Exception as e:
+                    print(f"failed to process frame: {e}", file=stderr)
+                    frame = last_frame
 
-            frame = resize_and_pad(frame, sw=OUT_WIDTH, sh=OUT_HEIGHT)
             # assert frame.shape[0] == OUT_HEIGHT
             # assert frame.shape[1] == OUT_WIDTH
             cam.send(frame)

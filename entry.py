@@ -3,6 +3,7 @@ from src.mods.person_segmentation import color_bg, blur_bg, swap_bg
 from src.mods.record_replay import engage
 from pathlib import Path
 from src.mods.video_mods import brighten as brighten_mod, pad_inward_centered, crop
+from src.mods.mp_face import predict
 from src.uses.interactive_controls import cf
 import cv2
 import os.path
@@ -69,13 +70,27 @@ def bg_blur(kernel_size: int = 31):
 @app.command()
 def brighten(level=30):
     """
-    Brightne the video feed by LEVEL
+    Brighten the video feed by LEVEL
     """
     def frame_mod(frame):
         frame = base_mod(frame)
         return brighten_mod(frame, int(level))
     live_loop(frame_mod, on_demand=ON_DEMAND)
 
+
+@app.command()
+def track_face():
+    """
+    Crop around the first detected face.
+    """
+    def frame_mod(frame):
+        fh, fw, _ = frame.shape
+        bbox = predict(frame)
+        if bbox is not None:
+            crop_box = (int(bbox.width*fw), int(bbox.height*fh), int(bbox.xmin*fw), int(bbox.ymin*fh))
+            frame = crop(frame, crop_box[0], crop_box[1], crop_box[2], crop_box[3])
+        return frame
+    live_loop(frame_mod, on_demand=ON_DEMAND, interactive_listener=None)
 
 if __name__ == "__main__":
     app()

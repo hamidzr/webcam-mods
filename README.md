@@ -50,7 +50,7 @@ You might need to include the root directory in your `$PYTHONPATH`. To do so run
 
 System dependencies:
 
-- python 3.7
+- python 3.8
 - A virtual camera device: [Linux] v4l2loopback [Windows or MacOS] [OBS](https://obsproject.com/).
 Follow [pyvirtualcam's instructions](https://github.com/letmaik/pyvirtualcam#supported-virtual-cameras) to set this up.
 
@@ -61,7 +61,7 @@ Python dependencies are listed in `Pipfile`. Install them using [Pipenv](https:/
 [WARN] If you don't use `pipenv` for dependency and virtual env management you'd need to find replacements wherever you
 see `pipenv` mentioned => `grep -R pipenv .`
 
-1. create a virtual environment: `pipenv --python 3.7`
+1. create a virtual environment: `pipenv --python 3.8`
 2. activate it `pipenv shell`
 3. install the dependencies `pipenv install --skip-lock`
 

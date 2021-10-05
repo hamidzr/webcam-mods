@@ -1,12 +1,12 @@
 from src.mods.video_mods import ensure_rgb_color
 import cv2
-import mediapipe as mp
+from mediapipe.python.solutions import selfie_segmentation
 import numpy as np
 
 BG_COLOR = (192, 192, 192) # gray
 MODEL_SELECTION = 0
 
-selfie_segmentation = mp.solutions.selfie_segmentation.SelfieSegmentation(model_selection=MODEL_SELECTION)
+selfie_segmentation = selfie_segmentation.SelfieSegmentation(model_selection=MODEL_SELECTION)
 # selfie_segmentation.close()
 
 def biggest_comp(image):
