@@ -118,8 +118,9 @@ features:
   - the controls could be more intuitive
 - [x] MacOS support
 - [x] Windows support? should be there with `pyvirtualcam`
-- convert/migrate env variables to cli arguments
-- brightness control. (and hue, saturation?)
+- [ ] convert/migrate env variables to cli arguments
+- [ ] brightness control. (and hue, saturation?)
+- [ ] smooth bounding box tracking (for facetracking and more)
 
 bugs:
 - bug what?
