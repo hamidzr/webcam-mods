@@ -5,37 +5,20 @@ from .config import IN_HEIGHT, IN_WIDTH, MAX_OUT_FPS, no_signal_img, OUT_HEIGHT,
 from pyvirtualcam import PixelFormat
 from src.uses.interactive_controls import key_listener
 from inotify_simple import INotify, flags
+from src.input.video_dev import VIDEO_IN, open_video_capture
 import time
 
 # We need to look at system information (os) and write to the device (fcntl)
 import os
 from src.mods.video_mods import resize_and_pad
-from src.video_in_out import open_video_capture
 from typing import cast
 import numpy as np
 
-# WARN output dimentions should be smaller than input.. for now
+# WARN output dimensions should be smaller than input.. for now
 
-def available_camera_indices(end: int = 3):
-    """
-    Check up to `end` video devices to find available ones.
-    """
-    index = 0
-    i = end
-    while i > 0:
-        cap = cv2.VideoCapture(index)
-        if cap.read()[0]:
-            cap.release()
-            yield index
-        index += 1
-        i -= 1
-
-
-VIDEO_IN = int(os.getenv('VIDEO_IN', next(available_camera_indices())))
 VIDEO_OUT = 10
 
-
-def live_loop(mod, on_demand=False, interactive_listener=key_listener):
+def live_loop(mod=None, on_demand=False, interactive_listener=key_listener):
     print(f'begin loopback write from dev #{VIDEO_IN} to #{VIDEO_OUT}')
 
     if interactive_listener is not None:
@@ -88,7 +71,8 @@ def live_loop(mod, on_demand=False, interactive_listener=key_listener):
                 if not ret or frame is None:
                     continue
                 try:
-                    frame = mod(frame)
+                    if mod:
+                        frame = mod(frame)
                     frame = resize_and_pad(
                         frame, sw=OUT_WIDTH, sh=OUT_HEIGHT)
                     last_frame = frame
