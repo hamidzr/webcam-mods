@@ -1,4 +1,5 @@
 import cv2
+from time import sleep
 import datetime as dt
 from typing import Dict, Any
 from src.input.input import FrameOutput, Frame
@@ -23,3 +24,6 @@ class GUI(FrameOutput):
         self.i += 1
         if self.i % 100 == 0:
             print('fps:', int(self.i / time_diff))
+
+    def wait_until_next_frame(self):
+        sleep(1/self.fps)

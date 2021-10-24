@@ -7,16 +7,18 @@ from src.input.input import FrameInput
 from src.types import BoundingBox
 
 class Screen(FrameInput):
-    sct: Optional[MSSBase]
+    sct: MSSBase
     def __init__(self, top: int = 0, left: int = 0, **kwargs):
         super().__init__(**kwargs)
         self.top = top
         self.left = left
         self.bounding_box = BoundingBox(top=top, left=left,
                                         width=self.width, height=self.height)
+        self._is_setup = False # is there a better way?
 
     def setup(self):
         self.sct = mss()
+        self._is_setup = True
         return {'fps': 15}
 
     def frame(self):
@@ -26,11 +28,11 @@ class Screen(FrameInput):
     def teardown(self):
         if not self.is_setup():
             return
+        self._is_setup = False
         cast(MSSBase, self.sct).close()
-        self.sct = None
 
     def is_setup(self):
-        return self.sct == None
+        return self._is_setup
 
 if __name__ == '__main__':
     s = Screen()

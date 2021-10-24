@@ -1,8 +1,7 @@
 from abc import abstractmethod
+from src.config import MAX_OUT_FPS
 from typing import Any, Optional, Dict, Generator, Tuple
 import cv2
-# import numpy as np
-# import time
 import datetime as dt
 
 
@@ -14,7 +13,7 @@ class InNOut:
     def __init__(self,
                  width: int = 100,
                  height: int = 100,
-                 fps: int = 30):
+                 fps: int = MAX_OUT_FPS):
         self.width = width
         self.height = height
         self.fps = fps

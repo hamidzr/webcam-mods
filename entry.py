@@ -1,3 +1,4 @@
+from src.output.pyvirtcam import VirtualCam
 from src.loopback import live_loop
 from src.mods.person_segmentation import color_bg, blur_bg, swap_bg
 from src.mods.record_replay import engage
@@ -6,6 +7,7 @@ from src.mods.video_mods import brighten as brighten_mod, pad_inward_centered, c
 from src.mods.mp_face import predict
 from src.uses.interactive_controls import cf
 from src.input.screen import Screen
+from src.output.gui import GUI
 import cv2
 import os
 import typer
@@ -115,12 +117,16 @@ def track_face():
 
 @app.command()
 def share_screen(top: int = 0, left: int = 0,
-                 width: int = 640, height: int = 480):
+                 width: int = 640, height: int = 480,
+                 output: str = 'virtual-cam'):
     """
     Share a portion of the screen.
     """
     screen = Screen(top=top, left=left, width=width, height=height)
-    live_loop(finput=screen, out_width=width, out_height=height)
-
+    if output == GUI.id:
+        gui = GUI(width=width, height=height)
+        live_loop(fIn=screen, fOut=gui)
+    else:
+        live_loop(fIn=screen)
 if __name__ == "__main__":
     app()

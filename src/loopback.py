@@ -1,6 +1,6 @@
 from src.output.pyvirtcam import VirtualCam
 from sys import stderr
-from .config import IN_HEIGHT, IN_WIDTH, MAX_OUT_FPS, no_signal_img, OUT_HEIGHT, OUT_WIDTH
+from src.config import IN_HEIGHT, IN_WIDTH, MAX_OUT_FPS, no_signal_img, OUT_HEIGHT, OUT_WIDTH
 from src.uses.interactive_controls import key_listener
 from src.input.video_dev import Webcam
 from src.input.input import FrameInput, FrameOutput
@@ -13,7 +13,7 @@ from src.mods.video_mods import resize_and_pad
 default_input = Webcam(width=IN_WIDTH, height=IN_HEIGHT)
 with default_input as (fIn, inp_props):
     out_fps = min(MAX_OUT_FPS, inp_props['fps'])
-    default_output = VirtualCam(width=OUT_WIDTH, height=OUT_HEIGHT, fps=out_fps)
+default_output = VirtualCam(width=OUT_WIDTH, height=OUT_HEIGHT, fps=out_fps)
 
 def live_loop(
     mod=None,
@@ -28,8 +28,9 @@ def live_loop(
         interactive_listener.start()
     paused = False if not on_demand else True
 
+    inp_props = default_input.setup()
     # This is the loop that reads from the input, edits, and then writes to the loopback
-    with default_output as (cam, outp_props):
+    with fOut as (cam, outp_props):
         print(f'input: {inp_props}, output: {outp_props}')
         paused_frame = resize_and_pad(no_signal_img, sw=fOut.width, sh=fOut.height)
         last_frame = paused_frame
@@ -62,6 +63,7 @@ def live_loop(
 
             # assert frame.shape[0] == fOut.height
             # assert frame.shape[1] == fOut.width
+            # print('sending frame shape', frame.shape)
             cam.send(frame)
             cam.wait_until_next_frame()
 
