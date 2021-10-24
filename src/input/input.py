@@ -18,7 +18,7 @@ class FrameInput:
         self.fps = fps
 
     @abstractmethod
-    def setup(self) -> Dict[str, Any]:
+    def setup(self, *args, **kwargs) -> Dict[str, Any]:
         pass
 
     @abstractmethod

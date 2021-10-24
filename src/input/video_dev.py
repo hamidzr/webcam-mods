@@ -19,7 +19,6 @@ def available_camera_indices(end: int = 3):
         index += 1
         i -= 1
 
-
 VIDEO_IN = int(os.getenv('VIDEO_IN', next(available_camera_indices())))
 
 def open_video_capture(width=None, height=None, input_dev=0):

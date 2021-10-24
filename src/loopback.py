@@ -17,8 +17,9 @@ import numpy as np
 
 VIDEO_OUT = 10
 
-def live_loop(mod=None, on_demand=False, frame_input: FrameInput = None, interactive_listener=key_listener):
-    inp = Webcam(width=IN_WIDTH, height=IN_HEIGHT) # TODO replace with frame_input
+default_input = Webcam(width=IN_WIDTH, height=IN_HEIGHT)
+
+def live_loop(mod=None, on_demand=False, finput: FrameInput = default_input, interactive_listener=key_listener):
     print(f'begin loopback write from dev #{VIDEO_IN} to #{VIDEO_OUT}')
 
     if interactive_listener is not None:
@@ -32,9 +33,9 @@ def live_loop(mod=None, on_demand=False, frame_input: FrameInput = None, interac
         paused = True
 
 
-    # This is the loop that reads from the webcam, edits, and then writes to the loopback
-    inp_props = inp.setup(device_index=VIDEO_IN)
-    inp.teardown()
+    # This is the loop that reads from the input, edits, and then writes to the loopback
+    inp_props = finput.setup(device_index=VIDEO_IN)
+    finput.teardown()
     out_fps = min(MAX_OUT_FPS, inp_props['fps'])
     with pyvirtualcam.Camera(width=OUT_WIDTH, height=OUT_HEIGHT, fps=out_fps, fmt=PixelFormat.BGR, print_fps=True) as cam:
         print(f'Using virtual camera: {cam.device}')
@@ -55,17 +56,17 @@ def live_loop(mod=None, on_demand=False, frame_input: FrameInput = None, interac
                     else:
                         consumers = 0
                         paused = True
-                        inp.teardown()
+                        finput.teardown()
                         print("No consumers remaining, paused")
             frame = None
             if paused:
                 frame = paused_frame
                 time.sleep(0.5) # lower the fps when paused
             else:
-                if not inp.is_setup():
-                    inp.setup(device_index=VIDEO_IN)
+                if not finput.is_setup():
+                    finput.setup(device_index=VIDEO_IN)
 
-                ret, frame = inp.frame()
+                ret, frame = finput.frame()
                 ret = cast(bool, ret)
                 if not ret or frame is None:
                     continue
