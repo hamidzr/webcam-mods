@@ -6,7 +6,6 @@ from src.mods.video_mods import brighten as brighten_mod, pad_inward_centered, c
 from src.mods.mp_face import predict
 from src.uses.interactive_controls import cf
 from src.input.screen import Screen
-from src.types import BoundingBox
 import cv2
 import os
 import typer
@@ -115,12 +114,12 @@ def track_face():
     live_loop(frame_mod, on_demand=ON_DEMAND, interactive_listener=None)
 
 @app.command()
-def share_screen():
+def share_screen(top: int = 0, left: int = 0,
+                 width: int = 640, height: int = 480):
     """
     Share a portion of the screen.
     """
-    bounding_box: BoundingBox = BoundingBox(**{'top': 0, 'left': 0, 'width': 400, 'height': 300})
-    screen = Screen()
+    screen = Screen(top=top, left=left, width=width, height=height)
     live_loop(finput=screen)
 
 if __name__ == "__main__":
