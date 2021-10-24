@@ -8,7 +8,7 @@ import datetime as dt
 
 Frame = Any
 
-class FrameInput:
+class InNOut:
     def __init__(self,
                  width: int = 100,
                  height: int = 100,
@@ -18,17 +18,24 @@ class FrameInput:
         self.fps = fps
 
     @abstractmethod
-    def setup(self, *args, **kwargs) -> Dict[str, Any]:
+    def setup(self) -> Dict[str, Any]:
         pass
+
+    def __enter__(self) -> Dict[str, Any]:
+        return self.setup()
 
     @abstractmethod
     def teardown(self):
         pass
 
+    def __exit__(self):
+        self.teardown()
+
     @abstractmethod
     def is_setup(self) -> bool:
         pass
 
+class FrameInput(InNOut):
     @abstractmethod
     def frame(self) -> Optional[Frame]:
         pass
@@ -50,3 +57,13 @@ class FrameInput:
             i += 1
             if i % 100 == 0:
                 print('fps:', int(i / time_diff))
+
+
+class FrameOutput(InNOut):
+    @abstractmethod
+    def send(self, frame: Frame):
+        pass
+
+    @abstractmethod
+    def sleep_until_next_frame(self):
+        pass

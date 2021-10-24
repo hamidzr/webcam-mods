@@ -15,8 +15,7 @@ from src.mods.video_mods import resize_and_pad
 
 default_input = Webcam(width=IN_WIDTH, height=IN_HEIGHT)
 
-def live_loop(
-    mod=None,
+def live_loop( mod=None,
     on_demand=False,
     finput: FrameInput = default_input,
     out_device_index = VIDEO_OUT,
