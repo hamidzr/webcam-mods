@@ -1,5 +1,6 @@
 import cv2
 from contextlib import contextmanager
+from src.input.input import FrameInput
 import time
 import os
 
@@ -49,4 +50,6 @@ def video_capture(width=None, height=None, input_dev=0):
         yield (videoIn, in_width, in_height, fps)
     finally:
         videoIn.release()
+
+# class Webcam(FrameInput):
 
