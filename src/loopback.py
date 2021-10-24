@@ -1,15 +1,14 @@
 from sys import stderr
-import cv2
 import pyvirtualcam
 from .config import IN_HEIGHT, IN_WIDTH, MAX_OUT_FPS, no_signal_img, OUT_HEIGHT, OUT_WIDTH
 from pyvirtualcam import PixelFormat
 from src.uses.interactive_controls import key_listener
 from inotify_simple import INotify, flags
-from src.input.video_dev import VIDEO_IN, open_video_capture
+from src.input.video_dev import VIDEO_IN, Webcam
+from src.input.input import FrameInput
 import time
 
 # We need to look at system information (os) and write to the device (fcntl)
-import os
 from src.mods.video_mods import resize_and_pad
 from typing import cast
 import numpy as np
@@ -18,7 +17,8 @@ import numpy as np
 
 VIDEO_OUT = 10
 
-def live_loop(mod=None, on_demand=False, interactive_listener=key_listener):
+def live_loop(mod=None, on_demand=False, frame_input: FrameInput = None, interactive_listener=key_listener):
+    inp = Webcam(width=IN_WIDTH, height=IN_HEIGHT) # TODO replace with frame_input
     print(f'begin loopback write from dev #{VIDEO_IN} to #{VIDEO_OUT}')
 
     if interactive_listener is not None:
@@ -33,12 +33,12 @@ def live_loop(mod=None, on_demand=False, interactive_listener=key_listener):
 
 
     # This is the loop that reads from the webcam, edits, and then writes to the loopback
-    cap, in_width, in_height, in_fps = open_video_capture(width=IN_WIDTH, height=IN_HEIGHT, input_dev=VIDEO_IN)
-    out_fps = min(MAX_OUT_FPS, in_fps)
-    # cap.release()
+    inp_props = inp.setup(device_index=VIDEO_IN)
+    inp.teardown()
+    out_fps = min(MAX_OUT_FPS, inp_props['fps'])
     with pyvirtualcam.Camera(width=OUT_WIDTH, height=OUT_HEIGHT, fps=out_fps, fmt=PixelFormat.BGR, print_fps=True) as cam:
         print(f'Using virtual camera: {cam.device}')
-        print(f'input: ({in_width}, {in_height}, {in_fps}), output: ({OUT_WIDTH}, {OUT_HEIGHT}, {out_fps})')
+        print(f'input: {inp_props}, output: ({OUT_WIDTH}, {OUT_HEIGHT}, {out_fps})')
         paused_frame = resize_and_pad(no_signal_img, sw=OUT_WIDTH, sh=OUT_HEIGHT)
         last_frame = paused_frame
         while True:
@@ -55,18 +55,17 @@ def live_loop(mod=None, on_demand=False, interactive_listener=key_listener):
                     else:
                         consumers = 0
                         paused = True
-                        if cap.isOpened():
-                            cap.release()
+                        inp.teardown()
                         print("No consumers remaining, paused")
             frame = None
             if paused:
                 frame = paused_frame
                 time.sleep(0.5) # lower the fps when paused
             else:
-                if not cap.isOpened():
-                    cap, *_ = open_video_capture(width=IN_WIDTH, height=IN_HEIGHT, input_dev=VIDEO_IN)
+                if not inp.is_setup():
+                    inp.setup(device_index=VIDEO_IN)
 
-                ret, frame = cap.read()
+                ret, frame = inp.frame()
                 ret = cast(bool, ret)
                 if not ret or frame is None:
                     continue
