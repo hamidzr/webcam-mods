@@ -70,7 +70,7 @@ class Webcam(FrameInput):
         self.fps = fps
         return {'width': width, 'height': height, 'fps': fps}
 
-    def teardown(self):
+    def teardown(self, *args):
         if self.is_setup():
             self.cap.release()
 

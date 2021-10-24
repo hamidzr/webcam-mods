@@ -1,13 +1,10 @@
 from src.output.pyvirtcam import VirtualCam
 from sys import stderr
-import pyvirtualcam
 from .config import IN_HEIGHT, IN_WIDTH, MAX_OUT_FPS, no_signal_img, OUT_HEIGHT, OUT_WIDTH, VIDEO_OUT
-from pyvirtualcam import PixelFormat
 from src.uses.interactive_controls import key_listener
 from inotify_simple import INotify, flags
 from src.input.video_dev import Webcam
 from src.input.input import FrameInput, FrameOutput
-from typing import Type
 import time
 
 # We need to look at system information (os) and write to the device (fcntl)
@@ -16,21 +13,22 @@ from src.mods.video_mods import resize_and_pad
 # WARN output dimensions should be smaller than input.. for now
 
 default_input = Webcam(width=IN_WIDTH, height=IN_HEIGHT)
+with default_input as (finput, inp_props):
+    out_fps = min(MAX_OUT_FPS, inp_props['fps'])
+    default_output = VirtualCam(width=OUT_WIDTH, height=OUT_HEIGHT, fps=out_fps)
 
 def live_loop(mod=None,
     on_demand=False,
     finput: FrameInput = default_input,
-    output_cls: Type[FrameOutput] = VirtualCam,
+    foutput: FrameOutput = default_output,
     out_device_index = VIDEO_OUT,
-    out_height = OUT_HEIGHT,
-    out_width = OUT_WIDTH,
     interactive_listener=key_listener,
 ):
     # print(f'begin loopback write from #{input_cls.__name__} to #{output_cls.__name__}')
 
     if interactive_listener is not None:
         interactive_listener.start()
-    consumers = -1
+    consumers = 0
     paused = False
     inotify = INotify(nonblocking=True)
     if on_demand:
@@ -38,18 +36,10 @@ def live_loop(mod=None,
         inotify.add_watch(f'/dev/video{out_device_index}', watch_flags)
         paused = True
 
-    # finput = input_cls(width=IN_WIDTH, height=IN_HEIGHT)
-
     # This is the loop that reads from the input, edits, and then writes to the loopback
-    inp_props = finput.setup()
-    finput.teardown()
-    out_fps = min(MAX_OUT_FPS, inp_props['fps'])
-
-    # foutput = output_cls(width=out_width, height=out_height, fps=out_fps)
-
-    with VirtualCam(width=out_width, height=out_height, fps=out_fps) as (cam, outp_props):
+    with default_output as (cam, outp_props):
         print(f'input: {inp_props}, output: {outp_props}')
-        paused_frame = resize_and_pad(no_signal_img, sw=out_width, sh=out_height)
+        paused_frame = resize_and_pad(no_signal_img, sw=foutput.width, sh=foutput.height)
         last_frame = paused_frame
         while True:
             if on_demand:
@@ -82,7 +72,7 @@ def live_loop(mod=None,
                     if mod:
                         frame = mod(frame)
                     frame = resize_and_pad(
-                        frame, sw=out_width, sh=out_height)
+                        frame, sw=foutput.width, sh=foutput.height)
                     last_frame = frame
                 except Exception as e:
                     print(f"failed to process frame: {e}", file=stderr)
