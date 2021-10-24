@@ -9,15 +9,17 @@ from pyvirtualcam import PixelFormat
 class VirtualCam(FrameOutput):
     id = 'vritual-cam'
     def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self.cam = pyvirtualcam.Camera(width=self.width, height=self.height,
                                        fps=self.fps, fmt=PixelFormat.BGR, print_fps=True)
 
     def setup(self) -> Dict[str, Any]:
         self.cam.__enter__()
-        return {}
+        return {'device': self.cam.device, 'width': self.cam.width,
+                'height': self.cam.height, 'fps': self.cam.fps}
 
-    def teardown(self):
-        return self.cam.__exit__()
+    def teardown(self, *args):
+        return self.cam.__exit__(*args)
 
     def send(self, frame: Frame):
         return self.cam.send(frame)

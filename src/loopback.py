@@ -15,18 +15,18 @@ from src.mods.video_mods import resize_and_pad
 
 # WARN output dimensions should be smaller than input.. for now
 
-# default_input = Webcam(width=IN_WIDTH, height=IN_HEIGHT)
+default_input = Webcam(width=IN_WIDTH, height=IN_HEIGHT)
 
 def live_loop(mod=None,
     on_demand=False,
-    input_cls: Type[FrameInput] = Webcam,
+    finput: FrameInput = default_input,
     output_cls: Type[FrameOutput] = VirtualCam,
     out_device_index = VIDEO_OUT,
     out_height = OUT_HEIGHT,
     out_width = OUT_WIDTH,
     interactive_listener=key_listener,
 ):
-    print(f'begin loopback write from #{input_cls.__name__} to #{output_cls.__name__}')
+    # print(f'begin loopback write from #{input_cls.__name__} to #{output_cls.__name__}')
 
     if interactive_listener is not None:
         interactive_listener.start()
@@ -38,18 +38,17 @@ def live_loop(mod=None,
         inotify.add_watch(f'/dev/video{out_device_index}', watch_flags)
         paused = True
 
-    finput = input_cls(width=IN_WIDTH, height=IN_HEIGHT)
+    # finput = input_cls(width=IN_WIDTH, height=IN_HEIGHT)
 
     # This is the loop that reads from the input, edits, and then writes to the loopback
     inp_props = finput.setup()
     finput.teardown()
     out_fps = min(MAX_OUT_FPS, inp_props['fps'])
 
-    foutput = output_cls(width=out_width, height=out_height, fps=out_fps)
+    # foutput = output_cls(width=out_width, height=out_height, fps=out_fps)
 
-    with pyvirtualcam.Camera(width=out_width, height=out_height, fps=out_fps, fmt=PixelFormat.BGR, print_fps=True) as cam:
-        print(f'Using virtual camera: {cam.device}')
-        print(f'input: {inp_props}, output: ({out_width}, {out_height}, {out_fps})')
+    with VirtualCam(width=out_width, height=out_height, fps=out_fps) as (cam, outp_props):
+        print(f'input: {inp_props}, output: {outp_props}')
         paused_frame = resize_and_pad(no_signal_img, sw=out_width, sh=out_height)
         last_frame = paused_frame
         while True:
@@ -92,7 +91,7 @@ def live_loop(mod=None,
             # assert frame.shape[0] == out_height
             # assert frame.shape[1] == out_width
             cam.send(frame)
-            cam.sleep_until_next_frame()
+            cam.wait_until_next_frame()
 
 
 if __name__ == "__main__":

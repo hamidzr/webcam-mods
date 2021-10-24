@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import Any, Optional, Dict, Generator, TypeVar
+from typing import Any, Optional, Dict, Generator, Tuple
 import cv2
 import numpy as np
 import time
@@ -23,15 +23,15 @@ class InNOut:
     def setup(self) -> Dict[str, Any]:
         raise NotImplementedError()
 
-    def __enter__(self) -> Dict[str, Any]:
-        return self.setup()
+    def __enter__(self) -> Tuple['InNOut', Dict[str, Any]]:
+        return (self, self.setup())
 
     @abstractmethod
-    def teardown(self):
+    def teardown(self, *args, **kwargs):
         raise NotImplementedError()
 
-    def __exit__(self):
-        self.teardown()
+    def __exit__(self, *args, **kwargs):
+        self.teardown(*args, **kwargs)
 
     @abstractmethod
     def is_setup(self) -> bool:
@@ -60,6 +60,8 @@ class FrameInput(InNOut):
             if i % 100 == 0:
                 print('fps:', int(i / time_diff))
 
+    def __enter__(self) -> Tuple['FrameInput', Dict[str, Any]]:
+        return super().__enter__() # type: ignore
 
 class FrameOutput(InNOut):
     @abstractmethod
@@ -69,3 +71,6 @@ class FrameOutput(InNOut):
     @abstractmethod
     def wait_until_next_frame(self):
         raise NotImplementedError()
+
+    def __enter__(self) -> Tuple['FrameOutput', Dict[str, Any]]:
+        return super().__enter__() # type: ignore
