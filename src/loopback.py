@@ -13,15 +13,15 @@ from src.mods.video_mods import resize_and_pad
 # WARN output dimensions should be smaller than input.. for now
 
 default_input = Webcam(width=IN_WIDTH, height=IN_HEIGHT)
-with default_input as (finput, inp_props):
+with default_input as (fIn, inp_props):
     out_fps = min(MAX_OUT_FPS, inp_props['fps'])
     default_output = VirtualCam(width=OUT_WIDTH, height=OUT_HEIGHT, fps=out_fps)
 
-def live_loop(mod=None,
+def live_loop(
+    mod=None,
     on_demand=False,
-    finput: FrameInput = default_input,
-    foutput: FrameOutput = default_output,
-    out_device_index = VIDEO_OUT,
+    fIn: FrameInput = default_input,
+    fOut: FrameOutput = default_output,
     interactive_listener=key_listener,
 ):
     # print(f'begin loopback write from #{input_cls.__name__} to #{output_cls.__name__}')
@@ -33,13 +33,13 @@ def live_loop(mod=None,
     inotify = INotify(nonblocking=True)
     if on_demand:
         watch_flags = flags.CREATE | flags.OPEN | flags.CLOSE_NOWRITE | flags.CLOSE_WRITE
-        inotify.add_watch(f'/dev/video{out_device_index}', watch_flags)
+        inotify.add_watch(f'/dev/video{VIDEO_OUT}', watch_flags)
         paused = True
 
     # This is the loop that reads from the input, edits, and then writes to the loopback
     with default_output as (cam, outp_props):
         print(f'input: {inp_props}, output: {outp_props}')
-        paused_frame = resize_and_pad(no_signal_img, sw=foutput.width, sh=foutput.height)
+        paused_frame = resize_and_pad(no_signal_img, sw=fOut.width, sh=fOut.height)
         last_frame = paused_frame
         while True:
             if on_demand:
@@ -55,24 +55,24 @@ def live_loop(mod=None,
                     else:
                         consumers = 0
                         paused = True
-                        finput.teardown()
+                        fIn.teardown()
                         print("No consumers remaining, paused")
             frame = None
             if paused:
                 frame = paused_frame
                 time.sleep(0.5) # lower the fps when paused
             else:
-                if not finput.is_setup():
-                    finput.setup()
+                if not fIn.is_setup():
+                    fIn.setup()
 
-                frame = finput.frame()
+                frame = fIn.frame()
                 if frame is None:
                     continue
                 try:
                     if mod:
                         frame = mod(frame)
                     frame = resize_and_pad(
-                        frame, sw=foutput.width, sh=foutput.height)
+                        frame, sw=fOut.width, sh=fOut.height)
                     last_frame = frame
                 except Exception as e:
                     print(f"failed to process frame: {e}", file=stderr)
