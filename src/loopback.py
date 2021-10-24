@@ -4,18 +4,21 @@ from .config import IN_HEIGHT, IN_WIDTH, MAX_OUT_FPS, no_signal_img, OUT_HEIGHT,
 from pyvirtualcam import PixelFormat
 from src.uses.interactive_controls import key_listener
 from inotify_simple import INotify, flags
-from src.input.video_dev import VIDEO_IN, Webcam
+from src.input.video_dev import Webcam
 from src.input.input import FrameInput
 import time
+import os
 
 # We need to look at system information (os) and write to the device (fcntl)
 from src.mods.video_mods import resize_and_pad
 from typing import cast
-import numpy as np
 
 # WARN output dimensions should be smaller than input.. for now
 
 VIDEO_OUT = 10
+VIDEO_IN = os.getenv('VIDEO_IN')
+if VIDEO_IN is not None:
+    VIDEO_IN = int(VIDEO_IN)
 
 default_input = Webcam(width=IN_WIDTH, height=IN_HEIGHT)
 

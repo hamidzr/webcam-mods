@@ -3,7 +3,6 @@ from contextlib import contextmanager
 from src.input.input import FrameInput
 from typing import Any
 import time
-import os
 
 def available_camera_indices(end: int = 3):
     """
@@ -18,8 +17,6 @@ def available_camera_indices(end: int = 3):
             yield index
         index += 1
         i -= 1
-
-VIDEO_IN = int(os.getenv('VIDEO_IN', next(available_camera_indices())))
 
 def open_video_capture(width=None, height=None, input_dev=0):
     # Grab the webcam feed and get the dimensions of a frame
@@ -52,7 +49,9 @@ def video_capture(width=None, height=None, input_dev=0):
         videoIn.release()
 
 class Webcam(FrameInput):
-    def setup(self, device_index: int = 0):
+    def setup(self, device_index: int = None):
+        if device_index is None:
+            device_index = next(available_camera_indices(end=5))
         cap, width, height, fps = open_video_capture(
             width=self.width, height=self.height, input_dev=device_index
         )
