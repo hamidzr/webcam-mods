@@ -1,3 +1,4 @@
+from src.output.pyvirtcam import VirtualCam
 from sys import stderr
 import pyvirtualcam
 from .config import IN_HEIGHT, IN_WIDTH, MAX_OUT_FPS, no_signal_img, OUT_HEIGHT, OUT_WIDTH, VIDEO_OUT
@@ -5,7 +6,8 @@ from pyvirtualcam import PixelFormat
 from src.uses.interactive_controls import key_listener
 from inotify_simple import INotify, flags
 from src.input.video_dev import Webcam
-from src.input.input import FrameInput
+from src.input.input import FrameInput, FrameOutput
+from typing import Type
 import time
 
 # We need to look at system information (os) and write to the device (fcntl)
@@ -13,17 +15,18 @@ from src.mods.video_mods import resize_and_pad
 
 # WARN output dimensions should be smaller than input.. for now
 
-default_input = Webcam(width=IN_WIDTH, height=IN_HEIGHT)
+# default_input = Webcam(width=IN_WIDTH, height=IN_HEIGHT)
 
-def live_loop( mod=None,
+def live_loop(mod=None,
     on_demand=False,
-    finput: FrameInput = default_input,
+    input_cls: Type[FrameInput] = Webcam,
+    output_cls: Type[FrameOutput] = VirtualCam,
     out_device_index = VIDEO_OUT,
     out_height = OUT_HEIGHT,
     out_width = OUT_WIDTH,
     interactive_listener=key_listener,
 ):
-    print(f'begin loopback write from #{finput.__class__.__name__} to #{out_device_index}')
+    print(f'begin loopback write from #{input_cls.__name__} to #{output_cls.__name__}')
 
     if interactive_listener is not None:
         interactive_listener.start()
@@ -35,11 +38,15 @@ def live_loop( mod=None,
         inotify.add_watch(f'/dev/video{out_device_index}', watch_flags)
         paused = True
 
+    finput = input_cls(width=IN_WIDTH, height=IN_HEIGHT)
 
     # This is the loop that reads from the input, edits, and then writes to the loopback
     inp_props = finput.setup()
     finput.teardown()
     out_fps = min(MAX_OUT_FPS, inp_props['fps'])
+
+    foutput = output_cls(width=out_width, height=out_height, fps=out_fps)
+
     with pyvirtualcam.Camera(width=out_width, height=out_height, fps=out_fps, fmt=PixelFormat.BGR, print_fps=True) as cam:
         print(f'Using virtual camera: {cam.device}')
         print(f'input: {inp_props}, output: ({out_width}, {out_height}, {out_fps})')

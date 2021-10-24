@@ -9,6 +9,8 @@ import datetime as dt
 Frame = Any
 
 class InNOut:
+    id: str
+
     def __init__(self,
                  width: int = 100,
                  height: int = 100,
@@ -19,26 +21,26 @@ class InNOut:
 
     @abstractmethod
     def setup(self) -> Dict[str, Any]:
-        pass
+        raise NotImplementedError()
 
     def __enter__(self) -> Dict[str, Any]:
         return self.setup()
 
     @abstractmethod
     def teardown(self):
-        pass
+        raise NotImplementedError()
 
     def __exit__(self):
         self.teardown()
 
     @abstractmethod
     def is_setup(self) -> bool:
-        pass
+        raise NotImplementedError()
 
 class FrameInput(InNOut):
     @abstractmethod
     def frame(self) -> Optional[Frame]:
-        pass
+        raise NotImplementedError()
 
     def frames(self) -> Generator[Frame, None, None]:
         while True:
@@ -62,8 +64,8 @@ class FrameInput(InNOut):
 class FrameOutput(InNOut):
     @abstractmethod
     def send(self, frame: Frame):
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
-    def sleep_until_next_frame(self):
-        pass
+    def wait_until_next_frame(self):
+        raise NotImplementedError()
