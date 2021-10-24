@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from src.input.input import FrameInput, Frame
 from typing import Any, Optional, Union, cast
 import time
+import os
 
 def available_camera_indices(end: int = 3):
     """
@@ -49,11 +50,19 @@ def video_capture(width=None, height=None, input_dev=0):
         videoIn.release()
 
 class Webcam(FrameInput):
-    def setup(self, device_index: int = None):
+    def __init__(self, device_index: int = None, **kwargs):
+        super().__init__(**kwargs)
         if device_index is None:
-            device_index = next(available_camera_indices(end=5))
+            device_index = os.getenv('VIDEO_IN')
+            if device_index is not None:
+                device_index = int(device_index)
+            else:
+                device_index = next(available_camera_indices(end=5))
+        self.device_index = device_index
+
+    def setup(self):
         cap, width, height, fps = open_video_capture(
-            width=self.width, height=self.height, input_dev=device_index
+            width=self.width, height=self.height, input_dev=self.device_index
         )
         self.cap = cap
         self.width = width

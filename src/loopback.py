@@ -16,14 +16,11 @@ from typing import cast
 # WARN output dimensions should be smaller than input.. for now
 
 VIDEO_OUT = 10
-VIDEO_IN = os.getenv('VIDEO_IN')
-if VIDEO_IN is not None:
-    VIDEO_IN = int(VIDEO_IN)
 
 default_input = Webcam(width=IN_WIDTH, height=IN_HEIGHT)
 
 def live_loop(mod=None, on_demand=False, finput: FrameInput = default_input, interactive_listener=key_listener):
-    print(f'begin loopback write from dev #{VIDEO_IN} to #{VIDEO_OUT}')
+    print(f'begin loopback write from #{finput.__class__.__name__} to #{VIDEO_OUT}')
 
     if interactive_listener is not None:
         interactive_listener.start()
@@ -37,7 +34,7 @@ def live_loop(mod=None, on_demand=False, finput: FrameInput = default_input, int
 
 
     # This is the loop that reads from the input, edits, and then writes to the loopback
-    inp_props = finput.setup(device_index=VIDEO_IN)
+    inp_props = finput.setup()
     finput.teardown()
     out_fps = min(MAX_OUT_FPS, inp_props['fps'])
     with pyvirtualcam.Camera(width=OUT_WIDTH, height=OUT_HEIGHT, fps=out_fps, fmt=PixelFormat.BGR, print_fps=True) as cam:
@@ -67,7 +64,7 @@ def live_loop(mod=None, on_demand=False, finput: FrameInput = default_input, int
                 time.sleep(0.5) # lower the fps when paused
             else:
                 if not finput.is_setup():
-                    finput.setup(device_index=VIDEO_IN)
+                    finput.setup()
 
                 frame = finput.frame()
                 if frame is None:
