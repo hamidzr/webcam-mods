@@ -1,8 +1,8 @@
 from abc import abstractmethod
 from typing import Any, Optional, Dict, Generator, Tuple
 import cv2
-import numpy as np
-import time
+# import numpy as np
+# import time
 import datetime as dt
 
 
@@ -74,3 +74,7 @@ class FrameOutput(InNOut):
 
     def __enter__(self) -> Tuple['FrameOutput', Dict[str, Any]]:
         return super().__enter__() # type: ignore
+
+    def is_in_use(self) -> bool:
+        # implement to support on_demand processing feature
+        raise True
