@@ -1,26 +1,30 @@
 from sys import stderr
 import pyvirtualcam
-from .config import IN_HEIGHT, IN_WIDTH, MAX_OUT_FPS, no_signal_img, OUT_HEIGHT, OUT_WIDTH
+from .config import IN_HEIGHT, IN_WIDTH, MAX_OUT_FPS, no_signal_img, OUT_HEIGHT, OUT_WIDTH, VIDEO_OUT
 from pyvirtualcam import PixelFormat
 from src.uses.interactive_controls import key_listener
 from inotify_simple import INotify, flags
 from src.input.video_dev import Webcam
 from src.input.input import FrameInput
 import time
-import os
 
 # We need to look at system information (os) and write to the device (fcntl)
 from src.mods.video_mods import resize_and_pad
-from typing import cast
 
 # WARN output dimensions should be smaller than input.. for now
 
-VIDEO_OUT = 10
-
 default_input = Webcam(width=IN_WIDTH, height=IN_HEIGHT)
 
-def live_loop(mod=None, on_demand=False, finput: FrameInput = default_input, interactive_listener=key_listener):
-    print(f'begin loopback write from #{finput.__class__.__name__} to #{VIDEO_OUT}')
+def live_loop(
+    mod=None,
+    on_demand=False,
+    finput: FrameInput = default_input,
+    out_device_index = VIDEO_OUT,
+    out_height = OUT_HEIGHT,
+    out_width = OUT_WIDTH,
+    interactive_listener=key_listener,
+):
+    print(f'begin loopback write from #{finput.__class__.__name__} to #{out_device_index}')
 
     if interactive_listener is not None:
         interactive_listener.start()
@@ -29,7 +33,7 @@ def live_loop(mod=None, on_demand=False, finput: FrameInput = default_input, int
     inotify = INotify(nonblocking=True)
     if on_demand:
         watch_flags = flags.CREATE | flags.OPEN | flags.CLOSE_NOWRITE | flags.CLOSE_WRITE
-        inotify.add_watch(f'/dev/video{VIDEO_OUT}', watch_flags)
+        inotify.add_watch(f'/dev/video{out_device_index}', watch_flags)
         paused = True
 
 
@@ -37,10 +41,10 @@ def live_loop(mod=None, on_demand=False, finput: FrameInput = default_input, int
     inp_props = finput.setup()
     finput.teardown()
     out_fps = min(MAX_OUT_FPS, inp_props['fps'])
-    with pyvirtualcam.Camera(width=OUT_WIDTH, height=OUT_HEIGHT, fps=out_fps, fmt=PixelFormat.BGR, print_fps=True) as cam:
+    with pyvirtualcam.Camera(width=out_width, height=out_height, fps=out_fps, fmt=PixelFormat.BGR, print_fps=True) as cam:
         print(f'Using virtual camera: {cam.device}')
-        print(f'input: {inp_props}, output: ({OUT_WIDTH}, {OUT_HEIGHT}, {out_fps})')
-        paused_frame = resize_and_pad(no_signal_img, sw=OUT_WIDTH, sh=OUT_HEIGHT)
+        print(f'input: {inp_props}, output: ({out_width}, {out_height}, {out_fps})')
+        paused_frame = resize_and_pad(no_signal_img, sw=out_width, sh=out_height)
         last_frame = paused_frame
         while True:
             if on_demand:
@@ -73,14 +77,14 @@ def live_loop(mod=None, on_demand=False, finput: FrameInput = default_input, int
                     if mod:
                         frame = mod(frame)
                     frame = resize_and_pad(
-                        frame, sw=OUT_WIDTH, sh=OUT_HEIGHT)
+                        frame, sw=out_width, sh=out_height)
                     last_frame = frame
                 except Exception as e:
                     print(f"failed to process frame: {e}", file=stderr)
                     frame = last_frame
 
-            # assert frame.shape[0] == OUT_HEIGHT
-            # assert frame.shape[1] == OUT_WIDTH
+            # assert frame.shape[0] == out_height
+            # assert frame.shape[1] == out_width
             cam.send(frame)
             cam.sleep_until_next_frame()
 

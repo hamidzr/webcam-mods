@@ -120,7 +120,7 @@ def share_screen(top: int = 0, left: int = 0,
     Share a portion of the screen.
     """
     screen = Screen(top=top, left=left, width=width, height=height)
-    live_loop(finput=screen)
+    live_loop(finput=screen, out_width=width, out_height=height)
 
 if __name__ == "__main__":
     app()
