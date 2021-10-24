@@ -69,9 +69,8 @@ def live_loop(mod=None, on_demand=False, finput: FrameInput = default_input, int
                 if not finput.is_setup():
                     finput.setup(device_index=VIDEO_IN)
 
-                ret, frame = finput.frame()
-                ret = cast(bool, ret)
-                if not ret or frame is None:
+                frame = finput.frame()
+                if frame is None:
                     continue
                 try:
                     if mod:

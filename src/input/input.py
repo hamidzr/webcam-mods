@@ -10,9 +10,9 @@ Frame = Any
 
 class FrameInput:
     def __init__(self,
-                 width: Optional[int] = None,
-                 height: Optional[int] = None,
-                 fps: Optional[int] = None):
+                 width: int = 100,
+                 height: int = 100,
+                 fps: int = 30):
         self.width = width
         self.height = height
         self.fps = fps
@@ -30,7 +30,7 @@ class FrameInput:
         pass
 
     @abstractmethod
-    def frame(self) -> Frame:
+    def frame(self) -> Optional[Frame]:
         pass
 
     def frames(self) -> Generator[Frame, None, None]:
@@ -42,7 +42,7 @@ class FrameInput:
         start_time = dt.datetime.today().timestamp()
         i = 0
         for frame in self.frames():
-            cv2.imshow('screen', np.array(frame))
+            cv2.imshow('screen', frame)
             if (cv2.waitKey(1) & 0xFF) == ord('q'):
                 cv2.destroyAllWindows()
                 break

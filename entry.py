@@ -5,8 +5,10 @@ from pathlib import Path
 from src.mods.video_mods import brighten as brighten_mod, pad_inward_centered, crop
 from src.mods.mp_face import predict
 from src.uses.interactive_controls import cf
+from src.input.screen import Screen
+from src.types import BoundingBox
 import cv2
-import os.path
+import os
 import typer
 
 app = typer.Typer()
@@ -111,6 +113,15 @@ def track_face():
             frame = crop(frame, crop_box[0], crop_box[1], crop_box[2], crop_box[3])
         return frame
     live_loop(frame_mod, on_demand=ON_DEMAND, interactive_listener=None)
+
+@app.command()
+def share_screen():
+    """
+    Share a portion of the screen.
+    """
+    bounding_box: BoundingBox = BoundingBox(**{'top': 0, 'left': 0, 'width': 400, 'height': 300})
+    screen = Screen()
+    live_loop(finput=screen)
 
 if __name__ == "__main__":
     app()

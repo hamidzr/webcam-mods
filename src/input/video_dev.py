@@ -1,7 +1,7 @@
 import cv2
 from contextlib import contextmanager
-from src.input.input import FrameInput
-from typing import Any
+from src.input.input import FrameInput, Frame
+from typing import Any, Optional, Union, cast
 import time
 
 def available_camera_indices(end: int = 3):
@@ -70,5 +70,9 @@ class Webcam(FrameInput):
             return False
         return self.cap.isOpened()
 
-    def frame(self):
-        return self.cap.read()
+    def frame(self) -> Optional[Frame]:
+        ret, frame = self.cap.read()
+        ret = cast(bool, ret)
+        if not ret or frame is None:
+            return None
+        return frame
