@@ -22,13 +22,13 @@ def visualize(
     cv2.namedWindow(window_name)
     cv2.setMouseCallback(window_name, click_handler)
 
+    pred_color = (0, 255, 0)
+    thickness = -1 # -1 to fill
+    image = cv2.rectangle(image, pred.start_point.tuple, pred.end_point.tuple, pred_color, thickness)
+
     crop_color = (255, 255, 255)
     thickness = 1 # -1 to fill
     image = cv2.rectangle(image, crop.start_point.tuple, crop.end_point.tuple, crop_color, thickness)
-
-    pred_color = (0, 255, 255)
-    thickness = 1 # -1 to fill
-    image = cv2.rectangle(image, pred.start_point.tuple, pred.end_point.tuple, pred_color, thickness)
 
     cv2.imshow(window_name, image)
 
@@ -45,6 +45,7 @@ def generate_crop(pred: Rect) -> Rect:
     return crop
 
 if __name__ == '__main__':
+    print('click on the canvas to simulate moving the prediction box')
     while True:
         pred = generate_prediction()
         crop = generate_crop(pred)
