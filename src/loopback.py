@@ -11,8 +11,9 @@ from src.mods.video_mods import resize_and_pad
 
 # WARN output dimensions should be smaller than input.. for now
 default_input = Webcam(width=IN_WIDTH, height=IN_HEIGHT)
+out_fps = MAX_OUT_FPS
 with default_input as (fIn, inp_props):
-    out_fps = min(MAX_OUT_FPS, inp_props['fps'])
+    out_fps = min(out_fps, inp_props['fps'])
 default_output = VirtualCam(width=OUT_WIDTH, height=OUT_HEIGHT, fps=out_fps)
 
 def live_loop(

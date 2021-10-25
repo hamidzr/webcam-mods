@@ -7,10 +7,6 @@ from pyvirtualcam import PixelFormat
 
 class VirtualCam(FrameOutput):
     id = 'vritual-cam'
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.cam = pyvirtualcam.Camera(width=self.width, height=self.height,
-                                       fps=self.fps, fmt=PixelFormat.BGR, print_fps=True)
 
     def _setup_inotify(self):
         self.consumers = 0
@@ -29,6 +25,8 @@ class VirtualCam(FrameOutput):
                 print("Consumers:", self.consumers)
 
     def setup(self) -> Dict[str, Any]:
+        self.cam = pyvirtualcam.Camera(width=self.width, height=self.height,
+                                       fps=self.fps, fmt=PixelFormat.BGR, print_fps=True)
         self.cam.__enter__()
         self._setup_inotify()
         return {'device': self.cam.device, 'width': self.cam.width,
