@@ -30,7 +30,11 @@ class Rect:
 
     @classmethod
     def from_rect(cls, rect: 'Rect') -> 'Rect':
-        return cls(w= rect.w, h=rect.h, t=rect.t, l=rect.l)
+        return cls(w=rect.w, h=rect.h, t=rect.t, l=rect.l)
+
+    def move_to(self, top_left: Point):
+        self.left = top_left.left
+        self.top = top_left.top
 
     @property
     def h(self):

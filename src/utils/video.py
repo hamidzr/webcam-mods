@@ -1,0 +1,5 @@
+from time import sleep
+
+def sleep_until_fps(fps: int):
+    # TODO consider time from last call
+    sleep(1/fps)
