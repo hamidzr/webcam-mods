@@ -1,4 +1,3 @@
-from src.output.pyvirtcam import VirtualCam
 from src.loopback import live_loop
 from src.mods.person_segmentation import color_bg, blur_bg, swap_bg
 from src.mods.record_replay import engage
@@ -6,7 +5,6 @@ from pathlib import Path
 from src.mods.video_mods import brighten as brighten_mod, pad_inward_centered, crop
 from src.mods.mp_face import predict
 from src.uses.interactive_controls import cf
-from src.input.screen import Screen
 from src.output.gui import GUI
 import cv2
 import os
@@ -122,6 +120,7 @@ def share_screen(top: int = 0, left: int = 0,
     """
     Share a portion of the screen.
     """
+    from src.input.screen import Screen
     screen = Screen(top=top, left=left, width=width, height=height)
     if output == GUI.id:
         gui = GUI(width=width, height=height)
