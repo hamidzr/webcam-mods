@@ -1,3 +1,4 @@
+from src.input.video_dev import Webcam
 from src.mods.camera_motion import generate_crop
 from src.loopback import live_loop
 from src.mods.person_segmentation import color_bg, blur_bg, swap_bg
@@ -5,6 +6,7 @@ from src.mods.record_replay import engage
 from pathlib import Path
 from src.mods.video_mods import brighten as brighten_mod, crop_rect, pad_inward_centered, crop
 from src.mods.mp_face import abs_boundingbox, predict
+from src.config import DEFAULT_BG_IMAGE, IN_WIDTH, IN_HEIGHT
 from src.uses.interactive_controls import cf
 from src.output.gui import GUI
 import cv2
@@ -12,9 +14,6 @@ import os
 import typer
 
 app = typer.Typer()
-
-DEFAULT_BG_IMAGE = f'{Path.cwd()}/data/bg.jpg'
-ON_DEMAND = os.getenv('ON_DEMAND') == 'True'
 
 
 def crop_pad(func):
@@ -47,7 +46,7 @@ def crop_cam():
     """
     Basic mods with interactive camera control
     """
-    live_loop(base_mod, on_demand=ON_DEMAND)
+    live_loop(base_mod)
 
 
 @app.command()
@@ -59,7 +58,7 @@ def bg_color(color: int = 192):
     def frame_mod(frame):
         frame = color_bg(frame, color)
         return frame
-    live_loop(frame_mod, on_demand=ON_DEMAND)
+    live_loop(frame_mod)
 
 
 @app.command()
@@ -72,7 +71,7 @@ def bg_swap(img_path: str = DEFAULT_BG_IMAGE):
     def frame_mod(frame):
         resized_bg = crop(bg_image, cf.crop_dims[0], cf.crop_dims[1])
         return swap_bg(frame, resized_bg)
-    live_loop(frame_mod, on_demand=ON_DEMAND)
+    live_loop(frame_mod)
 
 
 @app.command()
@@ -84,7 +83,7 @@ def bg_blur(kernel_size: int = 31):
     @base_mod_dec
     def frame_mod(frame):
         return blur_bg(frame, kernel_size)
-    live_loop(frame_mod, on_demand=ON_DEMAND)
+    live_loop(frame_mod)
 
 
 @app.command()
@@ -95,7 +94,7 @@ def brighten(level=30):
     @base_mod_dec
     def frame_mod(frame):
         return brighten_mod(frame, int(level))
-    live_loop(frame_mod, on_demand=ON_DEMAND)
+    live_loop(frame_mod)
 
 
 @app.command()
@@ -114,7 +113,8 @@ def track_face():
             pred_box = abs_boundingbox(frame, bbox)
             frame = crop_rect(frame, generate_crop(pred_box))
         return frame
-    live_loop(frame_mod, on_demand=ON_DEMAND, interactive_listener=None)
+    # frame_in = Webcam(width=IN_WIDTH, height=IN_HEIGHT)
+    live_loop(mod=frame_mod, interactive_listener=None)
 
 @app.command()
 def share_screen(top: int = 0, left: int = 0,

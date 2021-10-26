@@ -2,6 +2,7 @@ from src.output.pyvirtcam import VirtualCam
 from sys import stderr
 from src.config import IN_HEIGHT, IN_WIDTH, MAX_OUT_FPS, no_signal_img, OUT_HEIGHT, OUT_WIDTH
 from src.uses.interactive_controls import key_listener
+from src.config import ON_DEMAND
 from src.input.video_dev import Webcam
 from src.input.input import FrameInput, FrameOutput
 import time
@@ -18,7 +19,7 @@ default_output = VirtualCam(width=OUT_WIDTH, height=OUT_HEIGHT, fps=out_fps)
 
 def live_loop(
     mod=None,
-    on_demand=False,
+    on_demand=ON_DEMAND,
     fIn: FrameInput = default_input,
     fOut: FrameOutput = default_output,
     interactive_listener=key_listener,

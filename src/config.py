@@ -14,3 +14,6 @@ OUT_HEIGHT = 240  # 320
 MAX_OUT_FPS = int(os.getenv('MAX_OUT_FPS', 30))
 
 no_signal_img = cv2.imread(NO_SIGNAL_IMG)
+DEFAULT_BG_IMAGE = f'{Path.cwd()}/data/bg.jpg'
+ON_DEMAND = os.getenv('ON_DEMAND') == 'True'
+
