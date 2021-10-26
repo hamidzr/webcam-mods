@@ -52,7 +52,7 @@ class Point:
         pt.top = int(pt.top * num)
         return pt
 
-
+Distance = Point
 
 class Rect:
     def __init__(self, w: int = 100, h: int = 100,
@@ -91,6 +91,10 @@ class Rect:
         return Point(t=self.t, l=self.l)
 
     @property
+    def pos(self) -> Point:
+        return self.start_point
+
+    @property
     def end_point(self) -> Point:
         # bottom right
         return Point(t=self.t+self.h, l=self.l+self.w)
@@ -116,3 +120,6 @@ class Rect:
         Compute center poitn of the rectangle
         """
         return (self.start_point + self.end_point) / 2
+
+    def __sub__(self, other: 'Rect') -> Distance:
+        return self.pos - other.pos
