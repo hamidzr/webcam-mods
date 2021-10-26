@@ -1,4 +1,6 @@
-from typing import Optional
+from typing import Literal, Optional, Union, Type
+
+Number = Union[int, float]
 
 class Point:
     def __init__(self, t: int = 0, l: int = 0):
@@ -37,6 +39,20 @@ class Point:
 
     def __eq__(self, other: 'Point') -> bool:
         return self.t == other.t and self.l == other.l
+
+    def __truediv__(self, num: Number) -> 'Point':
+        pt = self.copy()
+        pt.left = pt.left // num
+        pt.top = pt.top // num
+        return pt
+
+    def __mul__(self, num: Number) -> 'Point':
+        pt = self.copy()
+        pt.left = int(pt.left * num)
+        pt.top = int(pt.top * num)
+        return pt
+
+
 
 class Rect:
     def __init__(self, w: int = 100, h: int = 100,
@@ -85,3 +101,18 @@ class Rect:
     def __dict__(self):
         return {'top': self.top, 'left': self.left,
                 'width': self.width, 'height': self.height}
+
+    def center_on(self, pt: Point):
+        """
+        center the rectangle on a point
+        """
+        dl, dt = self.w // 2, self.h // 2
+        new_pos = Point(t=pt.top-dt, l=pt.left-dl)
+        self.move_to(new_pos)
+
+    @property
+    def center(self) -> Point:
+        """
+        Compute center poitn of the rectangle
+        """
+        return (self.start_point + self.end_point) / 2

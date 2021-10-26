@@ -31,22 +31,23 @@ def generate_crop(pred: Rect) -> Rect:
     # TODO https://github.com/hamidzr/webcam-mods/issues/12
     global last_loc, move_gen
     if last_loc is None:
-        last_loc = pred.start_point
-    if last_loc != pred.start_point:
+        last_loc = pred.center
+    if last_loc != pred.center:
         print('detected a move')
-        move_gen = transition_point(last_loc, pred.start_point, 2*FPS)
-        last_loc = pred.start_point
+        move_gen = transition_point(last_loc, pred.center, 2*FPS)
+        last_loc = pred.center
     elif move_gen is None:
-        move_gen = transition_point(last_loc, pred.start_point, FPS)
+        move_gen = transition_point(last_loc, pred.center, FPS)
     try:
         pt = next(move_gen)
     except StopIteration:
-        move_gen = transition_point(last_loc, pred.start_point, FPS)
+        move_gen = transition_point(last_loc, pred.center, FPS)
         pt = next(move_gen)
 
-    crop = Rect.from_rect(pred)
-    crop.height += math.floor(pred.height * 0.2)
-    crop.width += math.floor(pred.width * 0.2)
-    crop.move_to(pt)
+    crop = Rect(
+        w=math.floor(pred.width * 1.2),
+        h=math.floor(pred.height * 1.2)
+    )
+    crop.center_on(pt)
     return crop
 
