@@ -20,6 +20,24 @@ class Point:
     def __repr__(self) -> str:
         return f'(l:{self.l}, t:{self.t})'
 
+    def copy(self) -> 'Point':
+        return self.__class__(t=self.t, l=self.l)
+
+    def __add__(self, other: 'Point') -> 'Point':
+        new_p = self.copy()
+        new_p.top += other.t
+        new_p.left += other.l
+        return new_p
+
+    def __sub__(self, other: 'Point') -> 'Point':
+        new_p = self.copy()
+        new_p.top -= other.t
+        new_p.left -= other.l
+        return new_p
+
+    def __eq__(self, other: 'Point') -> bool:
+        return self.t == other.t and self.l == other.l
+
 class Rect:
     def __init__(self, w: int = 100, h: int = 100,
                  t: int = 0, l: int = 0):
