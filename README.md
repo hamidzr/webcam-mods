@@ -113,16 +113,18 @@ house cleaning:
 
 features:
 - [x] more stable edges for person segmentation
+- [ ] support other video feed formats from webcam eg mjpeg, h264 for higher resolution
 - including headphones in the mask 
 - [x] zoom support. done through resizing.
   - the controls could be more intuitive
 - [x] MacOS support
 - [x] Windows support? should be there with `pyvirtualcam`
 - [ ] hot swap inputs
-- [ ] add screen as an input
+- [~] add screen as an input
 - [ ] convert/migrate env variables to cli arguments
 - [ ] brightness control. (and hue, saturation?)
-- [ ] smooth bounding box tracking (for facetracking and more)
+- [~] smooth bounding box tracking (for facetracking and more)
+  - camera/crop size change transition
 
 bugs:
 - bug what?
