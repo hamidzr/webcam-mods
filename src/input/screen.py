@@ -4,7 +4,7 @@ from mss.base import MSSBase
 from typing import cast
 # from PIL import Image
 from src.input.input import FrameInput
-from src.types import Rect
+from src.geometry import Rect
 
 class Screen(FrameInput):
     sct: MSSBase

@@ -1,7 +1,7 @@
 from src.utils.video import sleep_until_fps
 import cv2
 import numpy as np
-from src.types import Rect, Point
+from src.geometry import Rect, Point
 from src.mods.camera_motion import generate_crop, FPS
 
 clicked: Point = Point()

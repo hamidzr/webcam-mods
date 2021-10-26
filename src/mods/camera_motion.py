@@ -1,6 +1,6 @@
 from typing import Generator, Optional
 import math
-from src.types import Rect, Point
+from src.geometry import Rect, Point
 
 FPS = 20
 last_loc: Optional[Point] = None
