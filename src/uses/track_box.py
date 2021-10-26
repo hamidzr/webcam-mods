@@ -5,11 +5,13 @@ import numpy as np
 from src.geometry import Rect, Point
 from src.mods.camera_motion import generate_crop, FPS
 
+c = 0
 clicked: Point = Point()
 def click_handler(event,x,y, *args):
-    global clicked
+    global clicked, c
     if event == cv2.EVENT_LBUTTONDOWN:
         clicked.left, clicked.top = x,y
+        c += 1
 
 def visualize(
     frame: Rect = Rect(w=400, h=400),
@@ -35,6 +37,8 @@ def visualize(
 
 def generate_prediction() -> Rect:
     r = Rect(
+        w=150 if c%3==0 else 100,
+        h=150 if c%3==0 else 100
         # w=int(100 * random.uniform(0.8,1.3)),
         # h=int(100 * random.uniform(0.8,1.2))
     )
