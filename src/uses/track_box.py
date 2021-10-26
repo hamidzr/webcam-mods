@@ -1,5 +1,6 @@
 from src.utils.video import sleep_until_fps
 import cv2
+import random
 import numpy as np
 from src.geometry import Rect, Point
 from src.mods.camera_motion import generate_crop, FPS
@@ -33,8 +34,11 @@ def visualize(
     cv2.imshow(window_name, image)
 
 def generate_prediction() -> Rect:
-    r = Rect()
-    r.move_to(clicked)
+    r = Rect(
+        # w=int(100 * random.uniform(0.8,1.3)),
+        # h=int(100 * random.uniform(0.8,1.2))
+    )
+    r.center_on(clicked)
     return r
 
 if __name__ == '__main__':
