@@ -1,8 +1,9 @@
 from typing import Generator, Optional
 import math
+from src.config import MAX_OUT_FPS
 from src.geometry import Rect, Point
 
-FPS = 20
+FPS = MAX_OUT_FPS
 last_loc: Optional[Point] = None
 move_gen: Optional[Generator] = None
 

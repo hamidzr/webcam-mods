@@ -1,3 +1,4 @@
+from src.mods.camera_motion import generate_crop
 from src.loopback import live_loop
 from src.mods.person_segmentation import color_bg, blur_bg, swap_bg
 from src.mods.record_replay import engage
@@ -110,7 +111,8 @@ def track_face():
         else:
             # crop_box = (int(bbox.width*fw), int(bbox.height*fh), int(bbox.xmin*fw), int(bbox.ymin*fh))
             # frame = crop(frame, crop_box[0], crop_box[1], crop_box[2], crop_box[3])
-            frame = crop_rect(frame, abs_boundingbox(frame, bbox))
+            pred_box = abs_boundingbox(frame, bbox)
+            frame = crop_rect(frame, generate_crop(pred_box))
         return frame
     live_loop(frame_mod, on_demand=ON_DEMAND, interactive_listener=None)
 

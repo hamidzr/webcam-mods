@@ -35,17 +35,18 @@ def predict(frame) -> Optional[Tuple[int, int, int, int]]:
     return detection.location_data.relative_bounding_box
 
 def abs_boundingbox(frame, relbb) -> Rect:
-    fh, fw = frame.shape
-    return Rect(int(relbb.width*fw), int(relbb.height*fh),
-         int(relbb.xmin*fw), int(relbb.ymin*fh))
+    fh, fw, _ = frame.shape
+    return Rect(w=int(relbb.width*fw), h=int(relbb.height*fh),
+         l=int(relbb.xmin*fw), t=int(relbb.ymin*fh))
 
 if __name__ == '__main__':
     from src.input.video_dev import Webcam
     init()
     with Webcam() as (cam, _):
         while True:
-            pred = predict(cam.frame())
-            print(pred)
+            frame = cam.frame()
+            pred = predict(frame)
+            # print(abs_boundingbox(frame, pred))
             sleep_until_fps(5)
 
 # from src.loopback import OUT_WIDTH, OUT_HEIGHT
