@@ -1,6 +1,7 @@
 import cv2
 from contextlib import contextmanager
-from src.input.input import FrameInput, Frame
+from src.input.input import FrameInput
+from src.utils.video import Frame
 from typing import Any, Optional, Union, cast
 import time
 import os

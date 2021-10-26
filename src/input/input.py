@@ -2,10 +2,8 @@ from abc import abstractmethod
 from src.config import MAX_OUT_FPS
 from typing import Any, Optional, Dict, Generator, Tuple
 import cv2
+from src.utils.video import Frame
 import datetime as dt
-
-
-Frame = Any
 
 class InNOut:
     id: str

@@ -34,8 +34,10 @@ def predict(frame) -> Optional[Tuple[int, int, int, int]]:
     #     detection, face_detection.FaceKeyPoint.NOSE_TIP))
     return detection.location_data.relative_bounding_box
 
-# def abs_boundingbox(frame, relbb) -> Rect:
-
+def abs_boundingbox(frame, relbb) -> Rect:
+    fh, fw = frame.shape
+    return Rect(int(relbb.width*fw), int(relbb.height*fh),
+         int(relbb.xmin*fw), int(relbb.ymin*fh))
 
 if __name__ == '__main__':
     from src.input.video_dev import Webcam

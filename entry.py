@@ -2,8 +2,8 @@ from src.loopback import live_loop
 from src.mods.person_segmentation import color_bg, blur_bg, swap_bg
 from src.mods.record_replay import engage
 from pathlib import Path
-from src.mods.video_mods import brighten as brighten_mod, pad_inward_centered, crop
-from src.mods.mp_face import predict
+from src.mods.video_mods import brighten as brighten_mod, crop_rect, pad_inward_centered, crop
+from src.mods.mp_face import abs_boundingbox, predict
 from src.uses.interactive_controls import cf
 from src.output.gui import GUI
 import cv2
@@ -103,13 +103,14 @@ def track_face():
     Crop around the first detected face.
     """
     def frame_mod(frame):
-        fh, fw, _ = frame.shape
+        # fh, fw, _ = frame.shape
         bbox = predict(frame)
         if bbox is None:
             frame = crop(frame, cf.crop_dims[0], cf.crop_dims[1], x1=cf.crop_pos[0], y1=cf.crop_pos[1])
         else:
-            crop_box = (int(bbox.width*fw), int(bbox.height*fh), int(bbox.xmin*fw), int(bbox.ymin*fh))
-            frame = crop(frame, crop_box[0], crop_box[1], crop_box[2], crop_box[3])
+            # crop_box = (int(bbox.width*fw), int(bbox.height*fh), int(bbox.xmin*fw), int(bbox.ymin*fh))
+            # frame = crop(frame, crop_box[0], crop_box[1], crop_box[2], crop_box[3])
+            frame = crop_rect(frame, abs_boundingbox(frame, bbox))
         return frame
     live_loop(frame_mod, on_demand=ON_DEMAND, interactive_listener=None)
 
