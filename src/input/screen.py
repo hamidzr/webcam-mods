@@ -1,10 +1,10 @@
 from mss import mss
 import numpy as np
 from mss.base import MSSBase
-from typing import Optional, cast
+from typing import cast
 # from PIL import Image
 from src.input.input import FrameInput
-from src.types import BoundingBox
+from src.types import Rect
 
 class Screen(FrameInput):
     sct: MSSBase
@@ -12,8 +12,8 @@ class Screen(FrameInput):
         super().__init__(**kwargs)
         self.top = top
         self.left = left
-        self.bounding_box = BoundingBox(top=top, left=left,
-                                        width=self.width, height=self.height)
+        self.bounding_box = Rect(t=top, l=left,
+                                        w=self.width, h=self.height)
         self._is_setup = False # is there a better way?
 
     def setup(self):
