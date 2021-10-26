@@ -1,8 +1,7 @@
 from src.output.pyvirtcam import VirtualCam
 from sys import stderr
-from src.config import IN_HEIGHT, IN_WIDTH, MAX_OUT_FPS, no_signal_img, OUT_HEIGHT, OUT_WIDTH
+from src.config import IN_HEIGHT, IN_WIDTH, MAX_OUT_FPS, NO_SIGNAL_IMAGE, OUT_HEIGHT, OUT_WIDTH, ON_DEMAND, ERROR_IMAGE
 from src.uses.interactive_controls import key_listener
-from src.config import ON_DEMAND
 from src.input.video_dev import Webcam
 from src.input.input import FrameInput, FrameOutput
 import time
@@ -34,7 +33,8 @@ def live_loop(
     # This is the loop that reads from the input, edits, and then writes to the loopback
     with fOut as (cam, outp_props):
         print(f'input: {inp_props}, output: {outp_props}')
-        paused_frame = resize_and_pad(no_signal_img, sw=fOut.width, sh=fOut.height)
+        paused_frame = resize_and_pad(NO_SIGNAL_IMAGE, sw=fOut.width, sh=fOut.height)
+        error_frame = resize_and_pad(ERROR_IMAGE, sw=fOut.width, sh=fOut.height)
         last_frame = paused_frame
         while True:
             if on_demand:
@@ -62,7 +62,7 @@ def live_loop(
                 except Exception as e:
                     print(e, file=stderr)
                     print(f"failed to process frame", file=stderr)
-                    frame = last_frame
+                    frame = error_frame # last_frame
 
             # assert frame.shape[0] == fOut.height
             # assert frame.shape[1] == fOut.width
