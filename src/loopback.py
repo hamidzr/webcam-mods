@@ -60,6 +60,7 @@ def live_loop(
                         frame, sw=fOut.width, sh=fOut.height)
                     last_frame = frame
                 except Exception as e:
+                    # raise e
                     print(e, file=stderr)
                     print(f"failed to process frame", file=stderr)
                     frame = error_frame # last_frame

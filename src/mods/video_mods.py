@@ -40,7 +40,6 @@ def crop(frame, w: int, h: int, x1=0, y1=0) -> Optional[np.ndarray]:
     # assuming w, h are smaller than the frame
     """
 
-
     fh, fw, _ = frame.shape
 
     if not is_crop_valid((fw, fh), (x1, y1), (w, h)):

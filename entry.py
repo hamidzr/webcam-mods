@@ -66,7 +66,7 @@ def bg_swap(img_path: str = DEFAULT_BG_IMAGE):
     """
     Basic controls + a swapped background with the provided image
     """
-    bg_image = cv2.imread(img_path)
+    bg_image = cv2.imread(str(Path(img_path)))
     @base_mod_dec
     def frame_mod(frame):
         resized_bg = crop(bg_image, cf.crop_dims[0], cf.crop_dims[1])
