@@ -115,6 +115,7 @@ features:
 - [x] more stable edges for person segmentation
 - [ ] support other video feed formats from webcam eg mjpeg, h264 for higher resolution
 - including headphones in the mask 
+- visualize interactive camera control settings
 - [x] zoom support. done through resizing.
   - the controls could be more intuitive
 - [x] MacOS support
@@ -125,6 +126,7 @@ features:
 - [ ] brightness control. (and hue, saturation?)
 - [~] smooth bounding box tracking (for facetracking and more)
   - camera/crop size change transition
+- [ ] overlay on top of video
 
 bugs:
 - bug what?
