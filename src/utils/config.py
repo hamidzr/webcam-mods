@@ -6,14 +6,17 @@ import json
 
 class Config:
     def __init__(self, path: str = '.webcam.conf'):
-        self.crop_dims: List[int] = [IN_WIDTH, IN_HEIGHT] # dimenstions: w, h
-        self.reset_dependents()
+        self.reset()
         self._path: str = path
         print("starting with config", self) # TODO use a logger
 
     def reset_dependents(self):
         self.crop_pos: List[int] = [0, 0] # x1, h1
         self.pad_size: List[int] = [0, 0] # horizontal, vertical
+
+    def reset(self):
+        self.crop_dims = [IN_WIDTH, IN_HEIGHT]
+        self.reset_dependents()
 
     @classmethod
     def from_disk(cls, path: str = None):

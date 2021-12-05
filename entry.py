@@ -7,7 +7,7 @@ from pathlib import Path
 from src.mods.video_mods import brighten as brighten_mod, crop_rect, pad_inward_centered, crop
 from src.mods.mp_face import abs_boundingbox, predict
 from src.config import DEFAULT_BG_IMAGE, IN_WIDTH, IN_HEIGHT
-from src.uses.interactive_controls import cf
+from src.uses.interactive_controls import cf, process_input as interactive_cli
 from src.output.gui import GUI
 import cv2
 import os
@@ -31,13 +31,12 @@ def record_replay(func):
 @crop_pad
 @record_replay
 def base_mod(frame):
+    interactive_cli()
     return frame
 
 def base_mod_dec(func):
-    @crop_pad
-    @record_replay
     def mod(frame):
-        return func(frame)
+        return func(base_mod(frame))
     return mod
 
 

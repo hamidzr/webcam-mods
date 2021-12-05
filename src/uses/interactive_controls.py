@@ -1,5 +1,6 @@
 from src.config import IN_HEIGHT, IN_WIDTH
 from src.mods.video_mods import is_crop_valid
+from src.utils.cli_input import inp
 from pynput.keyboard import Key, Listener
 from src.utils.config import Config
 
@@ -63,6 +64,10 @@ def on_press(key):
 
     cf.persist() # TODO reduce unnecessary writes
 
+def process_input():
+    if inp[0] == "reset":
+        cf.reset()
+        inp[0] = ""
 
 def on_release(key):
     if key in cur_keys:

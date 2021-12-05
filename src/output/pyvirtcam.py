@@ -26,7 +26,7 @@ class VirtualCam(FrameOutput):
 
     def setup(self) -> Dict[str, Any]:
         self.cam = pyvirtualcam.Camera(width=self.width, height=self.height,
-                                       fps=self.fps, fmt=PixelFormat.BGR, print_fps=True)
+                                       fps=self.fps, fmt=PixelFormat.BGR, print_fps=False)
         self.cam.__enter__()
         self._setup_inotify()
         return {'device': self.cam.device, 'width': self.cam.width,
