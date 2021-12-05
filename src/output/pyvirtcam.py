@@ -19,7 +19,7 @@ class VirtualCam(FrameOutput):
         for event in self.inotify.read(0):
             for flag in flags.from_mask(event.mask):
                 if flag == flags.CLOSE_NOWRITE or flag == flags.CLOSE_WRITE:
-                    self.consumers -= 1
+                    self.consumers = max(0, self.consumers - 1)
                 if flag == flags.OPEN:
                     self.consumers += 1
                 print("Consumers:", self.consumers)
