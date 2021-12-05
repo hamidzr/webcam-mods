@@ -53,13 +53,13 @@ def on_press(key):
                     cf.crop_pos[1] -= JUMP
     if (Key.alt in cur_keys): # control frame padding
         if key == Key.right:
-            cf.pad_size[0] = max(0, cf.pad_size[0] - JUMP)
-        elif key == Key.left:
             cf.pad_size[0] = min(cf.crop_dims[0], cf.pad_size[0] + JUMP)
+        elif key == Key.left:
+            cf.pad_size[0] = max(0, cf.pad_size[0] - JUMP)
         elif key == Key.up:
-            cf.pad_size[1] = max(0, cf.pad_size[1] - JUMP)
-        elif key == Key.down:
             cf.pad_size[1] = min(cf.crop_dims[1], cf.pad_size[1] + JUMP)
+        elif key == Key.down:
+            cf.pad_size[1] = max(0, cf.pad_size[1] - JUMP)
 
     cf.persist() # TODO reduce unnecessary writes
 
