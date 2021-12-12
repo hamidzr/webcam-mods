@@ -1,3 +1,4 @@
+from src.config import IN_FORMAT
 import cv2
 from contextlib import contextmanager
 from src.input.input import FrameInput
@@ -23,19 +24,26 @@ def available_camera_indices(end: int = 3):
 def open_video_capture(width=None, height=None, input_dev=0):
     # Grab the webcam feed and get the dimensions of a frame
     videoIn = cv2.VideoCapture(input_dev)
+
+    # TODO make this a configurable cli option
+    if len(IN_FORMAT) > 4:
+        print(f"input fmt can be at most 4 characters long, got {len(fmt)}")
+        exit(1)
+
+    videoIn.set(cv2.CAP_PROP_FPS, 30.0)
+
+    videoIn.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*IN_FORMAT.lower()))
+    videoIn.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*IN_FORMAT.upper()))
+
+    if (width is not None and height is not None):
+        videoIn.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+        videoIn.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+
     if not videoIn.isOpened():
         # raise ValueError("error opening video")
         print(f"failed to open video input device #{input_dev}")
         time.sleep(1) # FIXME
         return (videoIn, 0, 0 , 0)
-    # length = int(videoIn.get(cv2.CAP_PROP_FRAME_COUNT))
-    # width = int(videoIn.get(cv2.CAP_PROP_FRAME_WIDTH))
-    # height = int(videoIn.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    # fps = videoIn.get(cv2.CAP_PROP_FPS)
-    if (width is not None and height is not None):
-        videoIn.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-        videoIn.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-    # videoIn.set(cv2.CAP_PROP_FPS, 30)
     in_width = int(videoIn.get(cv2.CAP_PROP_FRAME_WIDTH))
     in_height = int(videoIn.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = videoIn.get(cv2.CAP_PROP_FPS)
