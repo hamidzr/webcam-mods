@@ -56,6 +56,9 @@ def live_loop(
                 try:
                     if mod:
                         frame = mod(frame)
+                        if frame is None:
+                            print("mod returned a None frame", file=stderr)
+                            continue # frame = last_frame
                     frame = resize_and_pad(
                         frame, sw=fOut.width, sh=fOut.height)
                     last_frame = frame
