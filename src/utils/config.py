@@ -8,6 +8,7 @@ class Config:
     def __init__(self, path: str = '.webcam.conf'):
         self.reset()
         self._path: str = path
+        self.load(path)
         print("starting with config", self) # TODO use a logger
 
     def reset_dependents(self):
