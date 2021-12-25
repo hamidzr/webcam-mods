@@ -1,9 +1,9 @@
 import fcntl
 from pathlib import Path
-from src.utils.file_monitor import MonitorFile
+from webcam_mods.utils.file_monitor import MonitorFile
 import os
-from src.input.input import FrameOutput
-from src.utils.video import Frame
+from webcam_mods.input.input import FrameOutput
+from webcam_mods.utils.video import Frame
 from typing import Dict, Any
 import cv2
 import v4l2

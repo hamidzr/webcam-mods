@@ -1,8 +1,8 @@
-from src.config import IN_FORMAT
+from webcam_mods.config import IN_FORMAT
 import cv2
 from contextlib import contextmanager
-from src.input.input import FrameInput
-from src.utils.video import Frame
+from webcam_mods.input.input import FrameInput
+from webcam_mods.utils.video import Frame
 from loguru import logger
 from typing import Optional, cast
 import os

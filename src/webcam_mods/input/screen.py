@@ -3,8 +3,8 @@ import numpy as np
 from mss.base import MSSBase
 from typing import cast
 # from PIL import Image
-from src.input.input import FrameInput
-from src.geometry import Rect
+from webcam_mods.input.input import FrameInput
+from webcam_mods.geometry import Rect
 
 class Screen(FrameInput):
     sct: MSSBase

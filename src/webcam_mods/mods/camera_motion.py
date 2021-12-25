@@ -1,7 +1,7 @@
 from typing import Callable, Generator, Optional, List, Any
 import math
-from src.config import MAX_OUT_FPS
-from src.geometry import Number, Rect, Point
+from webcam_mods.config import MAX_OUT_FPS
+from webcam_mods.geometry import Number, Rect, Point
 from loguru import logger
 
 FPS = MAX_OUT_FPS

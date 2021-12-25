@@ -1,9 +1,9 @@
-from src.utils.video import sleep_until_fps
+from webcam_mods.utils.video import sleep_until_fps
 import cv2
 import random
 import numpy as np
-from src.geometry import Rect, Point
-from src.mods.camera_motion import generate_crop, FPS
+from webcam_mods.geometry import Rect, Point
+from webcam_mods.mods.camera_motion import generate_crop, FPS
 
 c = 0
 clicked: Point = Point()

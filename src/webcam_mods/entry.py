@@ -1,11 +1,11 @@
 from pathlib import Path
-from src.config import DEFAULT_BG_IMAGE
-from src.loopback import live_loop
-from src.mods.camera_motion import generate_crop
-from src.mods.record_replay import engage
-from src.mods.video_mods import brighten as brighten_mod, crop_rect, pad_inward_centered, crop
-from src.output.gui import GUI
-from src.uses.interactive_controls import cf, process_input as interactive_cli
+from webcam_mods.config import DEFAULT_BG_IMAGE
+from webcam_mods.loopback import live_loop
+from webcam_mods.mods.camera_motion import generate_crop
+from webcam_mods.mods.record_replay import engage
+from webcam_mods.mods.video_mods import brighten as brighten_mod, crop_rect, pad_inward_centered, crop
+from webcam_mods.output.gui import GUI
+from webcam_mods.uses.interactive_controls import cf, process_input as interactive_cli
 import cv2
 import typer
 
@@ -49,7 +49,7 @@ def bg_color(color: int = 192):
     """
     Basic controls + a solid color background
     """
-    from src.mods.person_segmentation import color_bg
+    from webcam_mods.mods.person_segmentation import color_bg
     @base_mod_dec
     def frame_mod(frame):
         frame = color_bg(frame, color)
@@ -62,7 +62,7 @@ def bg_swap(img_path: str = DEFAULT_BG_IMAGE):
     """
     Basic controls + a swapped background with the provided image
     """
-    from src.mods.person_segmentation import swap_bg
+    from webcam_mods.mods.person_segmentation import swap_bg
     bg_image = cv2.imread(str(Path(img_path)))
     @base_mod_dec
     def frame_mod(frame):
@@ -77,7 +77,7 @@ def bg_blur(kernel_size: int = 31):
     Basic controls + a blurred background.
     kernel-size is in pixels and needs to be an odd number.
     """
-    from src.mods.person_segmentation import blur_bg
+    from webcam_mods.mods.person_segmentation import blur_bg
     @base_mod_dec
     def frame_mod(frame):
         return blur_bg(frame, kernel_size)
@@ -100,7 +100,7 @@ def track_face():
     """
     Crop around the first detected face.
     """
-    from src.mods.mp_face import abs_boundingbox, predict
+    from webcam_mods.mods.mp_face import abs_boundingbox, predict
     def frame_mod(frame):
         # fh, fw, _ = frame.shape
         bbox = predict(frame)
@@ -121,7 +121,7 @@ def share_screen(top: int = 0, left: int = 0,
     """
     Share a portion of the screen.
     """
-    from src.input.screen import Screen
+    from webcam_mods.input.screen import Screen
     screen = Screen(top=top, left=left, width=width, height=height)
     if output == GUI.id:
         gui = GUI(width=width, height=height)

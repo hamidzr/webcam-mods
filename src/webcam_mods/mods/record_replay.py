@@ -1,6 +1,6 @@
 import time
 from loguru import logger
-from src.utils.cli_input import inp
+from webcam_mods.utils.cli_input import inp
 
 memory = []  # memory consumption w*h*channels*1
 replay_idx = -1

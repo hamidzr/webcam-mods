@@ -1,24 +1,24 @@
 from sys import stderr
-from src.config import IN_HEIGHT, IN_WIDTH, MAX_OUT_FPS, NO_SIGNAL_IMAGE, ON_DEMAND, ERROR_IMAGE
-from src.uses.interactive_controls import key_listener
+from webcam_mods.config import IN_HEIGHT, IN_WIDTH, MAX_OUT_FPS, NO_SIGNAL_IMAGE, ON_DEMAND, ERROR_IMAGE
+from webcam_mods.uses.interactive_controls import key_listener
 import platform
 from loguru import logger
-from src.input.video_dev import Webcam
-from src.input.input import FrameInput, FrameOutput
+from webcam_mods.input.video_dev import Webcam
+from webcam_mods.input.input import FrameInput, FrameOutput
 import time
 
 # We need to look at system information (os) and write to the device (fcntl)
-from src.mods.video_mods import resize_and_pad
+from webcam_mods.mods.video_mods import resize_and_pad
 
 # WARN output dimensions should be smaller than input.. for now
 
 def default_frame_output(in_fps: int):
     out_fps = min(MAX_OUT_FPS, in_fps)
     if platform.system() == 'Linux':
-        from src.output.v4l2loopback import V4l2Cam
+        from webcam_mods.output.v4l2loopback import V4l2Cam
         return V4l2Cam(fps=out_fps)
     else:
-        from src.output.pyvirtcam import PyVirtualCam
+        from webcam_mods.output.pyvirtcam import PyVirtualCam
         return PyVirtualCam(fps=out_fps)
 
 def live_loop(

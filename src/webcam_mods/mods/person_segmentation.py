@@ -1,4 +1,4 @@
-from src.mods.video_mods import ensure_rgb_color
+from webcam_mods.mods.video_mods import ensure_rgb_color
 import cv2
 from mediapipe.python.solutions import selfie_segmentation
 import numpy as np
