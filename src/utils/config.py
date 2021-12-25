@@ -1,15 +1,16 @@
 from typing import List
 from src.config import IN_HEIGHT, IN_WIDTH
-from sys import stderr
 import os.path
 import json
+from loguru import logger
 
 class Config:
     def __init__(self, path: str = '.webcam.conf'):
         self.reset()
         self._path: str = path
-        self.load(path)
-        print("starting with config", self) # TODO use a logger
+        if self.load(path) is None:
+            self.persist()
+        logger.info(f'starting with config, {self}')
 
     def reset_dependents(self):
         self.crop_pos: List[int] = [0, 0] # x1, h1
@@ -34,18 +35,19 @@ class Config:
             self.crop_dims = conf['crop_dims']
             self.crop_pos = conf['crop_pos']
             self.pad_size = conf['pad_size']
+        return conf
 
     def read(self, path: str = None):
         path = path or self._path
         if not os.path.isfile(path):
-            print(f'config file not found at {path}', file=stderr)
+            logger.warning(f'config file not found at {path}')
             return None
         try:
             with open(path, 'r') as f:
                 conf = json.loads(f.read())
                 return conf
         except:
-            print(f'issue reading the config file at {path}', file=stderr)
+            logger.warning(f'issue reading the config file at {path}')
             return None
 
 

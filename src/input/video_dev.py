@@ -3,8 +3,8 @@ import cv2
 from contextlib import contextmanager
 from src.input.input import FrameInput
 from src.utils.video import Frame
-from typing import Any, Optional, Union, cast
-import time
+from loguru import logger
+from typing import Optional, cast
 import os
 
 def available_camera_indices(end: int = 3):
@@ -27,7 +27,7 @@ def open_video_capture(width=None, height=None, input_dev=0):
 
     # TODO make this a configurable cli option
     if len(IN_FORMAT) > 4:
-        print(f"input fmt can be at most 4 characters long, got {len(fmt)}")
+        logger.error(f"input fmt can be at most 4 characters long, got {len(fmt)}")
         exit(1)
 
     videoIn.set(cv2.CAP_PROP_FPS, 30.0)
@@ -40,10 +40,8 @@ def open_video_capture(width=None, height=None, input_dev=0):
         videoIn.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
 
     if not videoIn.isOpened():
-        # raise ValueError("error opening video")
-        print(f"failed to open video input device #{input_dev}")
-        time.sleep(1) # FIXME
-        return (videoIn, 0, 0 , 0)
+        logger.error(f"failed to open video input device #{input_dev}")
+        raise  FileNotFoundError("failed to open video input device")
     in_width = int(videoIn.get(cv2.CAP_PROP_FRAME_WIDTH))
     in_height = int(videoIn.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = videoIn.get(cv2.CAP_PROP_FPS)

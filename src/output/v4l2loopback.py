@@ -1,4 +1,3 @@
-from ctypes import ArgumentError
 import fcntl
 from pathlib import Path
 from src.utils.file_monitor import MonitorFile
@@ -30,7 +29,7 @@ class V4l2Cam(FrameOutput):
 
     def setup(self) -> Dict[str, Any]:
         if not os.path.exists(self.device):
-            raise ArgumentError("warning: device does not exist", self.device)
+            raise FileNotFoundError("error: v4l2loopback device does not exist at", self.device)
         self.dev = open(self.device, 'wb')
         req, format = prep_v4l2_descriptor(self.width, self.height, 3)
         fcntl.ioctl(self.dev, req, format)

@@ -2,6 +2,7 @@ from typing import Callable, Generator, Optional, List, Any
 import math
 from src.config import MAX_OUT_FPS
 from src.geometry import Number, Rect, Point
+from loguru import logger
 
 FPS = MAX_OUT_FPS
 last_pred: Optional[Rect] = None
@@ -84,7 +85,7 @@ def generate_crop(pred: Rect) -> Rect:
     # did prediction move significantly?
     move_dist = last_pred.center - pred.center
     if (abs(move_dist.l) > THRESHOLD or abs(move_dist.t) > THRESHOLD) or (pred.h - last_pred.height > THRESHOLD or pred.w - last_pred.w > THRESHOLD):
-        print('motion/zoom detected', move_dist)
+        logger.debug(f'motion/zoom detected: {move_dist}')
         transition = transition_rect(cur_crop or last_pred, pred, TRANSITION_TIME*FPS)
         last_pred = pred
 
@@ -95,7 +96,7 @@ def generate_crop(pred: Rect) -> Rect:
             cur_crop = transitioned_pred
         except StopIteration:
             transition = None
-            print('transition finished')
+            logger.debug('transition finished')
 
     return wrap_with_padding(cur_crop)
 

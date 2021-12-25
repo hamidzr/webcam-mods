@@ -1,4 +1,5 @@
 import time
+from loguru import logger
 from src.utils.cli_input import inp
 
 memory = []  # memory consumption w*h*channels*1
@@ -43,17 +44,17 @@ def process_input():
     global recording, replaying, memory
     if inp[0] == "record":
         inp[0] = ""
-        print("started recording")
+        logger.info("started recording")
         reset_memory()
         recording = True
     elif inp[0] == "stop":
         inp[0] = ""
-        print("stopping")
+        logger.info("stopping")
         recording = False
         replaying = False
     elif inp[0] == "replay":
         inp[0] = ""
-        print("start replaying")
+        logger.info("start replaying")
         # also stops recording
         recording = False
         replaying = True
