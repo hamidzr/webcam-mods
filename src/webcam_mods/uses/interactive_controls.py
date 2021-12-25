@@ -1,8 +1,8 @@
-from src.config import IN_HEIGHT, IN_WIDTH
-from src.mods.video_mods import is_crop_valid
-from src.utils.cli_input import inp
+from webcam_mods.config import IN_HEIGHT, IN_WIDTH
+from webcam_mods.mods.video_mods import is_crop_valid
+from webcam_mods.utils.cli_input import inp
 from pynput.keyboard import Key, Listener
-from src.utils.config import Config
+from webcam_mods.utils.config import Config
 
 cur_keys = set()
 JUMP = 10  # pixels

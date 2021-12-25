@@ -1,5 +1,5 @@
-from src.utils.file_monitor import MonitorFile
-from src.input.input import FrameOutput, Frame
+from webcam_mods.utils.file_monitor import MonitorFile
+from webcam_mods.input.input import FrameOutput, Frame
 from pathlib import Path
 from typing import Dict, Any
 import pyvirtualcam

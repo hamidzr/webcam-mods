@@ -1,5 +1,5 @@
 from typing import List
-from src.config import IN_HEIGHT, IN_WIDTH
+from webcam_mods.config import IN_HEIGHT, IN_WIDTH
 import os.path
 from pathlib import Path
 import json

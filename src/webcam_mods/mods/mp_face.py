@@ -1,8 +1,8 @@
-from src.geometry import Rect
+from webcam_mods.geometry import Rect
 import cv2
 from mediapipe.python.solutions import face_detection
 from typing import Optional, Tuple
-from src.utils.video import sleep_until_fps
+from webcam_mods.utils.video import sleep_until_fps
 
 
 fd: Optional[face_detection.FaceDetection] = None
@@ -40,7 +40,7 @@ def abs_boundingbox(frame, relbb) -> Rect:
          l=int(relbb.xmin*fw), t=int(relbb.ymin*fh))
 
 if __name__ == '__main__':
-    from src.input.video_dev import Webcam
+    from webcam_mods.input.video_dev import Webcam
     init()
     with Webcam() as (cam, _):
         while True:
@@ -49,8 +49,8 @@ if __name__ == '__main__':
             # print(abs_boundingbox(frame, pred))
             sleep_until_fps(5)
 
-# from src.loopback import OUT_WIDTH, OUT_HEIGHT
-# from src.mods.video_mods import crop
+# from webcam_mods.loopback import OUT_WIDTH, OUT_HEIGHT
+# from webcam_mods.mods.video_mods import crop
 # import math
 # import numpy as np
 # import time

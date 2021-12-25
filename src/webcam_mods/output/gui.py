@@ -2,7 +2,7 @@ import cv2
 from time import sleep
 import datetime as dt
 from typing import Dict, Any
-from src.input.input import FrameOutput, Frame
+from webcam_mods.input.input import FrameOutput, Frame
 
 class GUI(FrameOutput):
     id = 'gui'

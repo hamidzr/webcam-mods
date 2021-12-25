@@ -1,8 +1,8 @@
 from abc import abstractmethod
-from src import config
+from webcam_mods import config
 from typing import Any, Optional, Dict, Generator, Tuple
 import cv2
-from src.utils.video import Frame
+from webcam_mods.utils.video import Frame
 import datetime as dt
 
 class InNOut:

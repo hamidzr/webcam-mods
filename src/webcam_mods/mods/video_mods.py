@@ -1,4 +1,4 @@
-from src.geometry import Rect
+from webcam_mods.geometry import Rect
 import cv2
 import math
 import numpy as np
