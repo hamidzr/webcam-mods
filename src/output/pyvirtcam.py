@@ -2,10 +2,9 @@ from src.input.input import FrameOutput, Frame
 from inotify_simple import INotify, flags
 from typing import Dict, Any
 import pyvirtualcam
-# from .config import IN_HEIGHT, IN_WIDTH, MAX_OUT_FPS, no_signal_img, OUT_HEIGHT, OUT_WIDTH, VIDEO_OUT
 from pyvirtualcam import PixelFormat
 
-class VirtualCam(FrameOutput):
+class PyVirtualCam(FrameOutput):
     id = 'vritual-cam'
 
     def _setup_inotify(self):
@@ -35,7 +34,7 @@ class VirtualCam(FrameOutput):
     def teardown(self, *args):
         self.consumers = 0
         self.inotify.close()
-        return self.cam.__exit__(*args)
+        self.cam.close()
 
     def send(self, frame: Frame):
         return self.cam.send(frame)

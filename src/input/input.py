@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from src.config import MAX_OUT_FPS
+from src import config
 from typing import Any, Optional, Dict, Generator, Tuple
 import cv2
 from src.utils.video import Frame
@@ -9,12 +9,14 @@ class InNOut:
     id: str
 
     def __init__(self,
-                 width: int = 100,
-                 height: int = 100,
-                 fps: int = MAX_OUT_FPS):
+                 width: int = config.OUT_WIDTH,
+                 height: int = config.OUT_HEIGHT,
+                 fps: int = config.MAX_OUT_FPS,
+                 device: str = config.VIDEO_OUT):
         self.width = width
         self.height = height
         self.fps = fps
+        self.device = device
 
     @abstractmethod
     def setup(self) -> Dict[str, Any]:

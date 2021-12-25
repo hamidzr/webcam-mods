@@ -1,7 +1,7 @@
-from src.output.pyvirtcam import VirtualCam
 from sys import stderr
-from src.config import IN_HEIGHT, IN_WIDTH, MAX_OUT_FPS, NO_SIGNAL_IMAGE, OUT_HEIGHT, OUT_WIDTH, ON_DEMAND, ERROR_IMAGE
+from src.config import IN_HEIGHT, IN_WIDTH, MAX_OUT_FPS, NO_SIGNAL_IMAGE, ON_DEMAND, ERROR_IMAGE
 from src.uses.interactive_controls import key_listener
+import platform
 from src.input.video_dev import Webcam
 from src.input.input import FrameInput, FrameOutput
 import time
@@ -10,6 +10,15 @@ import time
 from src.mods.video_mods import resize_and_pad
 
 # WARN output dimensions should be smaller than input.. for now
+
+def default_frame_output(in_fps: int):
+    out_fps = min(MAX_OUT_FPS, in_fps)
+    if platform.system() == 'Linux':
+        from src.output.v4l2loopback import V4l2Cam
+        return V4l2Cam(fps=out_fps)
+    else:
+        from src.output.pyvirtcam import PyVirtualCam
+        return PyVirtualCam(fps=out_fps)
 
 def live_loop(
     mod=None,
@@ -23,9 +32,8 @@ def live_loop(
 
     if fOut is None:
         with fIn as (_, inp_props):
-            out_fps = min(MAX_OUT_FPS, inp_props['fps'])
-        default_output = VirtualCam(width=OUT_WIDTH, height=OUT_HEIGHT, fps=out_fps)
-        fOut = default_output
+           in_fps = inp_props['fps']
+        fOut = default_frame_output(in_fps)
 
     print(f'begin passing from #{fIn.__class__.__name__} to #{fOut.__class__.__name__}')
 
