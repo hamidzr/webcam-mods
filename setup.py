@@ -1,5 +1,5 @@
 import pathlib
-from setuptools import setup
+import setuptools
 
 # The directory containing this file
 HERE = pathlib.Path(__file__).parent
@@ -8,27 +8,39 @@ HERE = pathlib.Path(__file__).parent
 README = (HERE / "README.md").read_text()
 
 # This call to setup() does all the work
-setup(
-    name="realpython-reader",
-    version="1.0.0",
-    description="Read the latest Real Python tutorials",
+setuptools.setup(
+    name="Webcam Mods",
+    version="0.1.0",
+    description=" Face tracking, bg removal, crop, zoom, record & replay, and more webcam mods",
     long_description=README,
     long_description_content_type="text/markdown",
-    url="https://github.com/realpython/reader",
-    author="Real Python",
-    author_email="info@realpython.com",
-    license="MIT",
+    url="https://github.com/hamidzr/webcam-mods",
+    author='Hamid Zare',
+    author_email='contact@hamidza.re',
+    keywords='v4l2 webcam virtual-camera virtual-background blur-background',
+    license='GPLv2',
     classifiers=[
-        "License :: OSI Approved :: MIT License",
+        "Operating System :: OS Independent",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python",
+        "Topic :: Multimedia :: Video",
+        "Topic :: Multimedia :: Video :: Capture",
     ],
-    packages=["reader"],
+    python_requires=">=3.8",
+    package_dir={"": "src"},
+    project_urls={
+        "Homepage": "https://github.com/hamidzr/webcam-mods",
+        "Bug Tracker": "https://github.com/hamidzr/webcam-mods/issues",
+    },
+    packages=setuptools.find_packages(where="src"),
     include_package_data=True,
-    install_requires=["feedparser", "html2text"],
+    install_requires=[
+                      ],
     entry_points={
         "console_scripts": [
-            "realpython=reader.__main__:main",
+            "webcam_mods = webcam_mods.entry.__main__:main",
         ]
     },
 )
+
