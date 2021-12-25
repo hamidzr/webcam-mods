@@ -15,6 +15,7 @@ pyvirtualcam = "*"
 typer = "*"
 inotify-simple = "*"
 mss = "*"
+v4l2 = "*"
 
 [requires]
 python_version = "3.8"
