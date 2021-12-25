@@ -10,26 +10,30 @@ import time
 from src.mods.video_mods import resize_and_pad
 
 # WARN output dimensions should be smaller than input.. for now
-default_input = Webcam(width=IN_WIDTH, height=IN_HEIGHT)
-out_fps = MAX_OUT_FPS
-with default_input as (fIn, inp_props):
-    out_fps = min(out_fps, inp_props['fps'])
-default_output = VirtualCam(width=OUT_WIDTH, height=OUT_HEIGHT, fps=out_fps)
 
 def live_loop(
     mod=None,
     on_demand=ON_DEMAND,
-    fIn: FrameInput = default_input,
-    fOut: FrameOutput = default_output,
+    fIn: FrameInput = None,
+    fOut: FrameOutput = None,
     interactive_listener=key_listener,
 ):
+    if fIn is None:
+        fIn = Webcam(width=IN_WIDTH, height=IN_HEIGHT)
+
+    if fOut is None:
+        with fIn as (_, inp_props):
+            out_fps = min(MAX_OUT_FPS, inp_props['fps'])
+        default_output = VirtualCam(width=OUT_WIDTH, height=OUT_HEIGHT, fps=out_fps)
+        fOut = default_output
+
     print(f'begin passing from #{fIn.__class__.__name__} to #{fOut.__class__.__name__}')
 
     if interactive_listener is not None:
         interactive_listener.start()
     paused = False if not on_demand else True
 
-    inp_props = default_input.setup()
+    inp_props = fIn.setup()
     # This is the loop that reads from the input, edits, and then writes to the loopback
     with fOut as (cam, outp_props):
         print(f'input: {inp_props}, output: {outp_props}')

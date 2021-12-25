@@ -1,16 +1,12 @@
-from src.input.video_dev import Webcam
-from src.mods.camera_motion import generate_crop
-from src.loopback import live_loop
-from src.mods.person_segmentation import color_bg, blur_bg, swap_bg
-from src.mods.record_replay import engage
 from pathlib import Path
+from src.config import DEFAULT_BG_IMAGE
+from src.loopback import live_loop
+from src.mods.camera_motion import generate_crop
+from src.mods.record_replay import engage
 from src.mods.video_mods import brighten as brighten_mod, crop_rect, pad_inward_centered, crop
-from src.mods.mp_face import abs_boundingbox, predict
-from src.config import DEFAULT_BG_IMAGE, IN_WIDTH, IN_HEIGHT
-from src.uses.interactive_controls import cf, process_input as interactive_cli
 from src.output.gui import GUI
+from src.uses.interactive_controls import cf, process_input as interactive_cli
 import cv2
-import os
 import typer
 
 app = typer.Typer()
@@ -53,6 +49,7 @@ def bg_color(color: int = 192):
     """
     Basic controls + a solid color background
     """
+    from src.mods.person_segmentation import color_bg
     @base_mod_dec
     def frame_mod(frame):
         frame = color_bg(frame, color)
@@ -65,6 +62,7 @@ def bg_swap(img_path: str = DEFAULT_BG_IMAGE):
     """
     Basic controls + a swapped background with the provided image
     """
+    from src.mods.person_segmentation import swap_bg
     bg_image = cv2.imread(str(Path(img_path)))
     @base_mod_dec
     def frame_mod(frame):
@@ -79,6 +77,7 @@ def bg_blur(kernel_size: int = 31):
     Basic controls + a blurred background.
     kernel-size is in pixels and needs to be an odd number.
     """
+    from src.mods.person_segmentation import blur_bg
     @base_mod_dec
     def frame_mod(frame):
         return blur_bg(frame, kernel_size)
@@ -101,6 +100,7 @@ def track_face():
     """
     Crop around the first detected face.
     """
+    from src.mods.mp_face import abs_boundingbox, predict
     def frame_mod(frame):
         # fh, fw, _ = frame.shape
         bbox = predict(frame)
@@ -112,7 +112,6 @@ def track_face():
             pred_box = abs_boundingbox(frame, bbox)
             frame = crop_rect(frame, generate_crop(pred_box))
         return frame
-    # frame_in = Webcam(width=IN_WIDTH, height=IN_HEIGHT)
     live_loop(mod=frame_mod, interactive_listener=None)
 
 @app.command()
