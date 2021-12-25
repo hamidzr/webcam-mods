@@ -1,6 +1,7 @@
 from ctypes import ArgumentError
 import fcntl
-from inotify_simple import INotify, flags
+from pathlib import Path
+from src.utils.file_monitor import MonitorFile
 import os
 from src.input.input import FrameOutput
 from src.utils.video import Frame
@@ -23,21 +24,9 @@ def prep_v4l2_descriptor(width, height, channels):
 class V4l2Cam(FrameOutput):
     id = 'v4l2-cam'
 
-    def _setup_inotify(self):
-        self.consumers = 0
-        inotify = INotify(nonblocking=True)
-        self.inotify = inotify
-        watch_flags = flags.CREATE | flags.OPEN | flags.CLOSE_NOWRITE | flags.CLOSE_WRITE
-        inotify.add_watch(self.device, watch_flags)
-
-    def _check_inotify(self):
-        for event in self.inotify.read(0):
-            for flag in flags.from_mask(event.mask):
-                if flag == flags.CLOSE_NOWRITE or flag == flags.CLOSE_WRITE:
-                    self.consumers = max(0, self.consumers - 1)
-                if flag == flags.OPEN:
-                    self.consumers += 1
-                print("Consumers:", self.consumers)
+    def __init__(self, *args, **kwargs):
+        super(V4l2Cam, self).__init__(*args, **kwargs)
+        self.on_demand = MonitorFile(Path(self.device))
 
     def setup(self) -> Dict[str, Any]:
         if not os.path.exists(self.device):
@@ -45,13 +34,13 @@ class V4l2Cam(FrameOutput):
         self.dev = open(self.device, 'wb')
         req, format = prep_v4l2_descriptor(self.width, self.height, 3)
         fcntl.ioctl(self.dev, req, format)
-        self._setup_inotify()
+        self.on_demand.setup()
         return {'device': self.device, 'width': self.width,
                 'height': self.height, 'fps': self.fps}
 
     def teardown(self, *args):
         self.consumers = 0
-        self.inotify.close()
+        self.on_demand.teardown()
         self.dev.close()
 
     def send(self, frame: Frame):
@@ -61,5 +50,4 @@ class V4l2Cam(FrameOutput):
         pass
 
     def is_in_use(self) -> bool:
-        self._check_inotify()
-        return self.consumers > 0
+        return self.on_demand.is_in_use()

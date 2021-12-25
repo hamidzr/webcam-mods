@@ -16,6 +16,7 @@ typer = "*"
 inotify-simple = "*"
 mss = "*"
 v4l2 = {editable = true, git = "https://github.com/hamidzr/python-v4l2.git"}
+loguru = "*"
 
 [requires]
 python_version = "3.8"
