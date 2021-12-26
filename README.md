@@ -50,7 +50,8 @@ To do so run the following: `export PYTHONPATH="$PYTHONPATH:./"`
 
 System dependencies:
 
-- Python 3.8
+- Python 3.8: Some installation options include [pyenv](https://github.com/pyenv/pyenv) [conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html)
+- [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
 - A virtual camera device: [Linux] v4l2loopback [Windows or MacOS] [OBS](https://obsproject.com/).
 Follow [pyvirtualcam's instructions](https://github.com/letmaik/pyvirtualcam#supported-virtual-cameras) to set this up.
 
