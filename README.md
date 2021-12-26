@@ -55,7 +55,6 @@ System dependencies:
 - A virtual camera device: [Linux] v4l2loopback [Windows or MacOS] [OBS](https://obsproject.com/).
 Follow [pyvirtualcam's instructions](https://github.com/letmaik/pyvirtualcam#supported-virtual-cameras) to set this up.
 
-On Linux once you have the v4l2 module installed you can run `sudo make add-video-dev` to add a virtual camera device with some pre-set flags.
 
 If you're just interested in running the released features install the project as a python package using:
 `pip install git+https://github.com/hamidzr/webcam-mods@master` (python 3.8 environment) and access the
@@ -70,6 +69,21 @@ see `pipenv` mentioned => `grep -R pipenv .`
 1. create a virtual environment: `pipenv --python 3.8`
 2. activate it `pipenv shell`
 3. install the dependencies `pipenv install --skip-lock`
+
+## Setting up a virtual webcam device on Linux
+
+On Linux once you have the v4l2 module installed you can run `sudo make add-video-dev` to add a virtual
+camera device with some pre-set flags.
+
+Which executes the following to remove and re-insert the module.
+You might need root access for this.
+
+```
+pkill gst-launch &> /dev/null || true
+rmmod v4l2loopback &> /dev/null || true
+modprobe v4l2loopback devices=1 max_buffers=2 exclusive_caps=1 video_nr=10 card_label="v4l2-cam"
+```
+
 
 
 ## Upgrading
