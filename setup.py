@@ -34,7 +34,6 @@ setuptools.setup(
         "Bug Tracker": "https://github.com/hamidzr/webcam-mods/issues",
     },
     packages=setuptools.find_packages(where="src"),
-    include_package_data=True,
     install_requires=[
         "opencv-python",
         "tensorflow",
