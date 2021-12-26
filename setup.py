@@ -46,7 +46,7 @@ setuptools.setup(
         "mss",
         "v4l2 @ git+https://github.com/hamidzr/python-v4l2.git#egg=v4l2",
         "loguru",
-                      ],
+    ],
     entry_points={
         "console_scripts": [
             "webcam_mods = webcam_mods.__main__:app",
