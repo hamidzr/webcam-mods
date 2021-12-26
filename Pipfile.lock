@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "e2fe5bcbaffff06bbb44941cd04706e8cccd8f7cd63427687541db078f1a9421"
+            "sha256": "1b7742da4eac2e17f0abef0461fd3256bf5665bdb7ad9ac1385dbfee34cc7092"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -77,13 +77,6 @@
             ],
             "markers": "python_version >= '3.6'",
             "version": "==0.11.0"
-        },
-        "evdev": {
-            "hashes": [
-                "sha256:8782740eb1a86b187334c07feb5127d3faa0b236e113206dfe3ae8f77fb1aaf1"
-            ],
-            "markers": "'linux' in sys_platform",
-            "version": "==1.4.0"
         },
         "flatbuffers": {
             "hashes": [
@@ -637,6 +630,54 @@
             "index": "pypi",
             "version": "==1.7.5"
         },
+        "pyobjc-core": {
+            "hashes": [
+                "sha256:43f251881fe36dcb9ca9f7946ab13ddb4aa2499bde3c8bf2dc8144b5fe884629",
+                "sha256:781cfa7a3f72ce7213b4c341b5c552cd63b6664b3b444a23fcb1d5fdd417aa8b",
+                "sha256:920914a1a4cd4f8a54babe93f0b4e4cd93b51d11ae38d8ef17f5edb603b7a949",
+                "sha256:951e716ad30bea52190f5e82604ee2c7f3dc6c04722cf0a3311ad7e4e6af5134",
+                "sha256:b6662805d288cd1bfd257565ddc07541d0162b3167af15e39f7a654b94f6667b",
+                "sha256:ddd9b964df292fa0bbd0d0694befe4c524977780e3f11221ac7e8683d5e9590f"
+            ],
+            "markers": "python_version >= '3.6'",
+            "version": "==8.1"
+        },
+        "pyobjc-framework-applicationservices": {
+            "hashes": [
+                "sha256:01b8378cd27bbc2bad449600a5ff05060cd4f2098eb6b7bc85f0f95baad721b6",
+                "sha256:3eb1f24f5b3c03a8adf7339f4d70677a8c3223914e802fa4736009cc29f8920b",
+                "sha256:4d31fde8409f4b705fa152ef68f2e7577013e6e1d79c2e659346941942b6ed39",
+                "sha256:7e34d4b4f034e7500bcb11f1290d4d99f737dfb8057a73a0a7b6090d48886543",
+                "sha256:c35da5ab2851fff21950c73a1abb19f9e925f75190bb03404b12b1a0c959a013",
+                "sha256:d608b400e8a41a0aeef08e59af66c1aeb626d2a09ae33c66ebf24f69773c08c9"
+            ],
+            "markers": "sys_platform == 'darwin'",
+            "version": "==8.1"
+        },
+        "pyobjc-framework-cocoa": {
+            "hashes": [
+                "sha256:0b0aee74f6c32103338e3735f308052f4cc534c25762130303638aaa6d62d851",
+                "sha256:626f6d084a537b365c0786674036643695e7829ebaf7889aa9b327f3b897a800",
+                "sha256:8075f6cf8cac804d9ed05355c68a8a0cd3ce31a310469279c6c7e49dad47b010",
+                "sha256:9de42dc3e0911d6e30cf41bb4baf9aaf2723a27053f7edbd8ad7d758cf41b81d",
+                "sha256:9e47a2709b8458422752efccaa89f4b52cc8e01345ec71c43c713a891f084bb6",
+                "sha256:b588a3ed9adcdbfafcbfa77bbd72844afb8d987a70cce7a4f3a35a9474271a11"
+            ],
+            "markers": "python_version >= '3.6'",
+            "version": "==8.1"
+        },
+        "pyobjc-framework-quartz": {
+            "hashes": [
+                "sha256:0464eca74eda6623db37c41edeb1d01327988f9b1cfbcb28a94c37e117c5cf93",
+                "sha256:1598578fdf8841a86957710b2c6c1832e35778f5a7a4359c924cd6b2562aab8a",
+                "sha256:4994d9d99e74384f24031084a7b7711082e9dd46253399c8fdec4746c4a2a11b",
+                "sha256:656e692fe7ba3e411f86aabed790af80a4f967b676d1bc10de21432ba3626eb0",
+                "sha256:e1e36960ff7cb6df68450fcee82d06cf3bd7add9a58b7cb006f8103d4b86e8e8",
+                "sha256:e310dc0cee4796c5b249a07229bc04f796d586e182ee520a963fe6e93efcbfe8"
+            ],
+            "index": "pypi",
+            "version": "==8.1"
+        },
         "pyparsing": {
             "hashes": [
                 "sha256:04ff808a5b90911829c55c4e26f75fa5ca8a2f5f36aa3a51f68e27033341d3e4",
@@ -652,14 +693,6 @@
             ],
             "markers": "python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3'",
             "version": "==2.8.2"
-        },
-        "python-xlib": {
-            "hashes": [
-                "sha256:1ec6ce0de73d9e6592ead666779a5732b384e5b8fb1f1886bd0a81cafa477759",
-                "sha256:74d83a081f532bc07f6d7afcd6416ec38403d68f68b9b9dc9e1f28fbf2d799e9"
-            ],
-            "markers": "'linux' in sys_platform",
-            "version": "==0.31"
         },
         "pyvirtualcam": {
             "hashes": [

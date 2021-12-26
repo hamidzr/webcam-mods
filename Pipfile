@@ -18,6 +18,7 @@ inotify-simple = "*"
 mss = "*"
 v4l2 = {editable = true, git = "https://github.com/hamidzr/python-v4l2.git"}
 loguru = "*"
+pyobjc-framework-quartz = "*"
 
 [requires]
 python_version = "3.8"
