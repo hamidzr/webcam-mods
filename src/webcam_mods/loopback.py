@@ -1,4 +1,3 @@
-from sys import stderr
 from webcam_mods.config import IN_HEIGHT, IN_WIDTH, MAX_OUT_FPS, NO_SIGNAL_IMAGE, ON_DEMAND, ERROR_IMAGE
 from webcam_mods.uses.interactive_controls import key_listener
 import platform

@@ -36,10 +36,20 @@ setuptools.setup(
     packages=setuptools.find_packages(where="src"),
     include_package_data=True,
     install_requires=[
+        "opencv-python",
+        "tensorflow",
+        "pynput",
+        "mediapipe",
+        "pyvirtualcam",
+        "typer",
+        "inotify-simple",
+        "mss",
+        "v4l2 @ git+https://github.com/hamidzr/python-v4l2.git#egg=v4l2",
+        "loguru",
                       ],
     entry_points={
         "console_scripts": [
-            "webcam_mods = webcam_mods.entry.__main__:main",
+            "webcam_mods = webcam_mods.__main__:app",
         ]
     },
 )
