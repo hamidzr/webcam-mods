@@ -128,5 +128,13 @@ def share_screen(top: int = 0, left: int = 0,
         live_loop(fIn=screen, fOut=gui)
     else:
         live_loop(fIn=screen)
+
+@app.command()
+def test_loop():
+    """
+    For testing purposes.
+    """
+    live_loop()
+
 if __name__ == "__main__":
     app()
