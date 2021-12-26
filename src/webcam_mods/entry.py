@@ -114,6 +114,7 @@ def track_face():
         return frame
     live_loop(mod=frame_mod, interactive_listener=None)
 
+
 @app.command()
 def share_screen(top: int = 0, left: int = 0,
                  width: int = 640, height: int = 480,
@@ -135,6 +136,7 @@ def test_loop():
     For testing purposes.
     """
     live_loop()
+
 
 if __name__ == "__main__":
     app()
