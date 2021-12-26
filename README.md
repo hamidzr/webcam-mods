@@ -1,6 +1,7 @@
 # Webcam Mods
 
-Tested on MacOS & Arch Linux.
+Tested on Arch Linux.
+
 
 Checkout my other repository for some ffmpeg-only solutions [here](https://github.com/hamidzr/scripts/tree/master/ffmpeg)
 
@@ -126,6 +127,7 @@ features:
 - [x] zoom support. done through resizing.
   - the controls could be more intuitive
 - [x] MacOS support
+  - disable ionotify. quartz install
 - [x] Windows support? should be there with `pyvirtualcam`
 - [ ] hot swap inputs
 - [~] add screen as an input
