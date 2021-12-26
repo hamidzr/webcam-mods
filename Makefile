@@ -13,6 +13,9 @@ add-video-dev:
 	rmmod v4l2loopback &> /dev/null || true
 	modprobe v4l2loopback devices=1 max_buffers=2 exclusive_caps=1 video_nr=10 card_label="v4l-cam"
 
+clean:
+	rm -rf dist
+
 build:
 	pipenv run python -m build
 
