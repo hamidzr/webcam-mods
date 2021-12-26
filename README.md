@@ -102,6 +102,10 @@ but for your output device.
 - `ON_DEMAND` [Default: False, Linux only]: set to True to lower cpu usage while the output camera device isn't actively
 used.
 
+- `IN_FORMAT`: input video format. This dictates the requested video format from the input video device (webcam)
+which directly affects picture quality and FPS. If you're looking to get higher a resolution or FPS
+out of your webcam it's crucial to inspect your camera and driver capabilities and set the appropriate format here.
+
 
 
 ## TODO
