@@ -8,7 +8,7 @@ cur_keys = set()
 JUMP = 10  # pixels
 
 
-cf = Config.from_disk()
+cf = Config()
 
 def on_press(key):
     global cf, cur_keys

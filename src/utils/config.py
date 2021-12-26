@@ -1,16 +1,18 @@
 from typing import List
 from src.config import IN_HEIGHT, IN_WIDTH
 import os.path
+from pathlib import Path
 import json
 from loguru import logger
 
+default_config_path = Path.home() / '.webcam-mods.conf'
+
 class Config:
-    def __init__(self, path: str = '.webcam.conf'):
+    def __init__(self, path: Path = default_config_path):
         self.reset()
-        self._path: str = path
-        if self.load(path) is None:
+        self._path: str = str(path)
+        if self.load(self._path) is None:
             self.persist()
-        logger.info(f'starting with config, {self}')
 
     def reset_dependents(self):
         self.crop_pos: List[int] = [0, 0] # x1, h1
@@ -20,21 +22,13 @@ class Config:
         self.crop_dims = [IN_WIDTH, IN_HEIGHT]
         self.reset_dependents()
 
-    @classmethod
-    def from_disk(cls, path: str = None):
-        if path is not None:
-            c = cls(path=path)
-        else:
-            c = cls()
-        c.load(path)
-        return c
-
     def load(self, path: str = None):
         conf = self.read(path)
         if conf is not None:
             self.crop_dims = conf['crop_dims']
             self.crop_pos = conf['crop_pos']
             self.pad_size = conf['pad_size']
+            logger.info(f'loaded config: {conf}')
         return conf
 
     def read(self, path: str = None):
