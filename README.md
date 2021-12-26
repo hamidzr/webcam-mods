@@ -50,11 +50,16 @@ To do so run the following: `export PYTHONPATH="$PYTHONPATH:./"`
 
 System dependencies:
 
-- python 3.8
+- Python 3.8
 - A virtual camera device: [Linux] v4l2loopback [Windows or MacOS] [OBS](https://obsproject.com/).
 Follow [pyvirtualcam's instructions](https://github.com/letmaik/pyvirtualcam#supported-virtual-cameras) to set this up.
 
-On Linux once you have the v4l module installed you can run `sudo make add-video-dev` to add a virtual camera device with some pre-set flags.
+On Linux once you have the v4l2 module installed you can run `sudo make add-video-dev` to add a virtual camera device with some pre-set flags.
+
+If you're just interested in running the released features install the project as a python package using:
+`pip install git+https://github.com/hamidzr/webcam-mods@master` (python 3.8 environment) and access the
+offered features using `webcam_mods` CLI. This would replace the `entry.py` mentions in the rest of 
+the documentation.
 
 Python dependencies are listed in `Pipfile`. Install them using [Pipenv](https://pipenv-fork.readthedocs.io/en/latest/) (recommended)
 
