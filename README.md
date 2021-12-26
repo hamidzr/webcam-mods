@@ -42,9 +42,8 @@ _For entertainment purposes only_
 
 ## Installation
 
-You might need to include the root directory in your `$PYTHONPATH`. To do so run the following:
-
-`export PYTHONPATH="$PYTHONPATH:./"`
+Depending on your python setup you might need to include the current directory in your `$PYTHONPATH`.
+To do so run the following: `export PYTHONPATH="$PYTHONPATH:./"`
 
 ### Dependencies
 
@@ -73,19 +72,19 @@ If you run into an issue upgrading try removing the old config file at `.webcam.
 ## Running the Mods
 
 After you've successfully followed installation steps, you can run the different modes by
-calling `python entry.py --help`.
-`src/uses` directory directly to use the different modes.
-Some of these files have Make targets for ease of use. For example using the `make crop-cam` target activates the virtual env using pipenv and executes `python entry.py crop-cam`
+calling `python webcam_mods/entry.py --help` from within the `src` directory .
 
 ## Settings
 
 When you use the interactive controls to move the camera around the resulting parameters are saved in
-a text file to your disk currently named `.webcam.conf`
+a text file to your disk which is by default located at `$HOME/.webcam-mods.conf`
 
 ### Environment Variables
 
 Environment variables are used to configure different parameters. Read more about how to set or
 persist them [here](https://lmgtfy.app/?q=how+to+set+environment+variables+in+linux)
+These are mostly defined in the `config.py` file. To see their default values take a look at that
+file.
 
 - `VIDEO_IN` & `VIDEO_OUT`:
 If you have multiple video input devices, aka webcams, you can pick the one you want by providing its
@@ -97,8 +96,12 @@ multiple output devices.
 - `IN_WIDTH` [Default: 640], `IN_HEIGHT` [Default: 480]: Your video input device likely support
 multiple resolution and FPS settings use these env variables to pick and persist the one you want.
 
+- `OUT_WIDTH` [Default: 640], `OUT_HEIGHT` [Default: 480]: similar to `IN_HEIGHT` and `OUT_HEIGHT`
+but for your output device.
+
 - `ON_DEMAND` [Default: False, Linux only]: set to True to lower cpu usage while the output camera device isn't actively
 used.
+
 
 
 ## TODO

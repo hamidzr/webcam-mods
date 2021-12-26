@@ -1,10 +1,10 @@
 default: add-video-dev
 
 track-face:
-	pipenv run python src/uses/track_face.py
+	echo this make target is deprecated. use the package entry (entry.py) instead.
 
 crop-cam:
-	pipenv run python entry.py crop-cam
+	echo this make target is deprecated. use the package entry (entry.py) instead.
 
 # create a virtual video device on Linux
 add-video-dev:
