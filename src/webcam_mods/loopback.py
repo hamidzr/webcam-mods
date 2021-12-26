@@ -1,4 +1,5 @@
 from webcam_mods.config import IN_HEIGHT, IN_WIDTH, MAX_OUT_FPS, NO_SIGNAL_IMAGE, ON_DEMAND, ERROR_IMAGE
+import cv2
 from webcam_mods.uses.interactive_controls import key_listener
 import platform
 from loguru import logger
@@ -45,8 +46,8 @@ def live_loop(
     # This is the loop that reads from the input, edits, and then writes to the loopback
     with fOut as (cam, outp_props):
         logger.info(f'input: {inp_props}, output: {outp_props}')
-        paused_frame = resize_and_pad(NO_SIGNAL_IMAGE, sw=fOut.width, sh=fOut.height)
-        error_frame = resize_and_pad(ERROR_IMAGE, sw=fOut.width, sh=fOut.height)
+        paused_frame = resize_and_pad(cv2.imread(str(NO_SIGNAL_IMAGE)), sw=fOut.width, sh=fOut.height)
+        error_frame = resize_and_pad(cv2.imread(str(ERROR_IMAGE)), sw=fOut.width, sh=fOut.height)
         last_frame = paused_frame
         while True:
             if on_demand:

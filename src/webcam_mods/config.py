@@ -1,6 +1,5 @@
 import os
 from pathlib import Path
-import cv2
 
 # Set the input video device config based on your hardware and driver capabilities.
 # If you're using V4L2, you can use the v4l2-ctl utility to list the available
@@ -16,8 +15,9 @@ OUT_HEIGHT = int(os.getenv('OUT_HEIGHT', 480))
 # adjust if perfromance is an issue in some of the process heavy mods
 MAX_OUT_FPS = int(os.getenv('MAX_OUT_FPS', 30))
 
-NO_SIGNAL_IMAGE = cv2.imread(f'{Path.cwd()}/data/nosignal.jpg')
-DEFAULT_BG_IMAGE = f'{Path.cwd()}/data/bg.jpg'
-ERROR_IMAGE = cv2.imread(f'{Path.cwd()}/data/errors/xp.jpg')
-ON_DEMAND = os.getenv('ON_DEMAND') == 'True'
+data_root = Path(__file__).parent / 'data'
+NO_SIGNAL_IMAGE = data_root / 'nosignal.jpg'
+DEFAULT_BG_IMAGE = data_root / 'bg.jpg'
+ERROR_IMAGE = data_root / 'errors' / 'xp.jpg'
 
+ON_DEMAND = os.getenv('ON_DEMAND') == 'True'

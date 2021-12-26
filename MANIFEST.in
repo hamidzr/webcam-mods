@@ -1,1 +1,1 @@
-include src/webcam_mods/data/*
+recursive-include src/webcam_mods/data *
