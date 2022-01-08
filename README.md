@@ -116,6 +116,7 @@ multiple output devices.
 
 - `IN_WIDTH` [Default: 640], `IN_HEIGHT` [Default: 480]: Your video input device likely support
 multiple resolution and FPS settings use these env variables to pick and persist the one you want.
+`v4l2-ctl` can list out the different settings your webcam driver supports: `v4l2-ctl --list-formats-ext | less`
 
 - `OUT_WIDTH` [Default: 640], `OUT_HEIGHT` [Default: 480]: similar to `IN_HEIGHT` and `OUT_HEIGHT`
 but for your output device.

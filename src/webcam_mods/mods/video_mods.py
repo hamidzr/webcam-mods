@@ -104,7 +104,8 @@ def pad_outward_centered(frame: np.ndarray, horizontal=0, vertical=0, color=0):
 
 def resize_to_box(img, tw: int, th: int):
     """
-    Resize to a bounding box while keeping aspect ratio
+    Resize to a bounding box while keeping aspect ratio.
+    The resulting image is at or lower dimensions than target.
     tw: width of the target bounding box
     th: height of the bounding box
     """
@@ -156,6 +157,7 @@ def resize_and_pad(img: np.ndarray, sw: int, sh: int, pad_color=0) -> np.ndarray
     """
 
     img = resize_to_box(img, sw, sh)
+    assert img is not None
     return pad_to_box(img, sw, sh, pad_color)
 
 

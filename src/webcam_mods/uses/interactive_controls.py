@@ -1,6 +1,7 @@
 from webcam_mods.config import IN_HEIGHT, IN_WIDTH
 from webcam_mods.mods.video_mods import is_crop_valid
 from webcam_mods.utils.cli_input import inp
+from loguru import logger
 from pynput.keyboard import Key, Listener
 from webcam_mods.utils.config import Config
 
@@ -67,6 +68,7 @@ def on_press(key):
 def process_input():
     if inp[0] == "reset":
         cf.reset()
+        logger.info("config reset")
         inp[0] = ""
 
 def on_release(key):

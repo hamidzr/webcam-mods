@@ -33,7 +33,10 @@ def live_loop(
 
     if fOut is None:
         with fIn as (_, inp_props):
-           in_fps = inp_props['fps']
+            if inp_props["width"] != IN_WIDTH or inp_props["height"] != IN_HEIGHT:
+                logger.error(f"Unexpected input resolution: {inp_props['width']}x{inp_props['height']} is not {IN_WIDTH}x{IN_HEIGHT}")
+                return 1
+            in_fps = inp_props['fps']
         fOut = default_frame_output(in_fps)
 
     logger.info(f'begin passing from #{fIn.__class__.__name__} to #{fOut.__class__.__name__}')
@@ -77,8 +80,7 @@ def live_loop(
                     last_frame = frame
                 except Exception as e:
                     # raise e
-                    logger.error(e)
-                    logger.error(f'failed to process frame')
+                    logger.error(f'failed to process frame. {e}')
                     frame = error_frame # last_frame
 
             # assert frame.shape[0] == fOut.height
