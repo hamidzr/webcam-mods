@@ -30,3 +30,6 @@ publish: build
 describe-devices:
 	v4l2-ctl --list-device
 	v4l2-ctl --list-formats-ext
+
+fmt:
+	black .
