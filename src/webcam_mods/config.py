@@ -9,7 +9,9 @@ IN_HEIGHT = int(os.getenv('IN_HEIGHT', 480))
 IN_FORMAT = os.getenv('IN_FORMAT', 'YUYV') # 'MJPG', 'YUYV', etc
 IN_FPS = int(os.getenv('IN_FPS', 30))
 
-VIDEO_OUT = os.getenv('VIDEO_OUT', '/dev/video10')
+VIDEO_IN = int(os.getenv('VIDEO_IN', 0)) # CHECK do we need to support other path structures than /dev/videoINDEX
+VIDEO_OUT = os.getenv('VIDEO_OUT', '/dev/video10') # TODO to int
+
 OUT_WIDTH = int(os.getenv('OUT_WIDTH', 640))
 OUT_HEIGHT = int(os.getenv('OUT_HEIGHT', 480))
 # adjust if perfromance is an issue in some of the process heavy mods

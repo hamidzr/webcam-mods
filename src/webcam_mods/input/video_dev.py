@@ -1,6 +1,5 @@
-from webcam_mods.config import IN_FORMAT
+from webcam_mods import config
 import cv2
-from contextlib import contextmanager
 from webcam_mods.input.input import FrameInput
 from webcam_mods.utils.video import Frame
 from loguru import logger
@@ -26,14 +25,14 @@ def open_video_capture(width=None, height=None, input_dev=0):
     videoIn = cv2.VideoCapture(input_dev)
 
     # TODO make this a configurable cli option
-    if len(IN_FORMAT) > 4:
+    if len(config.IN_FORMAT) > 4:
         logger.error(f"input fmt can be at most 4 characters long, got {len(fmt)}")
         exit(1)
 
     videoIn.set(cv2.CAP_PROP_FPS, 30.0)
 
-    videoIn.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*IN_FORMAT.lower()))
-    videoIn.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*IN_FORMAT.upper()))
+    videoIn.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*config.IN_FORMAT.lower()))
+    videoIn.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*config.IN_FORMAT.upper()))
 
     if (width is not None and height is not None):
         videoIn.set(cv2.CAP_PROP_FRAME_WIDTH, width)
@@ -48,24 +47,18 @@ def open_video_capture(width=None, height=None, input_dev=0):
     return (videoIn, in_width, in_height, fps)
 
 
-@contextmanager
-def video_capture(width=None, height=None, input_dev=0):
-    videoIn, in_width, in_height, fps = open_video_capture(width, height, input_dev)
-    try:
-        yield (videoIn, in_width, in_height, fps)
-    finally:
-        videoIn.release()
+# @contextmanager
+# def video_capture(width=None, height=None, input_dev=0):
+#     videoIn, in_width, in_height, fps = open_video_capture(width, height, input_dev)
+#     try:
+#         yield (videoIn, in_width, in_height, fps)
+#     finally:
+#         videoIn.release()
 
 class Webcam(FrameInput):
     def __init__(self, device_index: int = None, **kwargs):
         super().__init__(**kwargs)
-        if device_index is None:
-            device_index = os.getenv('VIDEO_IN')
-            if device_index is not None:
-                device_index = int(device_index)
-            else:
-                device_index = next(available_camera_indices(end=5))
-        self.device_index = device_index
+        self.device_index = device_index or config.VIDEO_IN or next(available_camera_indices(end=5))
 
     def setup(self):
         cap, width, height, fps = open_video_capture(
