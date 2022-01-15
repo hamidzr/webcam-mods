@@ -4,7 +4,7 @@ from webcam_mods.input.input import FrameInput
 from webcam_mods.utils.video import Frame
 from loguru import logger
 from typing import Optional, cast
-import os
+import time
 
 def available_camera_indices(end: int = 3):
     """
@@ -40,7 +40,7 @@ def open_video_capture(width=None, height=None, input_dev=0):
 
     if not videoIn.isOpened():
         logger.error(f"failed to open video input device #{input_dev}")
-        raise  FileNotFoundError("failed to open video input device")
+        return None
     in_width = int(videoIn.get(cv2.CAP_PROP_FRAME_WIDTH))
     in_height = int(videoIn.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = videoIn.get(cv2.CAP_PROP_FPS)
@@ -61,9 +61,18 @@ class Webcam(FrameInput):
         self.device_index = device_index or config.VIDEO_IN or next(available_camera_indices(end=5))
 
     def setup(self):
-        cap, width, height, fps = open_video_capture(
-            width=self.width, height=self.height, input_dev=self.device_index
-        )
+        open_rv = None
+        for c in range(5):
+            open_rv = open_video_capture(
+                width=self.width, height=self.height, input_dev=self.device_index
+            )
+            if open_rv is not None:
+                break
+            logger.error(f"retrying ({c+1}) to open video input device #{self.device_index}")
+            time.sleep(2)
+        if open_rv is None:
+            raise  FileNotFoundError("failed to open video input device")
+        cap, width, height, fps = open_rv
         self.cap = cap
         self.width = width
         self.height = height
