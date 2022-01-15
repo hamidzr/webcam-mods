@@ -59,10 +59,10 @@ def open_video_capture(width=None, height=None, input_dev=0):
 
 
 class Webcam(FrameInput):
-    def __init__(self, device_index: int = None, **kwargs):
+    def __init__(self, device_index: int = config.VIDEO_IN, **kwargs):
         super().__init__(**kwargs)
         self.device_index = (
-            device_index or config.VIDEO_IN or next(available_camera_indices(end=5))
+            device_index if device_index is not None else next(available_camera_indices(end=5))
         )
 
     def setup(self):
