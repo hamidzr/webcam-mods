@@ -1,4 +1,11 @@
-from webcam_mods.config import IN_HEIGHT, IN_WIDTH, MAX_OUT_FPS, NO_SIGNAL_IMAGE, ON_DEMAND, ERROR_IMAGE
+from webcam_mods.config import (
+    IN_HEIGHT,
+    IN_WIDTH,
+    MAX_OUT_FPS,
+    NO_SIGNAL_IMAGE,
+    ON_DEMAND,
+    ERROR_IMAGE,
+)
 import cv2
 from webcam_mods.uses.interactive_controls import key_listener
 import platform
@@ -12,14 +19,18 @@ from webcam_mods.mods.video_mods import resize_and_pad
 
 # WARN output dimensions should be smaller than input.. for now
 
+
 def default_frame_output(in_fps: int):
     out_fps = min(MAX_OUT_FPS, in_fps)
-    if platform.system() == 'Linux':
+    if platform.system() == "Linux":
         from webcam_mods.output.v4l2loopback import V4l2Cam
+
         return V4l2Cam(fps=out_fps)
     else:
         from webcam_mods.output.pyvirtcam import PyVirtualCam
+
         return PyVirtualCam(fps=out_fps)
+
 
 def live_loop(
     mod=None,
@@ -34,12 +45,16 @@ def live_loop(
     if fOut is None:
         with fIn as (_, inp_props):
             if inp_props["width"] != IN_WIDTH or inp_props["height"] != IN_HEIGHT:
-                logger.error(f"Unexpected input resolution: {inp_props['width']}x{inp_props['height']} is not {IN_WIDTH}x{IN_HEIGHT}")
+                logger.error(
+                    f"Unexpected input resolution: {inp_props['width']}x{inp_props['height']} is not {IN_WIDTH}x{IN_HEIGHT}"
+                )
                 return 1
-            in_fps = inp_props['fps']
+            in_fps = inp_props["fps"]
         fOut = default_frame_output(in_fps)
 
-    logger.info(f'begin passing from #{fIn.__class__.__name__} to #{fOut.__class__.__name__}')
+    logger.info(
+        f"begin passing from #{fIn.__class__.__name__} to #{fOut.__class__.__name__}"
+    )
 
     if interactive_listener is not None:
         interactive_listener.start()
@@ -48,9 +63,13 @@ def live_loop(
     inp_props = fIn.setup()
     # This is the loop that reads from the input, edits, and then writes to the loopback
     with fOut as (cam, outp_props):
-        logger.info(f'input: {inp_props}, output: {outp_props}')
-        paused_frame = resize_and_pad(cv2.imread(str(NO_SIGNAL_IMAGE)), sw=fOut.width, sh=fOut.height)
-        error_frame = resize_and_pad(cv2.imread(str(ERROR_IMAGE)), sw=fOut.width, sh=fOut.height)
+        logger.info(f"input: {inp_props}, output: {outp_props}")
+        paused_frame = resize_and_pad(
+            cv2.imread(str(NO_SIGNAL_IMAGE)), sw=fOut.width, sh=fOut.height
+        )
+        error_frame = resize_and_pad(
+            cv2.imread(str(ERROR_IMAGE)), sw=fOut.width, sh=fOut.height
+        )
         last_frame = paused_frame
         while True:
             if on_demand:
@@ -61,7 +80,7 @@ def live_loop(
             frame = None
             if paused:
                 frame = paused_frame
-                time.sleep(0.5) # lower the fps when paused
+                time.sleep(0.5)  # lower the fps when paused
             else:
                 if not fIn.is_setup():
                     fIn.setup()
@@ -73,15 +92,14 @@ def live_loop(
                     if mod:
                         frame = mod(frame)
                         if frame is None:
-                            logger.warning('mod returned a None frame')
-                            continue # frame = last_frame
-                    frame = resize_and_pad(
-                        frame, sw=fOut.width, sh=fOut.height)
+                            logger.warning("mod returned a None frame")
+                            continue  # frame = last_frame
+                    frame = resize_and_pad(frame, sw=fOut.width, sh=fOut.height)
                     last_frame = frame
                 except Exception as e:
                     # raise e
-                    logger.error(f'failed to process frame. {e}')
-                    frame = error_frame # last_frame
+                    logger.error(f"failed to process frame. {e}")
+                    frame = error_frame  # last_frame
 
             # assert frame.shape[0] == fOut.height
             # assert frame.shape[1] == fOut.width

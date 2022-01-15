@@ -5,19 +5,30 @@ from typing import Dict, Any
 import pyvirtualcam
 from pyvirtualcam import PixelFormat
 
+
 class PyVirtualCam(FrameOutput):
-    id = 'vritual-cam'
+    id = "vritual-cam"
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.on_demand = MonitorFile(Path(self.device))
 
     def setup(self) -> Dict[str, Any]:
-        self.cam = pyvirtualcam.Camera(width=self.width, height=self.height,
-                                       fps=self.fps, fmt=PixelFormat.BGR, print_fps=False)
+        self.cam = pyvirtualcam.Camera(
+            width=self.width,
+            height=self.height,
+            fps=self.fps,
+            fmt=PixelFormat.BGR,
+            print_fps=False,
+        )
         self.cam.__enter__()
         self.on_demand.setup()
-        return {'device': self.cam.device, 'width': self.cam.width,
-                'height': self.cam.height, 'fps': self.cam.fps}
+        return {
+            "device": self.cam.device,
+            "width": self.cam.width,
+            "height": self.cam.height,
+            "fps": self.cam.fps,
+        }
 
     def teardown(self, *args):
         self.consumers = 0

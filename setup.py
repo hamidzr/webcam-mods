@@ -15,10 +15,10 @@ setuptools.setup(
     long_description=README,
     long_description_content_type="text/markdown",
     url="https://github.com/hamidzr/webcam-mods",
-    author='Hamid Zare',
-    author_email='contact@hamidza.re',
-    keywords='v4l2 webcam virtual-camera virtual-background blur-background',
-    license='GPLv2',
+    author="Hamid Zare",
+    author_email="contact@hamidza.re",
+    keywords="v4l2 webcam virtual-camera virtual-background blur-background",
+    license="GPLv2",
     classifiers=[
         "Operating System :: OS Independent",
         "Programming Language :: Python :: 3",
@@ -47,10 +47,5 @@ setuptools.setup(
         "v4l2 @ git+https://github.com/hamidzr/python-v4l2.git#egg=v4l2",
         "loguru",
     ],
-    entry_points={
-        "console_scripts": [
-            "webcam_mods = webcam_mods.__main__:app",
-        ]
-    },
+    entry_points={"console_scripts": ["webcam_mods = webcam_mods.__main__:app",]},
 )
-

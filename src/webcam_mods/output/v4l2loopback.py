@@ -8,6 +8,7 @@ from typing import Dict, Any
 import cv2
 import v4l2
 
+
 def prep_v4l2_descriptor(width, height, channels):
     # Set up the formatting of our loopback device
     format = v4l2.v4l2_format()
@@ -20,8 +21,9 @@ def prep_v4l2_descriptor(width, height, channels):
     format.fmt.pix.sizeimage = width * height * channels
     return (v4l2.VIDIOC_S_FMT, format)
 
+
 class V4l2Cam(FrameOutput):
-    id = 'v4l2-cam'
+    id = "v4l2-cam"
 
     def __init__(self, *args, **kwargs):
         super(V4l2Cam, self).__init__(*args, **kwargs)
@@ -29,13 +31,19 @@ class V4l2Cam(FrameOutput):
 
     def setup(self) -> Dict[str, Any]:
         if not os.path.exists(self.device):
-            raise FileNotFoundError("error: v4l2loopback device does not exist at", self.device)
-        self.dev = open(self.device, 'wb')
+            raise FileNotFoundError(
+                "error: v4l2loopback device does not exist at", self.device
+            )
+        self.dev = open(self.device, "wb")
         req, format = prep_v4l2_descriptor(self.width, self.height, 3)
         fcntl.ioctl(self.dev, req, format)
         self.on_demand.setup()
-        return {'device': self.device, 'width': self.width,
-                'height': self.height, 'fps': self.fps}
+        return {
+            "device": self.device,
+            "width": self.width,
+            "height": self.height,
+            "fps": self.fps,
+        }
 
     def teardown(self, *args):
         self.consumers = 0

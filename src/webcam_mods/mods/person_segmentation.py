@@ -3,18 +3,23 @@ import cv2
 from mediapipe.python.solutions import selfie_segmentation
 import numpy as np
 
-BG_COLOR = (192, 192, 192) # gray
+BG_COLOR = (192, 192, 192)  # gray
 MODEL_SELECTION = 0
 
-selfie_segmentation = selfie_segmentation.SelfieSegmentation(model_selection=MODEL_SELECTION)
+selfie_segmentation = selfie_segmentation.SelfieSegmentation(
+    model_selection=MODEL_SELECTION
+)
 # selfie_segmentation.close()
+
 
 def biggest_comp(image):
     """
     Find the biggest connected component in a black and white mask
     """
     # find white blocks
-    nb_components, output, stats, centroids = cv2.connectedComponentsWithStats(image, connectivity=4)
+    nb_components, output, stats, centroids = cv2.connectedComponentsWithStats(
+        image, connectivity=4
+    )
     sizes = stats[:, -1]
 
     max_label = 1
@@ -29,7 +34,8 @@ def biggest_comp(image):
     # cv2.imshow("Biggest component", img2)
     return img2
 
-def sigmoid(x, a=5., b=-10.):
+
+def sigmoid(x, a=5.0, b=-10.0):
     """
     Converts the 0-1 value to a sigmoid going from zero to 1 in the same range
     """
@@ -74,7 +80,7 @@ def mask(frame):
 
     # To improve segmentation around boundaries, consider applying a joint
     # bilateral filter to "results.segmentation_mask" with "image".
-    # Apply bilateral filter with d = 15, 
+    # Apply bilateral filter with d = 15,
     # sigmaColor = sigmaSpace = 75.
     # mask = cv2.bilateralFilter(mask, 3, 75, 75)
 
@@ -117,7 +123,7 @@ def color_bg(frame, color=BG_COLOR):
 def blur_bg(frame, kernel_size):
     image, condition = mask(frame)
     # bg_image = cv2.GaussianBlur(image,(kernel_size,kernel_size),0) # more cpu intensive
-    bg_image = cv2.blur(image,(kernel_size,kernel_size))
+    bg_image = cv2.blur(image, (kernel_size, kernel_size))
     return apply_alpha_mask(fg=image, bg=bg_image, mask=condition)
 
 
@@ -125,7 +131,8 @@ def swap_bg(frame, bg_image):
     image, condition = mask(frame)
     return apply_alpha_mask(fg=image, bg=bg_image, mask=condition)
 
+
 # mask: matrix with values 0-1
 def apply_alpha_mask(fg, bg, mask):
-    output_image = fg * mask + bg * (1-mask)
+    output_image = fg * mask + bg * (1 - mask)
     return output_image.astype(np.uint8)

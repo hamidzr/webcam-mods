@@ -12,13 +12,20 @@ from typing import Tuple, Optional
 #     return mapped_grad
 
 
-def is_crop_valid(frame: Tuple[int, int], start: Tuple[int, int], dims: Tuple[int, int]) -> bool:
+def is_crop_valid(
+    frame: Tuple[int, int], start: Tuple[int, int], dims: Tuple[int, int]
+) -> bool:
     """
     Checks whether the rectangle defined by `start` and `dims` represent a valid section in `frame`.
     frame: frame dimensions
     """
     # Make sure start is within frame
-    if (start[0] > frame[0]) or (start[0] < 0) or (start[1] > frame[1]) or (start[1] < 0):
+    if (
+        (start[0] > frame[0])
+        or (start[0] < 0)
+        or (start[1] > frame[1])
+        or (start[1] < 0)
+    ):
         return False
 
     # Make sure that dims are positive numbers, <0 not supported
@@ -48,29 +55,33 @@ def crop(frame, w: int, h: int, x1=0, y1=0) -> Optional[np.ndarray]:
     # keep the output strictly WxH
     if x1 < 0:
         x1 = 0
-    elif x1 > fw-w:
-        x1 = fw-w
+    elif x1 > fw - w:
+        x1 = fw - w
     if y1 < 0:
         y1 = 0
-    elif y1 > fh-h:
-        y1 = fh-h
+    elif y1 > fh - h:
+        y1 = fh - h
 
-    return frame[y1:y1+h, x1:x1+w].copy()
+    return frame[y1 : y1 + h, x1 : x1 + w].copy()
+
 
 def crop_rect(frame, box: Rect):
     return crop(frame, box.w, box.h, box.l, box.t)
 
+
 def ensure_rgb_color(color):
     # color image but only one color provided
     if not isinstance(color, (list, tuple, np.ndarray)):
-        color = [color]*3
+        color = [color] * 3
     return color
 
+
 # pad frame with pixels on each side.
-def pad(frame: np.ndarray, left=0, top=0, right=0, bottom=0, color=[0,0,0]):
+def pad(frame: np.ndarray, left=0, top=0, right=0, bottom=0, color=[0, 0, 0]):
     color = ensure_rgb_color(color)
-    return cv2.copyMakeBorder(frame, top, bottom, left, right,
-        cv2.BORDER_CONSTANT, None, color)
+    return cv2.copyMakeBorder(
+        frame, top, bottom, left, right, cv2.BORDER_CONSTANT, None, color
+    )
 
 
 # given a frame pad inward while keeping the image centered
@@ -84,22 +95,25 @@ def pad_inward_centered(frame: np.ndarray, horizontal=0, vertical=0, color=0):
     horizontal = min(fw, horizontal)
     vertical = min(fh, vertical)
 
-    crop_width = fw-horizontal
-    crop_height = fh-vertical
-    left_pad = horizontal//2
-    top_pad = vertical//2
+    crop_width = fw - horizontal
+    crop_height = fh - vertical
+    left_pad = horizontal // 2
+    top_pad = vertical // 2
     frame = crop(frame, crop_width, crop_height, left_pad, top_pad)
     # print('cropped frame shape', frame.shape, (crop_height, crop_width))
     padded = pad(frame, left_pad, top_pad, left_pad, top_pad, color)
     # print('padded shape', padded.shape)
     return padded
 
+
 # given a frame pad inward while keeping the image centered
 def pad_outward_centered(frame: np.ndarray, horizontal=0, vertical=0, color=0):
     # TODO remove the need for even dims
     assert horizontal % 2 == 0, "needs an even size"
     assert vertical % 2 == 0, "needs an even size"
-    return pad(frame, horizontal//2, vertical//2, horizontal//2, vertical//2, color)
+    return pad(
+        frame, horizontal // 2, vertical // 2, horizontal // 2, vertical // 2, color
+    )
 
 
 def resize_to_box(img, tw: int, th: int):
@@ -115,15 +129,15 @@ def resize_to_box(img, tw: int, th: int):
     if h == th and w == tw:
         return img
 
-    h_scale = th / h # 5, 5
-    w_scale = tw / w # 2, 0.1
+    h_scale = th / h  # 5, 5
+    w_scale = tw / w  # 2, 0.1
 
     scale = min(h_scale, w_scale)
 
     # interpolation method
-    if scale < 1: # shrinking image
+    if scale < 1:  # shrinking image
         interp = cv2.INTER_AREA
-    else: # stretching image
+    else:  # stretching image
         interp = cv2.INTER_CUBIC
 
     # compute new even dimensions. FIXME we shouldn't need to care about making the frame even here
@@ -146,7 +160,7 @@ def pad_to_box(img, tw: int, th: int, color=0):
     assert h <= th, "frame does not fit the target"
     assert w <= tw, "frame does not fit the target"
 
-    return pad_outward_centered(img, tw-w, th-h, color)
+    return pad_outward_centered(img, tw - w, th - h, color)
 
 
 def resize_and_pad(img: np.ndarray, sw: int, sh: int, pad_color=0) -> np.ndarray:

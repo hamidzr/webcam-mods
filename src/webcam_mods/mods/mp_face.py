@@ -10,8 +10,11 @@ fd: Optional[face_detection.FaceDetection] = None
 def init() -> face_detection.FaceDetection:
     global fd
     if fd is None:
-      fd = face_detection.FaceDetection(model_selection=1, min_detection_confidence=0.6)
+        fd = face_detection.FaceDetection(
+            model_selection=1, min_detection_confidence=0.6
+        )
     return fd
+
 
 def predict(frame) -> Optional[Tuple[int, int, int, int]]:
     """
@@ -24,23 +27,30 @@ def predict(frame) -> Optional[Tuple[int, int, int, int]]:
     image = frame
     fh, fw, _ = frame.shape
     fd = init()
-      # Convert the BGR image to RGB and process it with MediaPipe Face Detection.
+    # Convert the BGR image to RGB and process it with MediaPipe Face Detection.
     results = fd.process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
     if not results.detections:
-      return None
-    detection = results.detections[0] # target detection supporting single face usage.
+        return None
+    detection = results.detections[0]  # target detection supporting single face usage.
     # print('Nose tip:')
     # print(face_detection.get_key_point(
     #     detection, face_detection.FaceKeyPoint.NOSE_TIP))
     return detection.location_data.relative_bounding_box
 
+
 def abs_boundingbox(frame, relbb) -> Rect:
     fh, fw, _ = frame.shape
-    return Rect(w=int(relbb.width*fw), h=int(relbb.height*fh),
-         l=int(relbb.xmin*fw), t=int(relbb.ymin*fh))
+    return Rect(
+        w=int(relbb.width * fw),
+        h=int(relbb.height * fh),
+        l=int(relbb.xmin * fw),
+        t=int(relbb.ymin * fh),
+    )
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     from webcam_mods.input.video_dev import Webcam
+
     init()
     with Webcam() as (cam, _):
         while True:

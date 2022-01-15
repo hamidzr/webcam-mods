@@ -9,16 +9,20 @@ last_pred: Optional[Rect] = None
 cur_crop: Optional[Rect] = None
 transition: Optional[Generator] = None
 
+
 def linear_transition(a: Number, b: Number, steps: int) -> Generator[Number, Any, Any]:
     """
     linear transition
     """
-    d = (b-a)/steps
+    d = (b - a) / steps
     for _ in range(steps):
-        yield a+d
+        yield a + d
         a += d
 
+
 Transition = Callable[[Number, Number, int], Generator[Number, Any, Any]]
+
+
 def transition_nd(
     transition: Transition, start: List[Number], end: List[Number], steps: int,
 ) -> Generator[List[Number], Any, Any]:
@@ -29,12 +33,13 @@ def transition_nd(
     for _ in range(steps):
         yield [next(g) for g in gs]
 
+
 def transition_point(start: Point, end: Point, over_frames: int = 30) -> Point:
     """
     move a point from start to end over n frames in a linear fashion
     """
     diff = end - start
-    step_t, step_l = diff.t/over_frames, diff.l/over_frames
+    step_t, step_l = diff.t / over_frames, diff.l / over_frames
     cur_pos = start.copy()
     t_cum, l_cum = 0.0, 0.0
     for _ in range(over_frames):
@@ -47,6 +52,7 @@ def transition_point(start: Point, end: Point, over_frames: int = 30) -> Point:
             cur_pos.left += int(l_cum)
             l_cum -= int(l_cum)
         yield cur_pos.copy()
+
 
 def transition_rect(start: Rect, end: Rect, over_frames: int = 30):
     """
@@ -62,11 +68,9 @@ def transition_rect(start: Rect, end: Rect, over_frames: int = 30):
         l, t, w, h = next(g)
         yield Rect(l=int(l), w=int(w), h=int(h), t=int(t))
 
+
 def wrap_with_padding(box: Rect) -> Rect:
-    output = Rect(
-        w=math.floor(box.width * 1.4),
-        h=math.floor(box.height * 1.8)
-    )
+    output = Rect(w=math.floor(box.width * 1.4), h=math.floor(box.height * 1.8))
     output.center_on(box.center)
     return output
 
@@ -75,7 +79,7 @@ def generate_crop(pred: Rect) -> Rect:
     # TODO https://github.com/hamidzr/webcam-mods/issues/12
     global last_pred, transition, cur_crop
     THRESHOLD = max(pred.w, pred.h) // 3
-    TRANSITION_TIME = 1 # sec
+    TRANSITION_TIME = 1  # sec
 
     if last_pred is None:
         last_pred = pred
@@ -84,9 +88,11 @@ def generate_crop(pred: Rect) -> Rect:
 
     # did prediction move significantly?
     move_dist = last_pred.center - pred.center
-    if (abs(move_dist.l) > THRESHOLD or abs(move_dist.t) > THRESHOLD) or (pred.h - last_pred.height > THRESHOLD or pred.w - last_pred.w > THRESHOLD):
-        logger.debug(f'motion/zoom detected: {move_dist}')
-        transition = transition_rect(cur_crop or last_pred, pred, TRANSITION_TIME*FPS)
+    if (abs(move_dist.l) > THRESHOLD or abs(move_dist.t) > THRESHOLD) or (
+        pred.h - last_pred.height > THRESHOLD or pred.w - last_pred.w > THRESHOLD
+    ):
+        logger.debug(f"motion/zoom detected: {move_dist}")
+        transition = transition_rect(cur_crop or last_pred, pred, TRANSITION_TIME * FPS)
         last_pred = pred
 
     # keep generating
@@ -96,7 +102,6 @@ def generate_crop(pred: Rect) -> Rect:
             cur_crop = transitioned_pred
         except StopIteration:
             transition = None
-            logger.debug('transition finished')
+            logger.debug("transition finished")
 
     return wrap_with_padding(cur_crop)
-

@@ -6,6 +6,7 @@ from loguru import logger
 from typing import Optional, cast
 import time
 
+
 def available_camera_indices(end: int = 3):
     """
     Check up to `end` video devices to find available ones.
@@ -19,6 +20,7 @@ def available_camera_indices(end: int = 3):
             yield index
         index += 1
         i -= 1
+
 
 def open_video_capture(width=None, height=None, input_dev=0):
     # Grab the webcam feed and get the dimensions of a frame
@@ -34,7 +36,7 @@ def open_video_capture(width=None, height=None, input_dev=0):
     videoIn.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*config.IN_FORMAT.lower()))
     videoIn.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*config.IN_FORMAT.upper()))
 
-    if (width is not None and height is not None):
+    if width is not None and height is not None:
         videoIn.set(cv2.CAP_PROP_FRAME_WIDTH, width)
         videoIn.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
 
@@ -55,10 +57,13 @@ def open_video_capture(width=None, height=None, input_dev=0):
 #     finally:
 #         videoIn.release()
 
+
 class Webcam(FrameInput):
     def __init__(self, device_index: int = None, **kwargs):
         super().__init__(**kwargs)
-        self.device_index = device_index or config.VIDEO_IN or next(available_camera_indices(end=5))
+        self.device_index = (
+            device_index or config.VIDEO_IN or next(available_camera_indices(end=5))
+        )
 
     def setup(self):
         open_rv = None
@@ -68,16 +73,18 @@ class Webcam(FrameInput):
             )
             if open_rv is not None:
                 break
-            logger.error(f"retrying ({c+1}) to open video input device #{self.device_index}")
+            logger.error(
+                f"retrying ({c+1}) to open video input device #{self.device_index}"
+            )
             time.sleep(2)
         if open_rv is None:
-            raise  FileNotFoundError("failed to open video input device")
+            raise FileNotFoundError("failed to open video input device")
         cap, width, height, fps = open_rv
         self.cap = cap
         self.width = width
         self.height = height
         self.fps = fps
-        return {'width': width, 'height': height, 'fps': fps}
+        return {"width": width, "height": height, "fps": fps}
 
     def teardown(self, *args):
         if self.is_setup():

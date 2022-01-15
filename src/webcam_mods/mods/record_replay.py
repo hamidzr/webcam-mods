@@ -25,7 +25,7 @@ def replay_2(frames, repeat=True, fps=30):
     while True:
         for frame in frames:
             yield frame
-            time.sleep(1/fps)
+            time.sleep(1 / fps)
 
 
 def record(frame):
