@@ -5,7 +5,9 @@ Tested on Arch Linux.
 
 Checkout my other repository for some ffmpeg-only solutions [here](https://github.com/hamidzr/scripts/tree/master/ffmpeg)
 
-Find installation and a work-in-progress demo here: [https://youtu.be/idp7ei-pF40](https://youtu.be/idp7ei-pF40) (recorded using version [cf765](https://github.com/hamidzr/webcam-mods/commit/cf7651fe08caea024e4cc9f33540fa4bd2a2eb82))
+Find installation and a work-in-progress demos here:
+ - Latest demo [https://youtu.be/FfD7lu_A1Dw](https://youtu.be/FfD7lu_A1Dw) (recorded on commit `8f08bc68` on Jan 2022). It showcases some of the main features.
+ - Archived demo [https://youtu.be/idp7ei-pF40](https://youtu.be/idp7ei-pF40) (recorded using version [cf765](https://github.com/hamidzr/webcam-mods/commit/cf7651fe08caea024e4cc9f33540fa4bd2a2eb82))
 
 ## Included Mods
 
