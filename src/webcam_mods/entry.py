@@ -124,9 +124,10 @@ def brighten(level=30):
 
 
 @app.command()
-def track_face():
+def track_face(x_padding: float = 1.5, y_padding: float = 2):
     """
     Crop around the first detected face.
+    x-padding and y-padding: padding ratios.
     """
     from webcam_mods.mods.mp_face import abs_boundingbox, predict
 
@@ -145,7 +146,7 @@ def track_face():
             # crop_box = (int(bbox.width*fw), int(bbox.height*fh), int(bbox.xmin*fw), int(bbox.ymin*fh))
             # frame = crop(frame, crop_box[0], crop_box[1], crop_box[2], crop_box[3])
             pred_box = abs_boundingbox(frame, bbox)
-            frame = crop_rect(frame, generate_crop(pred_box))
+            frame = crop_rect(frame, generate_crop(pred_box, (x_padding, y_padding)))
         return frame
 
     live_loop(mod=frame_mod, interactive_listener=None)

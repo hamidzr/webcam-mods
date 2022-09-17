@@ -1,4 +1,4 @@
-from typing import Callable, Generator, Optional, List, Any
+from typing import Callable, Generator, Optional, List, Any, Tuple
 import math
 from webcam_mods.config import MAX_OUT_FPS
 from webcam_mods.geometry import Number, Rect, Point
@@ -69,17 +69,27 @@ def transition_rect(start: Rect, end: Rect, over_frames: int = 30):
         yield Rect(l=int(l), w=int(w), h=int(h), t=int(t))
 
 
-def wrap_with_padding(box: Rect) -> Rect:
-    output = Rect(w=math.floor(box.width * 1.4), h=math.floor(box.height * 1.8))
+def wrap_with_padding(box: Rect, wr, hr) -> Rect:
+    """
+    wrap a box with padding on all sides based on ratio.
+    wr: width ratio
+    hr: height ratio
+    """
+    output = Rect(w=math.floor(box.width * wr), h=math.floor(box.height * hr))
     output.center_on(box.center)
     return output
 
 
-def generate_crop(pred: Rect) -> Rect:
+def generate_crop(pred: Rect, padding: Optional[Tuple[float, float]]) -> Rect:
+    """
+    generates a smooth moving crop to `pred` from `last_pred`
+    padding: padding ratio (width_ratio, height_ratio)
+    """
     # TODO https://github.com/hamidzr/webcam-mods/issues/12
     global last_pred, transition, cur_crop
     THRESHOLD = max(pred.w, pred.h) // 3
     TRANSITION_TIME = 1  # sec
+    padding = padding or (1.4, 1.8)
 
     if last_pred is None:
         last_pred = pred
@@ -104,4 +114,4 @@ def generate_crop(pred: Rect) -> Rect:
             transition = None
             logger.debug("transition finished")
 
-    return wrap_with_padding(cur_crop)
+    return wrap_with_padding(cur_crop, wr=padding[0], hr=padding[1])

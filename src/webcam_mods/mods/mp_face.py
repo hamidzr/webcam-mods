@@ -39,6 +39,10 @@ def predict(frame) -> Optional[Tuple[int, int, int, int]]:
 
 
 def abs_boundingbox(frame, relbb) -> Rect:
+    """
+    given a frame and a relative bounding box
+    return the absolute bounding box.
+    """
     fh, fw, _ = frame.shape
     return Rect(
         w=int(relbb.width * fw),
