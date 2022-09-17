@@ -33,3 +33,8 @@ describe-devices:
 
 fmt:
 	black .
+
+check:
+	pylint .
+	flake8 .
+	mypy .
