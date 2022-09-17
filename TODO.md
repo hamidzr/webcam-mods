@@ -9,6 +9,7 @@
 - animation support
   - glasses?
 - reduce the use of globals. classes?
+- cli interface to stack different mods eg bg-swap and track face or blur
 
 ## Done
 

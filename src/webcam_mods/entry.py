@@ -124,12 +124,20 @@ def brighten(level=30):
 
 
 @app.command()
-def track_face(x_padding: float = 1.5, y_padding: float = 2):
+def track_face(
+    x_padding: float = 1.5,
+    y_padding: float = 2,
+    blur: bool = False,
+    blur_kernel_size: int = 31,
+):
     """
     Crop around the first detected face.
     x-padding and y-padding: padding ratios.
     """
     from webcam_mods.mods.mp_face import abs_boundingbox, predict
+
+    if blur:
+        from webcam_mods.mods.person_segmentation import blur_bg
 
     def frame_mod(frame):
         # fh, fw, _ = frame.shape
@@ -147,7 +155,8 @@ def track_face(x_padding: float = 1.5, y_padding: float = 2):
             # frame = crop(frame, crop_box[0], crop_box[1], crop_box[2], crop_box[3])
             pred_box = abs_boundingbox(frame, bbox)
             frame = crop_rect(frame, generate_crop(pred_box, (x_padding, y_padding)))
-        return frame
+
+        return frame if not blur else blur_bg(frame, blur_kernel_size)
 
     live_loop(mod=frame_mod, interactive_listener=None)
 
