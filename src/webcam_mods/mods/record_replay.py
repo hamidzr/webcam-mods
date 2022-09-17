@@ -21,7 +21,7 @@ def replay(frames, repeat=True):
 
 
 def replay_2(frames, repeat=True, fps=30):
-    """ fps needs match the original fps to match playback speed without dropping frames """
+    """fps needs match the original fps to match playback speed without dropping frames"""
     while True:
         for frame in frames:
             yield frame

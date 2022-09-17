@@ -62,7 +62,9 @@ class Webcam(FrameInput):
     def __init__(self, device_index: int = config.VIDEO_IN, **kwargs):
         super().__init__(**kwargs)
         self.device_index = (
-            device_index if device_index is not None else next(available_camera_indices(end=5))
+            device_index
+            if device_index is not None
+            else next(available_camera_indices(end=5))
         )
 
     def setup(self):

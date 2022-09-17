@@ -10,7 +10,7 @@ README = (HERE / "README.md").read_text()
 # This call to setup() does all the work
 setuptools.setup(
     name="Webcam Mods",
-    version="0.1.0",
+    version="0.2.0",
     description=" Face tracking, bg removal, crop, zoom, record & replay, and more webcam mods",
     long_description=README,
     long_description_content_type="text/markdown",
@@ -47,5 +47,9 @@ setuptools.setup(
         "v4l2 @ git+https://github.com/hamidzr/python-v4l2.git#egg=v4l2",
         "loguru",
     ],
-    entry_points={"console_scripts": ["webcam_mods = webcam_mods.__main__:app",]},
+    entry_points={
+        "console_scripts": [
+            "webcam_mods = webcam_mods.__main__:app",
+        ]
+    },
 )

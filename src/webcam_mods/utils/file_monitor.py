@@ -5,7 +5,7 @@ from inotify_simple import INotify, flags
 
 class MonitorFile:
     """
-    track how many processses are using a file/device 
+    track how many processses are using a file/device
     """
 
     def __init__(self, path: Path):

@@ -17,7 +17,9 @@ def click_handler(event, x, y, *args):
 
 
 def visualize(
-    frame: Rect = Rect(w=400, h=400), crop: Rect = Rect(), pred: Rect = Rect(),
+    frame: Rect = Rect(w=400, h=400),
+    crop: Rect = Rect(),
+    pred: Rect = Rect(),
 ):
     # print(frame, crop, pred)
     image = np.zeros((frame.h, frame.w, 3), np.uint8)

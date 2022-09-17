@@ -24,7 +24,10 @@ Transition = Callable[[Number, Number, int], Generator[Number, Any, Any]]
 
 
 def transition_nd(
-    transition: Transition, start: List[Number], end: List[Number], steps: int,
+    transition: Transition,
+    start: List[Number],
+    end: List[Number],
+    steps: int,
 ) -> Generator[List[Number], Any, Any]:
     assert len(start) == len(end)
     # g1 = transition(a1, a2, steps)
