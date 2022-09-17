@@ -92,7 +92,7 @@ def generate_crop(pred: Rect, padding: Optional[Tuple[float, float]]) -> Rect:
     global last_pred, transition, cur_crop
     THRESHOLD = max(pred.w, pred.h) // 3
     TRANSITION_TIME = 1  # sec
-    padding = padding or (1.4, 1.8)
+    padding = padding or (2, 2.5)
 
     if last_pred is None:
         last_pred = pred

@@ -125,8 +125,8 @@ def brighten(level=30):
 
 @app.command()
 def track_face(
-    x_padding: float = 1.5,
-    y_padding: float = 2,
+    x_padding: float = 2,
+    y_padding: float = 2.5,
     blur: bool = False,
     blur_kernel_size: int = 31,
 ):
