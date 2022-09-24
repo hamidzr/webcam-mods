@@ -38,7 +38,7 @@ def live_loop(
     fIn: FrameInput = None,
     fOut: FrameOutput = None,
     interactive_listener=key_listener,
-    freeze_on_error = False,
+    freeze_on_error=False,
 ):
     if fIn is None:
         fIn = Webcam(width=IN_WIDTH, height=IN_HEIGHT)
@@ -96,9 +96,10 @@ def live_loop(
                             logger.warning("mod returned a None frame")
                             continue
                     frame = resize_and_pad(frame, sw=fOut.width, sh=fOut.height)
-                    if frame is not None: last_frame = frame
+                    if frame is not None:
+                        last_frame = frame
                 except Exception as e:
-                    # raise e
+                    raise e
                     logger.error(f"failed to process frame. {e}")
                     frame = last_frame if freeze_on_error else error_frame
 

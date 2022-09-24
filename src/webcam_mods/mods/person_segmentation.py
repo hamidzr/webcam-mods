@@ -1,3 +1,4 @@
+from numpy.typing import NDArray
 from webcam_mods.mods.video_mods import ensure_rgb_color
 import cv2
 from mediapipe.python.solutions import selfie_segmentation
@@ -45,7 +46,7 @@ def sigmoid(x, a=5.0, b=-10.0):
 
 
 # given a frame generates a mask
-def mask(frame):
+def mask(frame: NDArray):
     image = frame
 
     # Flip the image horizontally for a later selfie-view display, and convert
@@ -120,7 +121,7 @@ def color_bg(frame, color=BG_COLOR):
     return apply_alpha_mask(fg=image, bg=bg_image, mask=condition)
 
 
-def blur_bg(frame, kernel_size):
+def blur_bg(frame: NDArray, kernel_size):
     image, condition = mask(frame)
     # bg_image = cv2.GaussianBlur(image,(kernel_size,kernel_size),0) # more cpu intensive
     bg_image = cv2.blur(image, (kernel_size, kernel_size))

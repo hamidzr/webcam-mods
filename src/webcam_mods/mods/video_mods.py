@@ -1,3 +1,4 @@
+from numpy.typing import NDArray
 from webcam_mods.geometry import Rect
 import cv2
 import math
@@ -39,7 +40,7 @@ def is_crop_valid(
     return True
 
 
-def crop(frame, w: int, h: int, x1=0, y1=0) -> Optional[np.ndarray]:
+def crop(frame: NDArray, w: int, h: int, x1=0, y1=0) -> Optional[NDArray]:
     """
     x1, y1: top left corner of the crop area.
     w, h: crop width and height
@@ -65,7 +66,7 @@ def crop(frame, w: int, h: int, x1=0, y1=0) -> Optional[np.ndarray]:
     return frame[y1 : y1 + h, x1 : x1 + w].copy()
 
 
-def crop_rect(frame, box: Rect):
+def crop_rect(frame: NDArray, box: Rect):
     return crop(frame, box.w, box.h, box.l, box.t)
 
 

@@ -148,26 +148,30 @@ def track_face(
     if blur:
         from webcam_mods.mods.person_segmentation import blur_bg
 
+    last_pred = (0, 0, 1, 1)
+
     def frame_mod(frame):
-        # fh, fw, _ = frame.shape
+        nonlocal last_pred
+        # predict and revert to the last prediction if the model fails
         bbox = predict(frame)
-        if bbox is None:
-            frame = crop(
-                frame,
-                cf.crop_dims[0],
-                cf.crop_dims[1],
-                x1=cf.crop_pos[0],
-                y1=cf.crop_pos[1],
-            )
+        if bbox is not None:
+            last_pred = bbox
         else:
-            # crop_box = (int(bbox.width*fw), int(bbox.height*fh), int(bbox.xmin*fw), int(bbox.ymin*fh))
-            # frame = crop(frame, crop_box[0], crop_box[1], crop_box[2], crop_box[3])
-            pred_box = abs_boundingbox(frame, bbox)
-            frame = crop_rect(frame, generate_crop(pred_box, (x_padding, y_padding)))
+            bbox = last_pred
 
-        return frame if not blur else blur_bg(frame, blur_kernel_size)
+        # crop_box = (int(bbox.width*fw), int(bbox.height*fh), int(bbox.xmin*fw), int(bbox.ymin*fh))
+        # frame = crop(frame, crop_box[0], crop_box[1], crop_box[2], crop_box[3])
+        pred_box = abs_boundingbox(frame, bbox)
+        frame = crop_rect(frame, generate_crop(pred_box, (x_padding, y_padding)))
+        if frame is not None:
+            frame = frame if not blur else blur_bg(frame, blur_kernel_size)
+        return frame
 
-    live_loop(mod=frame_mod, interactive_listener=None, freeze_on_error=ctx.obj.freeze_on_error)
+    live_loop(
+        mod=frame_mod,
+        interactive_listener=None,
+        freeze_on_error=ctx.obj.freeze_on_error,
+    )
 
 
 @app.command()

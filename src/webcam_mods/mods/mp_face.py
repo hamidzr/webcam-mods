@@ -3,6 +3,7 @@ import cv2
 from mediapipe.python.solutions import face_detection
 from typing import Optional, Tuple
 from webcam_mods.utils.video import sleep_until_fps
+from loguru import logger
 
 
 fd: Optional[face_detection.FaceDetection] = None
@@ -25,11 +26,12 @@ def predict(frame) -> Optional[Tuple[int, int, int, int]]:
     height: 0.2540317177772522
     """
     image = frame
-    fh, fw, _ = frame.shape
+    # fh, fw, _ = frame.shape
     fd = init()
     # Convert the BGR image to RGB and process it with MediaPipe Face Detection.
     results = fd.process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
     if not results.detections:
+        logger.trace("no face detected")
         return None
     detection = results.detections[0]  # target detection supporting single face usage.
     # print('Nose tip:')
