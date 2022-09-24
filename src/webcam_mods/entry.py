@@ -13,8 +13,16 @@ from webcam_mods.output.gui import GUI
 from webcam_mods.uses.interactive_controls import cf, process_input as interactive_cli
 import cv2
 import typer
+from dataclasses import dataclass
 
 app = typer.Typer()
+
+
+@dataclass
+class Common:
+    """a set of default shared cli options"""
+
+    freeze_on_error: bool = False
 
 
 def crop_pad(func):
@@ -125,6 +133,7 @@ def brighten(level=30):
 
 @app.command()
 def track_face(
+    ctx: typer.Context,
     x_padding: float = 2,
     y_padding: float = 2.5,
     blur: bool = False,
@@ -158,7 +167,7 @@ def track_face(
 
         return frame if not blur else blur_bg(frame, blur_kernel_size)
 
-    live_loop(mod=frame_mod, interactive_listener=None)
+    live_loop(mod=frame_mod, interactive_listener=None, freeze_on_error=ctx.obj.freeze_on_error)
 
 
 @app.command()
@@ -188,6 +197,16 @@ def test_loop():
     For testing purposes.
     """
     live_loop()
+
+
+@app.callback()
+def common(
+    ctx: typer.Context,
+    freeze_on_error: bool = typer.Option(
+        default=False, envvar="freeze_on_error", help="strategy to handle errors"
+    ),
+):
+    ctx.obj = Common(freeze_on_error)
 
 
 if __name__ == "__main__":
