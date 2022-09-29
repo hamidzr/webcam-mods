@@ -5,7 +5,7 @@ from inotify_simple import INotify, flags
 
 class MonitorFile:
     """
-    track how many processses are using a file/device
+    track how many processes are using a file/device
     """
 
     def __init__(self, path: Path):
@@ -23,17 +23,20 @@ class MonitorFile:
 
     def _check_inotify(self):
         for event in self.inotify.read(0):
-            for flag in flags.from_mask(event.mask):
+            cur_flags = flags.from_mask(event.mask)
+            # FIXME: these get trigerred w/o active webcam use. `inotifywait -m -e open,close /dev/video10`
+            for flag in cur_flags:
                 if flag == flags.CLOSE_NOWRITE or flag == flags.CLOSE_WRITE:
                     self.consumers = max(0, self.consumers - 1)
-                if flag == flags.OPEN:
+                if flag == flags.OPEN or flag == flags.CREATE:
                     self.consumers += 1
-                logger.debug(f"Consumers: {self.consumers}")
+                # logger.debug(f"Consumers: {self.consumers}")
 
     def teardown(self):
         self.consumers = 0
         self.inotify.close()
 
     def is_in_use(self) -> bool:
+        self._check_inotify()
         self._check_inotify()
         return self.consumers > 0
