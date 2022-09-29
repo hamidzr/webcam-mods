@@ -71,7 +71,12 @@ def live_loop(
         error_frame = resize_and_pad(
             cv2.imread(str(ERROR_IMAGE)), sw=fOut.width, sh=fOut.height
         )
+
         last_frame = paused_frame
+
+        def handle_empty_frame():
+            return last_frame if freeze_on_error else error_frame
+
         while True:
             if on_demand:
                 paused = not cam.is_in_use()
@@ -92,16 +97,14 @@ def live_loop(
                 try:
                     if mod:
                         frame = mod(frame)
-                        if frame is None:
-                            logger.warning("mod returned a None frame")
-                            continue
-                    frame = resize_and_pad(frame, sw=fOut.width, sh=fOut.height)
-                    if frame is not None:
-                        last_frame = frame
+                        if frame is not None:
+                            frame = resize_and_pad(frame, sw=fOut.width, sh=fOut.height)
+                            last_frame = frame
+                        else:
+                            frame = handle_empty_frame()
                 except Exception as e:
-                    raise e
                     logger.error(f"failed to process frame. {e}")
-                    frame = last_frame if freeze_on_error else error_frame
+                    frame = handle_empty_frame()
 
             # assert frame.shape[0] == fOut.height
             # assert frame.shape[1] == fOut.width
