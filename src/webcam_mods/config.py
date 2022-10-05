@@ -25,3 +25,6 @@ DEFAULT_BG_IMAGE = data_root / "bg.jpg"
 ERROR_IMAGE = data_root / "errors" / "xp.jpg"
 
 ON_DEMAND = os.getenv("ON_DEMAND") == "True"
+
+LISTEN_CTRL = os.getenv("LISTEN_CTRL", "True") == "True"
+LISTEN_ALT = os.getenv("LISTEN_ALT", "True") == "True"
