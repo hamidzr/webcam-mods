@@ -26,5 +26,5 @@ ERROR_IMAGE = data_root / "errors" / "xp.jpg"
 
 ON_DEMAND = os.getenv("ON_DEMAND") == "True"
 
-LISTEN_CTRL = os.getenv("LISTEN_CTRL", "True") == "True"
-LISTEN_ALT = os.getenv("LISTEN_ALT", "True") == "True"
+PAN_CONTROL = os.getenv("PAN_CONTROL", "True") == "True"
+PADDING_CONTROL = os.getenv("PADDING_CONTROL", "True") == "True"

@@ -30,13 +30,13 @@ We have mods based on this to swap the background with:
 
 Interactively move your camera around with arrow keys `ctrl+arrowkeys`
 Resize the cropped frame using `ctrl+shift+arrowkeys`
-You can disable this control by defining the environment variable `LISTEN_CTRL=False`.
+You can disable this control by defining the environment variable `PAN_CONTROL=False`.
 
 ### Padding
 
 Interactively pad your camera output with arrow keys `alt+arrowkeys` while keeping the output
 framesize fixed.
-You can disable this control by defining the environment variable `LISTEN_ALT=False`.
+You can disable this control by defining the environment variable `PADDING_CONTROL=False`.
 
 #### Record & Replay
 
@@ -132,9 +132,9 @@ used.
 which directly affects picture quality and FPS. If you're looking to get higher a resolution or FPS
 out of your webcam it's crucial to inspect your camera and driver capabilities and set the appropriate format here.
 
-- `LISTEN_CTRL`[Default True]: Set to False to disable panning/resizing with `ctrl+arrowkeys/ctrl+shift+arrowkeys`.
+- `PAN_CONTROL` [Default True]: Set to False to disable panning/resizing with `ctrl+arrowkeys/ctrl+shift+arrowkeys`.
 
-- `LISTEN_ALT`[Default True]: Set to False to disable padding with `alt+arrowkeys`.
+- `PADDING_CONTROL` [Default True]: Set to False to disable padding with `alt+arrowkeys`.
 
 
 
