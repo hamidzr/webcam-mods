@@ -1,4 +1,4 @@
-from webcam_mods.config import IN_HEIGHT, IN_WIDTH
+from webcam_mods.config import IN_HEIGHT, IN_WIDTH, PADDING_CONTROL, PAN_CONTROL
 from webcam_mods.mods.video_mods import is_crop_valid
 from webcam_mods.utils.cli_input import inp
 from loguru import logger
@@ -7,7 +7,12 @@ from webcam_mods.utils.config import Config
 
 cur_keys = set()
 JUMP = 10  # pixels
-
+target_keys = set()  # currently listening keys
+# avoid always engaging these controls
+if PAN_CONTROL:
+    target_keys.add(Key.ctrl)
+if PADDING_CONTROL:
+    target_keys.add(Key.alt)
 
 cf = Config()
 
@@ -15,7 +20,6 @@ cf = Config()
 def on_press(key):
     global cf, cur_keys
     cur_keys.add(key)
-    target_keys = [Key.ctrl, Key.alt]
     if not any(key in cur_keys for key in target_keys):
         return
     if Key.ctrl in cur_keys:
@@ -79,5 +83,4 @@ def on_release(key):
         cur_keys.remove(key)
 
 
-# TODO avoid always engaging these
 key_listener = Listener(on_press=on_press, on_release=on_release)

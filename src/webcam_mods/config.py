@@ -25,3 +25,6 @@ DEFAULT_BG_IMAGE = data_root / "bg.jpg"
 ERROR_IMAGE = data_root / "errors" / "xp.jpg"
 
 ON_DEMAND = os.getenv("ON_DEMAND") == "True"
+
+PAN_CONTROL = os.getenv("PAN_CONTROL", "True") == "True"
+PADDING_CONTROL = os.getenv("PADDING_CONTROL", "True") == "True"
