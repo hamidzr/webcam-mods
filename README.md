@@ -1,3 +1,5 @@
+
+
 # Webcam Mods
 
 Tested on Arch Linux.
@@ -92,7 +94,7 @@ modprobe v4l2loopback devices=1 max_buffers=2 exclusive_caps=1 video_nr=10 card_
 
 ## Upgrading
 
-If you run into an issue upgrading try removing the old config file at `.webcam.conf`
+If you run into an issue upgrading try removing the old config file at `.webcam-mods.conf`
 
 ## Running the Mods
 
