@@ -20,7 +20,7 @@ classifiers = [
 ]
 dependencies = [
     "loguru>=0.7.3",
-    "mediapipe==1.0.1",
+    "mediapipe==0.10.35",
     "mss>=10.2.0",
     "numpy>=2.0",
     "pynput>=1.8.2",

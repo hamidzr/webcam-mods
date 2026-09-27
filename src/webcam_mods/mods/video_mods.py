@@ -5,7 +5,6 @@ import math
 import numpy as np
 from typing import Tuple, Optional
 
-
 # def frame_modr(frame):
 #     kernel = np.ones((5, 3)).astype(np.uint8)
 #     grad = cv2.morphologyEx(frame.copy(), cv2.MORPH_GRADIENT, kernel)

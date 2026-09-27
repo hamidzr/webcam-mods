@@ -46,7 +46,7 @@ def visualize(
 def generate_prediction() -> Rect:
     r = Rect(
         w=150 if c % 3 == 0 else 100,
-        h=150 if c % 3 == 0 else 100
+        h=150 if c % 3 == 0 else 100,
         # w=int(100 * random.uniform(0.8,1.3)),
         # h=int(100 * random.uniform(0.8,1.2))
     )

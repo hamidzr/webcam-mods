@@ -32,8 +32,12 @@ describe-devices:
 	v4l2-ctl --list-formats-ext
 
 fmt:
-	uv run black src
+	uv run black src tests
 
 check:
-	uv run python -m compileall -q src
-	uv run flake8 --select=E9,F63,F7,F821 src
+	uv run python -m compileall -q src tests
+	uv run flake8 --select=E9,F63,F7,F821 src tests
+	uv run black --check src tests
+
+test:
+	uv run python -m unittest discover -s tests
