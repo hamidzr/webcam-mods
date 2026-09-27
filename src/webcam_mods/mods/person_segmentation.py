@@ -1,16 +1,30 @@
 from numpy.typing import NDArray
 from webcam_mods.mods.video_mods import ensure_rgb_color
 import cv2
-from mediapipe.python.solutions import selfie_segmentation
+import mediapipe as mp
 import numpy as np
+import time
+
+from webcam_mods.models import model_path
 
 BG_COLOR = (192, 192, 192)  # gray
-MODEL_SELECTION = 0
+_segmenter = None
+_last_timestamp_ms = 0
 
-selfie_segmentation = selfie_segmentation.SelfieSegmentation(
-    model_selection=MODEL_SELECTION
-)
-# selfie_segmentation.close()
+
+def init() -> mp.tasks.vision.ImageSegmenter:
+    global _segmenter
+    if _segmenter is None:
+        options = mp.tasks.vision.ImageSegmenterOptions(
+            base_options=mp.tasks.BaseOptions(
+                model_asset_path=str(model_path("selfie_segmenter")),
+                delegate=mp.tasks.BaseOptions.Delegate.CPU,
+            ),
+            running_mode=mp.tasks.vision.RunningMode.VIDEO,
+            output_confidence_masks=True,
+        )
+        _segmenter = mp.tasks.vision.ImageSegmenter.create_from_options(options)
+    return _segmenter
 
 
 def biggest_comp(image):
@@ -47,19 +61,18 @@ def sigmoid(x, a=5.0, b=-10.0):
 
 # given a frame generates a mask
 def mask(frame: NDArray):
-    image = frame
+    global _last_timestamp_ms
 
     # Flip the image horizontally for a later selfie-view display, and convert
     # the BGR image to RGB.
-    image = cv2.cvtColor(cv2.flip(image, 1), cv2.COLOR_BGR2RGB)
-    # To improve performance, optionally mark the image as not writeable to
-    # pass by reference.
-    image.flags.writeable = False
-    results = selfie_segmentation.process(image)
-    result = results.segmentation_mask
-
-    image.flags.writeable = True
-    image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+    image = cv2.flip(frame, 1)
+    rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    mp_image = mp.Image(
+        image_format=mp.ImageFormat.SRGB, data=np.ascontiguousarray(rgb_image)
+    )
+    _last_timestamp_ms = max(time.monotonic_ns() // 1_000_000, _last_timestamp_ms + 1)
+    results = init().segment_for_video(mp_image, _last_timestamp_ms)
+    result = results.confidence_masks[0].numpy_view().squeeze(axis=-1)
 
     # post processing
     result = cv2.dilate(result, np.ones((5, 5), np.uint8), iterations=1)

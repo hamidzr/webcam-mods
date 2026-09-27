@@ -28,7 +28,9 @@ def open_video_capture(width=None, height=None, input_dev=0):
 
     # TODO make this a configurable cli option
     if len(config.IN_FORMAT) > 4:
-        logger.error(f"input fmt can be at most 4 characters long, got {len(fmt)}")
+        logger.error(
+            f"input fmt can be at most 4 characters long, got {len(config.IN_FORMAT)}"
+        )
         exit(1)
 
     videoIn.set(cv2.CAP_PROP_FPS, 30.0)

@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=80"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "webcam-mods"
+version = "0.2.0"
+description = "Face tracking, background effects, crop, zoom, and replay for virtual cameras"
+readme = "README.md"
+requires-python = ">=3.13,<3.15"
+license = "GPL-2.0-only"
+authors = [{ name = "Hamid Zare", email = "contact@hamidza.re" }]
+keywords = ["webcam", "virtual-camera", "background", "face-tracking"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Multimedia :: Video",
+    "Topic :: Multimedia :: Video :: Capture",
+]
+dependencies = [
+    "loguru>=0.7.3",
+    "mediapipe==0.10.35",
+    "mss>=10.2.0",
+    "numpy>=2.0",
+    "pynput>=1.8.2",
+    "pyvirtualcam>=0.15.0",
+    "typer>=0.27.2",
+]
+
+[project.optional-dependencies]
+linux = [
+    "inotify-simple>=2.0.1; sys_platform == 'linux'",
+    "v4l2 @ git+https://github.com/hamidzr/python-v4l2.git ; sys_platform == 'linux'",
+]
+
+[project.urls]
+Homepage = "https://github.com/hamidzr/webcam-mods"
+Issues = "https://github.com/hamidzr/webcam-mods/issues"
+
+[project.scripts]
+webcam_mods = "webcam_mods.__main__:app"
+
+[dependency-groups]
+dev = ["black", "build", "flake8", "twine"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+webcam_mods = ["data/*.jpg", "data/errors/*.jpg"]

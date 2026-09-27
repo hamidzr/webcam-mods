@@ -1,4 +1,4 @@
-default: add-video-dev
+default: check
 
 track-face:
 	echo this make target is deprecated. use the package entry (entry.py) instead.
@@ -17,10 +17,10 @@ clean:
 	rm -rf dist
 
 build:
-	pipenv run python -m build
+	uv run python -m build
 
 publish: build
-	pipenv run python -m twine upload dist/*
+	uv run python -m twine upload dist/*
 
 # setup-webcam: add-video-dev
 # 	v4l2loopback-ctl set-caps 'video/x-raw,format=I420,width=320,height=240' /dev/video10
@@ -32,9 +32,8 @@ describe-devices:
 	v4l2-ctl --list-formats-ext
 
 fmt:
-	black .
+	uv run black src
 
 check:
-	pylint .
-	flake8 .
-	mypy .
+	uv run python -m compileall -q src
+	uv run flake8 --select=E9,F63,F7,F821 src

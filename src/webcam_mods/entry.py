@@ -143,12 +143,12 @@ def track_face(
     Crop around the first detected face.
     x-padding and y-padding: padding ratios.
     """
-    from webcam_mods.mods.mp_face import abs_boundingbox, predict
+    from webcam_mods.mods.mp_face import predict
 
     if blur:
         from webcam_mods.mods.person_segmentation import blur_bg
 
-    last_pred = (0, 0, 1, 1)
+    last_pred = None
 
     def frame_mod(frame):
         nonlocal last_pred
@@ -156,13 +156,12 @@ def track_face(
         bbox = predict(frame)
         if bbox is not None:
             last_pred = bbox
-        else:
+        elif last_pred is not None:
             bbox = last_pred
+        else:
+            return frame
 
-        # crop_box = (int(bbox.width*fw), int(bbox.height*fh), int(bbox.xmin*fw), int(bbox.ymin*fh))
-        # frame = crop(frame, crop_box[0], crop_box[1], crop_box[2], crop_box[3])
-        pred_box = abs_boundingbox(frame, bbox)
-        frame = crop_rect(frame, generate_crop(pred_box, (x_padding, y_padding)))
+        frame = crop_rect(frame, generate_crop(bbox, (x_padding, y_padding)))
         if frame is not None:
             frame = frame if not blur else blur_bg(frame, blur_kernel_size)
         return frame

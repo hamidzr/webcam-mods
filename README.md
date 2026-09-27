@@ -47,43 +47,46 @@ _For entertainment purposes only_
 
 ## Installation
 
-Depending on your python setup you might need to include the current directory in your `$PYTHONPATH`.
-To do so run the following: `export PYTHONPATH="$PYTHONPATH:./"`
-
 ### Dependencies
 
 System dependencies:
 
-- Python 3.8: Some installation options include [pyenv](https://github.com/pyenv/pyenv) [conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html)
+- Python 3.13 or 3.14 and [uv](https://docs.astral.sh/uv/)
 - [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
 - A virtual camera device: [Linux] v4l2loopback [Windows or MacOS] [OBS](https://obsproject.com/).
 Follow [pyvirtualcam's instructions](https://github.com/letmaik/pyvirtualcam#supported-virtual-cameras) to set this up.
 
 ### macOS virtual camera setup
 
-Install OBS 30 or newer. Open OBS once, select **Start Virtual Camera**, then
-**Stop Virtual Camera**, and close OBS. Approve its camera extension in macOS
-System Settings if prompted. After this one-time setup, `webcam_mods` sends
+Install OBS 30 or newer. Open OBS once and select **Start Virtual Camera**.
+If OBS says the virtual camera is not installed, enable its camera extension in
+**System Settings > General > Login Items & Extensions > Camera Extensions**,
+then restart OBS and try again. Select **Stop Virtual Camera** and close OBS.
+After this one-time setup, `webcam_mods` sends
 frames directly to the OBS Virtual Camera; OBS does not need to stay open.
 
-On macOS 13 or newer, use `pyvirtualcam` 0.14 or newer with OBS 30 or newer.
+On macOS 13 or newer, use OBS 30 or newer. This project installs
+`pyvirtualcam` 0.15 or newer.
 The OBS device remains installed when `webcam_mods` stops; start and stop
 `webcam_mods` to control the video feed.
 
 
-If you're just interested in running the released features install the project as a python package using:
-`pip install git+https://github.com/hamidzr/webcam-mods@master` (python 3.8 environment) and access the
-offered features using `webcam_mods` CLI. This would replace the `entry.py` mentions in the rest of 
-the documentation.
+Install dependencies from the locked project environment:
 
-Python dependencies are listed in `Pipfile`. Install them using [Pipenv](https://pipenv-fork.readthedocs.io/en/latest/) (recommended)
+```sh
+uv sync --python 3.14
+uv run python -m webcam_mods.models
+uv run webcam_mods --help
+```
 
-[WARN] If you don't use `pipenv` for dependency and virtual env management you'd need to find replacements wherever you
-see `pipenv` mentioned => `grep -R pipenv .`
+Run modes with `uv run webcam_mods <command>`. For example,
+`uv run webcam_mods crop-cam`. On Linux, install the video device dependencies
+with `uv sync --extra linux --python 3.14`.
 
-1. create a virtual environment: `pipenv --python 3.8`
-2. activate it `pipenv shell`
-3. install the dependencies `pipenv install --skip-lock`
+Face detection and background effects use MediaPipe Tasks. The two official
+task models are downloaded once into `~/.cache/webcam-mods/models` and verified
+with SHA-256; later runs use the cached copies. MediaPipe 0.10.35 is pinned
+because 1.0.1 currently aborts while initializing face detection on this Mac.
 
 ## Setting up a virtual webcam device on Linux
 
@@ -108,7 +111,7 @@ If you run into an issue upgrading try removing the old config file at `.webcam.
 ## Running the Mods
 
 After you've successfully followed installation steps, you can run the different modes by
-calling `python webcam_mods/entry.py --help` from within the `src` directory .
+calling `uv run webcam_mods --help` from the project directory.
 
 ## Settings
 
