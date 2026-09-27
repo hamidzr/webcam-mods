@@ -59,6 +59,17 @@ System dependencies:
 - A virtual camera device: [Linux] v4l2loopback [Windows or MacOS] [OBS](https://obsproject.com/).
 Follow [pyvirtualcam's instructions](https://github.com/letmaik/pyvirtualcam#supported-virtual-cameras) to set this up.
 
+### macOS virtual camera setup
+
+Install OBS 30 or newer. Open OBS once, select **Start Virtual Camera**, then
+**Stop Virtual Camera**, and close OBS. Approve its camera extension in macOS
+System Settings if prompted. After this one-time setup, `webcam_mods` sends
+frames directly to the OBS Virtual Camera; OBS does not need to stay open.
+
+On macOS 13 or newer, use `pyvirtualcam` 0.14 or newer with OBS 30 or newer.
+The OBS device remains installed when `webcam_mods` stops; start and stop
+`webcam_mods` to control the video feed.
+
 
 If you're just interested in running the released features install the project as a python package using:
 `pip install git+https://github.com/hamidzr/webcam-mods@master` (python 3.8 environment) and access the

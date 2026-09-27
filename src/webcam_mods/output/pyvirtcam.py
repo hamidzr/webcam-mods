@@ -1,17 +1,11 @@
-from webcam_mods.utils.file_monitor import MonitorFile
 from webcam_mods.input.input import FrameOutput, Frame
-from pathlib import Path
 from typing import Dict, Any
 import pyvirtualcam
 from pyvirtualcam import PixelFormat
 
 
 class PyVirtualCam(FrameOutput):
-    id = "vritual-cam"
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.on_demand = MonitorFile(Path(self.device))
+    id = "virtual-cam"
 
     def setup(self) -> Dict[str, Any]:
         self.cam = pyvirtualcam.Camera(
@@ -22,7 +16,6 @@ class PyVirtualCam(FrameOutput):
             print_fps=False,
         )
         self.cam.__enter__()
-        self.on_demand.setup()
         return {
             "device": self.cam.device,
             "width": self.cam.width,
@@ -31,8 +24,6 @@ class PyVirtualCam(FrameOutput):
         }
 
     def teardown(self, *args):
-        self.consumers = 0
-        self.on_demand.teardown()
         self.cam.close()
 
     def send(self, frame: Frame):
@@ -42,4 +33,4 @@ class PyVirtualCam(FrameOutput):
         self.cam.sleep_until_next_frame()
 
     def is_in_use(self) -> bool:
-        return self.on_demand.is_in_use()
+        return True
