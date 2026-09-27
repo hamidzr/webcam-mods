@@ -86,7 +86,7 @@ def live_loop(
             frame = None
             if paused:
                 frame = paused_frame
-                time.sleep(1)  # lower the fps when paused
+                time.sleep(0.5)  # lower the fps when paused
             else:
                 if not fIn.is_setup():
                     fIn.setup()
