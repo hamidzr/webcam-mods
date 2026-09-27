@@ -1,0 +1,467 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 46;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		143CC4A3BE915CD759F39079 /* CameraProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD38C893D0D3C2D40327F7FB /* CameraProvider.swift */; };
+		4BC093EDBAF635DB56196E35 /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AAC78B00D0E521227A4EDE9 /* App.swift */; };
+		7F61EE1D98A96DE5E7E66247 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2DF07BA3D132228EDD36ADF /* main.swift */; };
+		86ECE498373AB175327196A3 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6C8BCDA6A77A9FCE390BE829 /* Cocoa.framework */; };
+		93F5384375EE792A9890B062 /* com.hamidzr.webcam-mods.CameraExtension.systemextension in Embed Camera Extension */ = {isa = PBXBuildFile; fileRef = E430865148C46E24B6C671AE /* com.hamidzr.webcam-mods.CameraExtension.systemextension */; };
+		EC1D3E938DE44F6A0200989B /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6C8BCDA6A77A9FCE390BE829 /* Cocoa.framework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		BE5A4E8FFA9BF06DB5FC79CB /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 6364FFC0DE8992FC8952DA73 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4EAC172B496DE390EF6E64D3;
+			remoteInfo = CameraExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		4115FF55677B2B78AA9A14F0 /* Embed Camera Extension */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(SYSTEM_EXTENSIONS_FOLDER_PATH)";
+			dstSubfolderSpec = 16;
+			files = (
+				93F5384375EE792A9890B062 /* com.hamidzr.webcam-mods.CameraExtension.systemextension in Embed Camera Extension */,
+			);
+			name = "Embed Camera Extension";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		2AAC78B00D0E521227A4EDE9 /* App.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
+		2B942D7094FF593E59C01B6F /* WebcamModsCamera.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WebcamModsCamera.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		6C8BCDA6A77A9FCE390BE829 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/Cocoa.framework; sourceTree = DEVELOPER_DIR; };
+		B2DF07BA3D132228EDD36ADF /* main.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		BD38C893D0D3C2D40327F7FB /* CameraProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraProvider.swift; sourceTree = "<group>"; };
+		E430865148C46E24B6C671AE /* com.hamidzr.webcam-mods.CameraExtension.systemextension */ = {isa = PBXFileReference; explicitFileType = "wrapper.system-extension"; includeInIndex = 0; path = "com.hamidzr.webcam-mods.CameraExtension.systemextension"; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		7C73D1A0D9463DD15631D728 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				EC1D3E938DE44F6A0200989B /* Cocoa.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		90C5E3AF8FEBB4A0F7979B8D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				86ECE498373AB175327196A3 /* Cocoa.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		006E556FEF02BFB387C2A9FB = {
+			isa = PBXGroup;
+			children = (
+				6E536D0D100F7089077B662F /* Products */,
+				9B7B6B56F75414E5E33F345D /* Frameworks */,
+				D2B1C857E90FF99322CC4F8C /* CameraApp */,
+				74BFE288F35D2BDE3B872E47 /* CameraExtension */,
+			);
+			sourceTree = "<group>";
+		};
+		0B949610BBD7102D05EDF2FB /* OS X */ = {
+			isa = PBXGroup;
+			children = (
+				6C8BCDA6A77A9FCE390BE829 /* Cocoa.framework */,
+			);
+			name = "OS X";
+			sourceTree = "<group>";
+		};
+		6E536D0D100F7089077B662F /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				2B942D7094FF593E59C01B6F /* WebcamModsCamera.app */,
+				E430865148C46E24B6C671AE /* com.hamidzr.webcam-mods.CameraExtension.systemextension */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		74BFE288F35D2BDE3B872E47 /* CameraExtension */ = {
+			isa = PBXGroup;
+			children = (
+				B2DF07BA3D132228EDD36ADF /* main.swift */,
+				BD38C893D0D3C2D40327F7FB /* CameraProvider.swift */,
+			);
+			name = CameraExtension;
+			path = CameraExtension;
+			sourceTree = "<group>";
+		};
+		9B7B6B56F75414E5E33F345D /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				0B949610BBD7102D05EDF2FB /* OS X */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		D2B1C857E90FF99322CC4F8C /* CameraApp */ = {
+			isa = PBXGroup;
+			children = (
+				2AAC78B00D0E521227A4EDE9 /* App.swift */,
+			);
+			name = CameraApp;
+			path = CameraApp;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		4EAC172B496DE390EF6E64D3 /* CameraExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 27134D50E191CD7199D9D4C9 /* Build configuration list for PBXNativeTarget "CameraExtension" */;
+			buildPhases = (
+				E6C70AA17F9B2195ADB5C666 /* Sources */,
+				90C5E3AF8FEBB4A0F7979B8D /* Frameworks */,
+				7FA7B9B073F341C7516B5A7F /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = CameraExtension;
+			productName = CameraExtension;
+			productReference = E430865148C46E24B6C671AE /* com.hamidzr.webcam-mods.CameraExtension.systemextension */;
+			productType = "com.apple.product-type.system-extension";
+		};
+		8DE8449DA4FDBDA2A0F535A5 /* WebcamModsCamera */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 125153A485C7AED23B54B8F5 /* Build configuration list for PBXNativeTarget "WebcamModsCamera" */;
+			buildPhases = (
+				816BEE42C7A8E34DFFE28785 /* Sources */,
+				7C73D1A0D9463DD15631D728 /* Frameworks */,
+				A637BF8FE46564B492D1F682 /* Resources */,
+				4115FF55677B2B78AA9A14F0 /* Embed Camera Extension */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				E7327BFAF68B809003F8B915 /* PBXTargetDependency */,
+			);
+			name = WebcamModsCamera;
+			productName = WebcamModsCamera;
+			productReference = 2B942D7094FF593E59C01B6F /* WebcamModsCamera.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		6364FFC0DE8992FC8952DA73 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+			};
+			buildConfigurationList = 8563E796969ECD8C19C80CB9 /* Build configuration list for PBXProject "WebcamModsCamera" */;
+			compatibilityVersion = "Xcode 3.2";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 006E556FEF02BFB387C2A9FB;
+			minimizedProjectReferenceProxies = 0;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 6E536D0D100F7089077B662F /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				8DE8449DA4FDBDA2A0F535A5 /* WebcamModsCamera */,
+				4EAC172B496DE390EF6E64D3 /* CameraExtension */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		7FA7B9B073F341C7516B5A7F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A637BF8FE46564B492D1F682 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		816BEE42C7A8E34DFFE28785 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4BC093EDBAF635DB56196E35 /* App.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E6C70AA17F9B2195ADB5C666 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7F61EE1D98A96DE5E7E66247 /* main.swift in Sources */,
+				143CC4A3BE915CD759F39079 /* CameraProvider.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		E7327BFAF68B809003F8B915 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = CameraExtension;
+			target = 4EAC172B496DE390EF6E64D3 /* CameraExtension */;
+			targetProxy = BE5A4E8FFA9BF06DB5FC79CB /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		3699C8A080E5B2E801321EC3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = CameraExtension/CameraExtension.entitlements;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = CameraExtension/Info.plist;
+				MACOSX_DEPLOYMENT_TARGET = 12.3;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.hamidzr.webcam-mods.CameraExtension";
+				PRODUCT_NAME = "com.hamidzr.webcam-mods.CameraExtension";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		8B98A9EDBD798430884A5816 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = CameraExtension/CameraExtension.entitlements;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = CameraExtension/Info.plist;
+				MACOSX_DEPLOYMENT_TARGET = 12.3;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.hamidzr.webcam-mods.CameraExtension";
+				PRODUCT_NAME = "com.hamidzr.webcam-mods.CameraExtension";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		9DDD3682474D8E4A61558007 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 12.3;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		A4571C9ABDB1DCF3240715F4 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = CameraApp/CameraApp.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = CameraApp/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 12.3;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.hamidzr.webcam-mods";
+				PRODUCT_NAME = WebcamModsCamera;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		C02ACC45B1A05470DA0E3C07 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = CameraApp/CameraApp.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = CameraApp/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 12.3;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.hamidzr.webcam-mods";
+				PRODUCT_NAME = WebcamModsCamera;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		DD7455E09DA16076A4B4ED69 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 12.3;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		125153A485C7AED23B54B8F5 /* Build configuration list for PBXNativeTarget "WebcamModsCamera" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C02ACC45B1A05470DA0E3C07 /* Release */,
+				A4571C9ABDB1DCF3240715F4 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		27134D50E191CD7199D9D4C9 /* Build configuration list for PBXNativeTarget "CameraExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3699C8A080E5B2E801321EC3 /* Release */,
+				8B98A9EDBD798430884A5816 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		8563E796969ECD8C19C80CB9 /* Build configuration list for PBXProject "WebcamModsCamera" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9DDD3682474D8E4A61558007 /* Debug */,
+				DD7455E09DA16076A4B4ED69 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 6364FFC0DE8992FC8952DA73 /* Project object */;
+}
