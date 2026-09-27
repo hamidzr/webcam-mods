@@ -83,10 +83,11 @@ Run modes with `uv run webcam_mods <command>`. For example,
 `uv run webcam_mods crop-cam`. On Linux, install the video device dependencies
 with `uv sync --extra linux --python 3.14`.
 
-Face detection and background effects use MediaPipe Tasks. The two official
-task models are downloaded once into `~/.cache/webcam-mods/models` and verified
-with SHA-256; later runs use the cached copies. MediaPipe 0.10.35 is pinned
-because 1.0.1 currently aborts while initializing face detection on this Mac.
+Background effects use MediaPipe Tasks 1.0.1. Face tracking uses OpenCV YuNet
+because MediaPipe 1.0.1 aborts while initializing its face detector on macOS
+ARM64, even with the CPU delegate. The models are downloaded once into
+`~/.cache/webcam-mods/models` and verified with SHA-256; later runs use the
+cached copies.
 
 ## Setting up a virtual webcam device on Linux
 
