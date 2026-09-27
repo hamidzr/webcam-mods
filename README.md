@@ -85,7 +85,10 @@ with `uv sync --extra linux --python 3.14`.
 
 Background effects use MediaPipe Tasks 1.0.1. Face tracking uses OpenCV YuNet
 because MediaPipe 1.0.1 aborts while initializing its face detector on macOS
-ARM64, even with the CPU delegate. The models are downloaded once into
+ARM64, even with the CPU delegate. Its native calculator tries to initialize
+Metal without an available GPU service ([upstream issue](https://github.com/google-ai-edge/mediapipe/issues/6356),
+[source fix](https://github.com/google-ai-edge/mediapipe/commit/32d0e5b1317be070083c630240b274218ce9ed52)).
+The models are downloaded once into
 `~/.cache/webcam-mods/models` and verified with SHA-256; later runs use the
 cached copies.
 
