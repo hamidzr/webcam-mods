@@ -217,7 +217,7 @@ class AVFoundationCamera(FrameInput):
                 if not locked:
                     raise RuntimeError(f"could not configure camera: {error}")
                 try:
-                    # attached device format makes the session use inputPriority automatically
+                    # configure the attached device directly; inputPriority is unsupported on macOS
                     device.setActiveFormat_(formats[0])
                     duration = cm.CMTimeMake(1000, round(self.fps * 1000))
                     device.setActiveVideoMinFrameDuration_(duration)

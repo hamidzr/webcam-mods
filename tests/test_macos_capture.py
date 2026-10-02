@@ -102,7 +102,7 @@ class CameraMailboxTest(unittest.TestCase):
         device.lockForConfiguration_.return_value = (True, None)
         device.activeVideoMinFrameDuration.return_value = cm.CMTimeMake(1, 30)
         session = Mock()
-        # inputPriority is inferred from activeFormat, not explicitly settable
+        # macOS rejects inputPriority even though the binding exposes it
         session.canSetSessionPreset_.return_value = False
 
         def configure_format(selected):

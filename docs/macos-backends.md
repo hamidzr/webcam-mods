@@ -25,8 +25,8 @@ coding application, depending on how Python is launched. Capture selects a devic
 index, requires a format matching requested dimensions/FPS, retains only the
 latest frame, copies callback BGRA buffers into owned BGR arrays and reports sample
 timestamps. Setup attaches input/output before selecting activeFormat and FPS,
-letting AVFoundation derive inputPriority; it does not try to set that preset on
-an empty session. Startup, frame waits and shutdown have timeouts. `IN_FPS` now applies
+configuring the device directly. The inputPriority preset is unsupported on macOS
+and is never selected. Startup, frame waits and shutdown have timeouts. `IN_FPS` now applies
 to both capture backends. Native capture ignores OpenCV's `IN_FORMAT` FOURCC.
 
 Vision owns one reusable request and input buffer per effect instance. It returns
