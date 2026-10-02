@@ -43,7 +43,10 @@ You can disable this control by defining the environment variable `PADDING_CONTR
 #### Record & Replay
 
 Record and replay your camera feed on the fly. While you're in any of the other modes above
-press `r` to start recording and press `p` to stop recording and start replaying in a loop.
+enter `record` on stdin to start recording, `stop` to stop, and `replay` to loop
+the recording. Empty replay is rejected. Recording stops at a 256 MiB memory limit
+by default; configure it with `--recording-limit-mb`. Enter `reset` to reset crop
+and padding. Use `--no-controls` to disable keyboard and stdin controls.
 
 _For entertainment purposes only_
 
@@ -81,7 +84,22 @@ uv run python -m webcam_mods.models
 uv run webcam_mods --help
 ```
 
-Run `make check` for static checks and `make test` for MediaPipe smoke tests.
+Run `make check` for static checks and `make test` for headless regression tests.
+
+Optional macOS native capture and effects keep OBS output:
+
+```sh
+uv sync --extra macos
+uv run --extra macos webcam_mods --no-controls --capture-backend avfoundation --segmentation-backend vision --vision-quality fast bg-blur
+make verify UV_FLAGS='--extra macos'
+```
+
+Run from macOS Terminal and allow Camera access when prompted. Global options
+precede the command. `--processing-backend coreimage` selects Gaussian background
+blur/compositing; portable OpenCV box blur remains default. Native options are
+experimental and do not guarantee better performance or segmentation quality.
+See [backend report](docs/macos-backends.md) for measured results and limitations.
+No own camera extension or paid Apple membership is required.
 
 Run modes with `uv run webcam_mods <command>`. For example,
 `uv run webcam_mods crop-cam`. On Linux, install the video device dependencies

@@ -8,6 +8,8 @@ delivery and desktop permissions vary by platform.
   and existing control paths.
 - [Current state](current-state.md): capabilities, configuration, portability,
   verification coverage, and known gaps.
+- [macOS backends](macos-backends.md): optional native adapters, benchmark evidence
+  and usage.
 - [Improvement plan](improvement-plan.md): prioritized findings and a proposed
   shared control path for CLI and future API access.
 

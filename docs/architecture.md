@@ -1,149 +1,127 @@
 # Current architecture
 
-## Scope and terminology
+Webcam Mods is a synchronous Python BGR frame-processing application. Supported
+entrypoints are the Typer CLI `webcam_mods` and `python -m webcam_mods`. No HTTP
+server, daemon or cross-process runtime control API exists.
 
-Webcam Mods is a synchronous Python frame-processing application. Its supported
-entrypoint is the Typer CLI, `webcam_mods`, also available through
-`python -m webcam_mods`. It has no HTTP server or supported runtime control API.
+## Run and frame flow
 
-An **input adapter** acquires frames. An **effect** transforms a frame. An
-**output adapter** delivers frames and may pace delivery. A **run** is one
-invocation of `live_loop`; it is not yet an explicit session object. A **control**
-changes crop/padding state or record/replay state. A **seam** is an interface where
-adapters or effects can be substituted, as the headless tests already do.
+`entry.py` creates fresh run state and effects. `RunSession` owns crop/padding
+settings, queued commands and bounded recording/replay. Keyboard and stdin adapters
+start explicitly and submit immutable commands. The calling frame thread drains
+commands between frames, then crops, pads, records/replays and invokes the chosen
+effect. `live_loop` resizes/pads and sends to the output, which paces delivery.
+
+`track-face` instead owns its detector, previous prediction and crop tracker, and
+disables crop/replay controls. Optional segmentation follows face cropping. Face
+misses retain the last prediction. Segmentation mirrors once; ordinary crop and
+brightness do not. Each CLI run closes its owned models and native contexts.
+Legacy Python face/segmentation helper functions retain lazy compatibility
+instances; new runs should instantiate the classes directly.
+
+```mermaid
+flowchart TD
+    CLI[Typer command] --> Run[Run-owned effects and session]
+    Keyboard[Optional keyboard] --> Queue[Bounded command queue]
+    Stdin[Optional stdin] --> Queue
+    Queue --> Session[RunSession applies commands between frames]
+    Run --> Loop[live_loop]
+    Session --> Effect[Crop / padding / replay / effect]
+    Camera[OpenCV or optional AVFoundation] --> Loop
+    Loop --> Effect
+    Effect --> Resize[Portable resize and pad]
+    Resize --> Output[Output adapter and pacing]
+    Output --> Mac[pyvirtualcam / OBS]
+    Output --> Linux[Native V4L2]
+```
+
+Screen sharing retains its existing MSS implementation and is outside the native
+backend work. GUI output and test PNG adapters remain available as existing seams.
 
 ## Module map
 
 | Source | Responsibility |
 | --- | --- |
-| `src/webcam_mods/__main__.py` | Exposes the Typer application from `entry.py` |
-| `src/webcam_mods/entry.py` | Commands, effect composition, common CLI options |
-| `src/webcam_mods/loopback.py` | Default output selection and synchronous frame loop |
-| `src/webcam_mods/input/input.py` | Shared input/output classes and context-manager behavior |
-| `src/webcam_mods/input/video_dev.py` | OpenCV webcam capture and retry logic |
-| `src/webcam_mods/input/screen.py` | MSS screen-region capture |
-| `src/webcam_mods/output/pyvirtcam.py` | pyvirtualcam output, used by default outside Linux |
-| `src/webcam_mods/output/v4l2loopback.py` | Native Linux device output and consumer monitoring |
-| `src/webcam_mods/output/gui.py` | OpenCV window preview |
-| `src/webcam_mods/mods/video_mods.py` | Crop, padding, resize, and brightness operations |
-| `src/webcam_mods/mods/mp_face.py` | Lazy CPU MediaPipe face detection |
-| `src/webcam_mods/mods/person_segmentation.py` | Lazy CPU MediaPipe segmentation and background effects |
-| `src/webcam_mods/mods/camera_motion.py` | Face crop interpolation and padding |
-| `src/webcam_mods/mods/record_replay.py` | In-memory recording and replay |
-| `src/webcam_mods/uses/interactive_controls.py` | Global keyboard listener, crop/padding controls |
-| `src/webcam_mods/utils/cli_input.py` | Daemon stdin reader and shared command slot |
-| `src/webcam_mods/config.py` | Environment-derived constants and bundled image paths |
-| `src/webcam_mods/utils/config.py` | JSON crop/padding persistence |
-| `src/webcam_mods/models.py` | Checksum-verified model download and local cache |
+| `__main__.py`, `entry.py` | CLI selection, per-run effects, common options and cleanup |
+| `session.py` | Validated frame preparation, ordered command application, recording ownership |
+| `loopback.py` | Adapter selection, metadata validation, synchronous loop and error behavior |
+| `input/input.py` | Adapter protocol and partial-setup context cleanup |
+| `input/video_dev.py` | OpenCV capture, configured FPS and retry logic |
+| `input/screen.py` | Existing MSS screen-region capture |
+| `macos/capture.py` | Optional AVFoundation callback capture and newest-frame mailbox |
+| `macos/vision.py` | Optional instance-owned Vision person masks |
+| `macos/core_image.py` | Optional Core Image background compositing/Gaussian blur |
+| `output/pyvirtcam.py` | OBS virtual camera, pacing and idempotent cleanup |
+| `output/v4l2loopback.py` | Native Linux output and consumer monitoring |
+| `output/gui.py` | OpenCV preview |
+| `mods/video_mods.py` | Portable geometry, resize and HSV brightness |
+| `mods/mp_face.py` | Lazy instance-owned CPU MediaPipe face detector |
+| `mods/person_segmentation.py` | Instance-owned MediaPipe/Vision effects and float32 blending |
+| `mods/camera_motion.py` | Instance-owned crop interpolation |
+| `mods/record_replay.py` | Bounded recorder and looping replay |
+| `uses/interactive_controls.py` | Lazy optional keyboard/control adapters |
+| `utils/cli_input.py` | Explicit stoppable stdin reader |
+| `utils/config.py` | Validated JSON settings and atomic persistence |
+| `config.py` | Import-time environment constants and bundled image paths |
+| `models.py` | Checksum-verified model cache/download |
 
-`output/file.py` is empty. Saved-frame output exists in the test harness, not as
-a user-facing CLI output. `uses/track_face.py` references a missing legacy module;
-`uses/track_box.py` is a developer demo with an outdated `generate_crop` call.
-Neither is the supported face-tracking command.
+`output/file.py` remains empty. Legacy `uses/track_face.py` references a missing
+module; `uses/track_box.py` retains its outdated demo call. Neither is supported
+CLI face tracking.
 
-## Frame and control flow
+## Lifecycle and errors
 
-```mermaid
-flowchart TD
-    CLI[Typer command] --> Compose[Choose effect callable]
-    Compose --> Loop[live_loop]
-    Webcam[OpenCV webcam] --> Loop
-    Screen[MSS screen region] --> Loop
-    Loop --> Effect[Effect callable]
-    Effect --> Resize[Resize and pad to output dimensions]
-    Resize --> Output[Output adapter]
-    Output --> OBS[pyvirtualcam / OBS on macOS]
-    Output --> Linux[Native V4L2 on Linux]
-    Output --> GUI[OpenCV preview]
-    Keyboard[Keyboard listener] --> Config[Shared crop and padding config]
-    Config --> Compose
-    Stdin[Stdin reader] --> Slot[Shared command slot]
-    Slot --> Controls[Reset and record/replay consumers]
-    Controls --> Compose
-```
+The loop acquires input once, validates finite positive negotiated metadata, then
+selects default output if none was supplied. Negotiated dimensions may differ from
+requested dimensions. CLI frame preparation retains valid crops or resets invalid
+crops when actual input dimensions change. Adapter setup sits inside cleanup scope;
+context entry attempts teardown even when setup partially fails. Input and controls
+are stopped in `finally`; output context teardown closes output.
 
-`live_loop` accepts an optional effect callable, input/output adapters, and a
-listener. Effects receive OpenCV-style BGR frames; returning `None` invokes the
-configured error behavior. Existing tests substitute PNG input/output adapters
-and pass `interactive_listener=None` to avoid desktop controls.
+Effect exceptions and `None` results produce an error image or, with
+`freeze_on_error`, the last successful resized frame. The initial frozen frame is
+no-signal. Output/capture exceptions propagate. Empty input retries immediately;
+bounded runs or strict errors raise. `max_frames`, `strict_errors` and
+`before_frame` are Python testing/control seams, not CLI options.
 
-Most commands compose the following processing order:
+On-demand mode retains Linux consumer detection. Paused capture is closed and the
+loop sends a no-signal frame after sleeping. pyvirtualcam always reports in use.
+Native Linux output still lacks pacing; cadence unification remains future work.
 
-1. Crop using persisted crop dimensions and position.
-2. Pad inward using persisted padding settings.
-3. Record or replay the cropped/padded frame.
-4. Consume the interactive reset command.
-5. Apply the command-specific effect.
-6. Resize/pad to output dimensions in `live_loop`, then send.
+## State and threads
 
-`track-face` uses its own detection/crop callable and disables the loop's keyboard
-listener. It retains the last detected face when detection misses. Its optional
-background blur runs after face cropping. Segmentation effects mirror the image
-horizontally; ordinary crop and brightness effects do not.
-
-## Lifecycle and error behavior
-
-When no input is supplied, the loop creates a webcam. When no output is supplied,
-it opens the input temporarily to inspect dimensions and FPS, rejects dimensions
-different from configured input dimensions, closes that input, and selects output.
-Linux selects `V4l2Cam`; other systems select `PyVirtualCam`.
-
-The main run starts the listener, sets up capture again, enters the output context,
-and reads/processes/sends frames serially. `finally` tears down input and stops the
-listener; the output context tears down output after successful entry. Resources
-acquired inside a failing output `setup` are not guaranteed cleanup by this
-context-manager arrangement. The initial probe occurs before the main `try`.
-
-An effect exception or `None` result normally produces the error image, or the
-last successful frame with `freeze_on_error=True`. Until a successful frame exists,
-the frozen frame is the no-signal image. An empty input normally retries immediately.
-Bounded runs or strict error mode raise on empty input; strict mode also propagates
-effect failures. Output send failures propagate. `max_frames` and `strict_errors`
-support deterministic testing; they are not CLI options.
-
-With on-demand mode, the loop asks output whether it is in use. When paused, it
-tears down capture and sends a no-signal frame after a 0.5-second sleep. Native
-Linux output uses inotify open/close events to estimate consumers. pyvirtualcam
-reports always in use. This is consumer detection, not portable pause support.
-
-## State and threading
-
-There is no centralized runtime state owner:
-
-| State | Current owner |
+| State | Owner |
 | --- | --- |
 | Environment settings | Module constants evaluated at import |
-| Crop/padding settings | Global `Config` instance in interactive controls |
-| Pressed keys | Global set modified by pynput callbacks |
-| Stdin command | Single global mutable slot, `inp[0]` |
-| Recorded frames and replay index | Globals in `record_replay.py` |
-| Face/segmentation model and timestamp | Globals in their effect modules |
-| Smoothed crop and transition | Globals in `camera_motion.py` |
-| Last face prediction | Local closure in CLI `track_face` |
+| Crop/padding | RunSession Config |
+| Commands | Bounded session queue; immutable command objects |
+| Pressed keys | Per-run keyboard adapter |
+| Recording/replay | Per-run Recorder; default 256 MiB maximum |
+| Model handles/timestamps | Per-run effect instances, closed by CLI |
+| Crop interpolation | Per-run CropTracker |
+| Last face prediction | Per-command closure |
+| Native capture mailbox/timestamps | AVFoundationCamera instance |
 
-Frame processing runs on the calling thread. A pynput listener thread updates
-crop/padding state and persists it. A daemon thread reads stdin. These control paths
-share mutable state without a command queue or frame-consistent settings snapshot.
-The stdin slot can overwrite commands; multiple consumers clear the same slot.
+CLI imports create no keyboard listener, config writes or stdin thread. Keyboard
+callbacks enqueue controls; persistence and mutations happen on the processing
+thread. Stdin uses a stoppable polling reader without closing caller-owned stdin.
+AVFoundation capture adds a worker and serial callback queue, publishing an owned
+BGR copy in a one-frame mailbox. Core Image uses per-frame autorelease pools.
 
-Importing `entry.py` imports interactive controls and record/replay. This constructs
-a keyboard listener, creates/loads persisted configuration, and starts the stdin
-thread before command execution. Disabling pan/padding flags does not avoid that
-listener construction. Face/segmentation models, unlike controls, initialize lazily.
-Their native handles remain global and are not explicitly closed by loop shutdown.
+The command interface distinguishes acceptance (`submit`) from application
+(`apply_commands`, returning results). There is no external status service or
+finished cross-process session API. Per-run effects remain owned by the CLI run
+scope rather than by a generic plugin/session framework.
 
-## Models and dependencies
+## Dependencies and frame representation
 
-The project uses Python 3.13 or 3.14, a tracked `uv.lock`, setuptools packaging,
-NumPy/OpenCV processing, and MediaPipe Tasks pinned to 0.10.35. Both models use the
-CPU delegate. `models.py` honors `XDG_CACHE_HOME`, otherwise uses `~/.cache`, and
-stores models under `webcam-mods/models`. Downloads use a temporary file, verify
-SHA-256, and atomically replace the cache file. Cached files are reverified on lookup.
+Python 3.13/3.14, tracked uv.lock, setuptools, explicit OpenCV-contrib/NumPy,
+MediaPipe Tasks 0.10.35 CPU, and pyvirtualcam remain portable defaults. Linux-only
+dependencies stay in the `linux` extra. PyObjC frameworks are lazy imports in the
+optional `macos` extra. All supported effects/output still exchange BGR arrays;
+native backends do not yet eliminate CPU/native conversion boundaries.
 
-Linux-specific `v4l2` and `inotify-simple` dependencies are in the `linux` extra;
-their imports are confined to the native output path and file monitor. OpenCV is
-imported directly throughout the project but currently supplied transitively by
-dependencies rather than explicitly listed in `pyproject.toml`.
-
-For verification and limitations, see [current state](current-state.md). For the
-proposed session/control architecture, see [improvement plan](improvement-plan.md).
+Models honor XDG_CACHE_HOME, otherwise ~/.cache/webcam-mods/models. Downloads use
+temporary files, SHA-256 verification and atomic replacement; cached files are
+reverified. See [current state](current-state.md), [native backend evidence](macos-backends.md)
+and [remaining improvement plan](improvement-plan.md).

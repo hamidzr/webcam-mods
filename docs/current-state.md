@@ -1,126 +1,105 @@
 # Current state
 
-Source review and local verification: 2026-10-02. This describes implemented
-behavior, including gaps; it does not promise that every exposed command works.
+Updated 2026-10-02 after session/control and optional native-backend implementation.
 
-## Capabilities
+## Implemented behavior
 
-| CLI command | Current behavior |
+All existing command names remain: crop-cam, bg-color, bg-swap, bg-blur, brighten,
+track-face, share-screen and test-loop. Common freeze-on-error now propagates to
+all camera commands. Global options precede the command; --no-controls disables
+keyboard and stdin together. Track-face and test-loop omit crop/replay preparation.
+Screen sharing is excluded from this change and retains its legacy implementation.
+
+Each camera CLI run owns Config, ordered controls and Recorder, with effect models
+and native contexts scoped to the run and closed explicitly. CLI import/help starts
+no stdin reader or desktop listener and creates no config file. The original
+Python helpers for face/segmentation remain lazy compatibility instances.
+
+Crop/padding uses existing Ctrl/Alt/Shift arrow gestures. Stdin commands are
+`reset`, `record`, `stop`, `replay`. Commands apply before the next frame; invalid
+geometry and empty replay are rejected. Recording copies frames, stops when the
+configured memory cap would be exceeded, and starts new recording/replay at index
+zero. Default cap is 256 MiB, adjustable with --recording-limit-mb. A full command
+queue rejects new controls instead of overwriting old ones.
+
+Config retains ~/.webcam-mods.conf and existing JSON field names. Loading validates
+integer pairs, positive crop bounds and even nonempty padding. Invalid/missing
+settings use in-memory defaults without overwriting the file on construction.
+Actual frame dimensions adapt valid persisted crops or reset invalid ones. Changed
+settings persist atomically; write failures restore the previous in-memory state.
+
+The loop opens input once, accepts positive finite negotiated metadata, closes
+partial output setup and tears down capture/controls after failures. OpenCV honors
+IN_FPS and releases failed capture handles. Default output remains native V4L2 on
+Linux and pyvirtualcam/OBS elsewhere.
+
+## Configuration
+
+[env.example](../env.example) documents existing environment variables. No new
+backend environment aliases were added; CLI selects optional native backends.
+
+| Settings | Default / behavior |
 | --- | --- |
-| `crop-cam` | Interactive crop/padding and record/replay |
-| `bg-color` | Common controls plus solid background |
-| `bg-swap` | Common controls plus image background |
-| `bg-blur` | Common controls plus blur and optional brightness |
-| `brighten` | Common controls plus brightness |
-| `track-face` | Smoothed face crop; optional blur; listener disabled |
-| `share-screen` | MSS region input; GUI or default virtual-camera output |
-| `test-loop` | Default camera pass-through loop |
+| VIDEO_IN | 0, camera index |
+| VIDEO_OUT | /dev/video10, native Linux output only |
+| IN_WIDTH / IN_HEIGHT | 640 / 480, requested capture dimensions |
+| IN_FPS | 30, applied by both capture adapters |
+| IN_FORMAT | YUYV, OpenCV FOURCC request only |
+| OUT_WIDTH / OUT_HEIGHT | 640 / 480 |
+| MAX_OUT_FPS | 30, output cap; Linux output remains unpaced |
+| ON_DEMAND | false; exact True enables consumer polling |
+| PAN_CONTROL / PADDING_CONTROL | true; exact True enables respective keyboard gestures |
+| freeze_on_error | false; existing Typer environment option |
+| XDG_CACHE_HOME | ~/.cache fallback, verified model cache |
+| --segmentation-backend | mediapipe default; optional vision |
+| --processing-backend | opencv default; optional coreimage for backgrounds |
+| --capture-backend | opencv default; optional avfoundation |
+| --vision-quality | balanced default; fast / accurate available |
+| --controls / --no-controls | enabled default for prepared camera commands |
+| --recording-limit-mb | 256 maximum retained recording MiB |
 
-There is no HTTP control interface, API server, general effect-stack command,
-user-facing file output, or hot input switching. Python callers can inject effects
-and adapters into `live_loop`, but this is not a session control interface.
+## Native backends
 
-Interactive crop/padding uses Ctrl/Alt plus arrows, with Shift for crop dimensions.
-The actual stdin commands are `reset`, `record`, `stop`, and `replay`. The README's
-`r`/`p` recording instructions do not match this implementation. Record/replay
-holds frames in memory without a size limit; replay with no recorded frames can
-index an empty list. Replay position is not reset when starting a new recording.
+Optional macOS extra supplies PyObjC Vision, Quartz, AVFoundation, CoreMedia and
+libdispatch. Vision produces person masks; Core Image composites backgrounds and
+uses Gaussian blur rather than existing box blur. AVFoundation uses bounded
+newest-frame delivery and copied BGR arrays. No own camera extension, ScreenCaptureKit,
+HTTP control server or zero-copy frame abstraction was introduced.
 
-## Configuration inventory
+[Native backend report](macos-backends.md) contains measured processing timings,
+visual differences, commands and verification limits. Portable defaults stay:
+native backends showed no general processing speed advantage on the measured
+fixture. Portable float32 blending improved 1080p median processing time by about
+11%; final sample differs from baseline by at most one channel value.
 
-Environment constants are read at import. They cannot currently be changed through
-a runtime control interface. `ON_DEMAND`, `PAN_CONTROL`, and `PADDING_CONTROL`
-recognize exact `True` only; `freeze_on_error` is parsed separately by Typer.
+## Verification and remaining gaps
 
-| Environment name | Default | Notes |
-| --- | --- | --- |
-| `VIDEO_IN` | `0` | Integer webcam index |
-| `VIDEO_OUT` | `/dev/video10` | Used by native Linux output; pyvirtualcam does not forward it |
-| `IN_WIDTH`, `IN_HEIGHT` | `640`, `480` | Requested webcam dimensions; default-output probe requires exact match |
-| `IN_FORMAT` | `YUYV` | FOURCC requested twice, lowercase then uppercase; setter results ignored |
-| `IN_FPS` | `30` | Defined but capture hardcodes 30 FPS |
-| `OUT_WIDTH`, `OUT_HEIGHT` | `640`, `480` | Default output dimensions |
-| `MAX_OUT_FPS` | `30` | Output FPS cap; native V4L2 adapter has no pacing implementation |
-| `ON_DEMAND` | false | Consumer-based pausing; documented for Linux |
-| `PAN_CONTROL` | true | Enables pan/resize key handling, not listener construction |
-| `PADDING_CONTROL` | true | Enables padding key handling, not listener construction |
-| `XDG_CACHE_HOME` | `~/.cache` | Model cache root |
-| `freeze_on_error` | false | Typer common option environment name; only `track-face` forwards it |
+Checks cover compileall, configured flake8 rules, Black and unittest discovery,
+including CLI option propagation/import side effects, command ordering, persistence,
+record/replay bounds, model state isolation, partial startup cleanup, real CPU
+MediaPipe, real Vision/Core Image and native buffer orientation/stride/lifetime.
+Use make verify UV_FLAGS='--extra macos' to run optional native tests.
 
-CLI command options supply effect-specific values, such as blur kernel size,
-brightness, background path, face padding, and screen region. There is no unified
-CLI/environment/persisted-setting resolution or validation step.
+Local macOS ARM64 Python 3.13 and 3.14 checks pass: 88 tests on each version.
+Both CLI entrypoints run and wheel/source-distribution builds succeed. GitHub verification workflow
+now targets both versions on macOS ARM64 and Linux x86_64; it has not run remotely
+because these changes have not been pushed. Local Linux execution was not performed.
 
-Interactive settings are JSON in `~/.webcam-mods.conf`, despite the `.conf` suffix:
-`crop_dims`, `crop_pos`, and `pad_size`. Construction writes defaults if reading
-fails. JSON syntax errors are caught, but required keys, types, and crop bounds
-are not validated. Writes are direct rather than atomic and run from keyboard
-callbacks, including some keys that do not change settings. No `env.example` exists.
+OBS Virtual Camera initialized, received three synthetic 640x480 frames at 30 FPS
+and closed successfully. A subsequent 12-frame fixture run exercised Vision, Core
+Image and production live_loop through real OBS output with cleanup. Conferencing-app reception was not checked. Initial
+camera permission requests from T3 Code/Python failed for both direct AVFoundation
+and OpenCV; native device capture remains pending permission/hardware verification.
+Tests with mocked camera startup do not establish hardware delivery.
 
-## macOS and Linux
+Other remaining gaps:
 
-| Area | macOS | Linux |
-| --- | --- | --- |
-| Webcam capture | OpenCV | OpenCV |
-| Default output | pyvirtualcam, documented OBS setup | Native V4L2 output |
-| Extra dependencies | Base project environment | Install with `uv sync --extra linux` for default output |
-| Consumer detection | Adapter always reports in use | inotify approximation |
-| Output pacing | pyvirtualcam sleep | `wait_until_next_frame` is a no-op |
-| Desktop controls | pynput; desktop permissions/backend required | pynput; available desktop backend required |
-| Screen input | MSS; platform permissions apply | MSS; available capture backend required |
-| Local evidence in this review | macOS ARM64 checks and headless tests passed | Source reviewed; no Linux execution |
+- No unified portable pacing or portable consumer/pause capability contract.
+- Screen.setup still lacks width/height metadata expected by default-output path;
+  screen sharing was explicitly excluded.
+- No hot input switching, user-facing file output, HTTP service or cross-process control.
+- Globals remain for import-time environment constants and legacy helper compatibility.
+- No live-camera latency, power or segmentation-quality benchmark on moving people.
+- Legacy demos, stale mypy configuration and historical TODO entries remain.
 
-Keep OS-specific imports out of shared processing and preserve native output
-capabilities. A Linux base installation lacks the optional packages that default
-output imports. This needs an actionable error or explicit output selection.
-Linux kernel setup remains an operator task; application startup should not silently
-insert or remove modules. Existing `make add-video-dev` is a Linux-only helper.
-
-`share-screen` with default output currently returns only FPS from `Screen.setup`,
-but the loop's probe reads width and height as well. The GUI branch supplies output
-explicitly and bypasses that probe. Hardware delivery and GUI behavior were not
-validated in this review.
-
-## Verification
-
-`make verify` passed locally on macOS ARM64 during this review:
-
-- `uv run python -m compileall -q src tests`
-- `uv run flake8 --select=E9,F63,F7,F821 src tests`
-- `uv run black --check src tests`
-- `uv run python -m unittest discover -s tests`: 18 tests passed
-
-The suite includes real CPU face detection and segmentation, PNG input/output
-through production `live_loop`, resize/crop/brightness, blur/background replacement,
-positive and negative detection, error/freeze frames, and several failure cleanup
-paths. Tests pass explicit input/output adapters, disable controls, and turn off
-on-demand mode. They therefore bypass CLI startup, default backend selection,
-default capture probing, and desktop behavior.
-
-`make e2e` saves images and metrics under `dist/e2e`; `make test` uses temporary
-directories. The existing artifact harness is useful for diagnosing visual
-regressions. Disk-based elapsed times are not live-camera FPS measurements.
-
-Not verified here: Linux execution, camera hardware, OBS/V4L2 delivery, conferencing
-apps, keyboard hooks, screen capture, record/replay, CLI option propagation,
-partial output setup cleanup, or timing guarantees. No new tests were added for
-this documentation change.
-
-The only tracked CI workflow is Ubuntu CodeQL; it does not run `make verify`.
-`mypy.ini` still targets Python 3.7, includes unrelated dependency sections, and
-mypy is neither a dev dependency nor part of `make check`. Compileall and the
-selected flake8 rules do not validate runtime interface compatibility.
-
-## Documentation and legacy gaps
-
-- README and TODO contain historical items, including features already present.
-  Treat source and this capability inventory as current behavior.
-- Legacy `uses/track_face.py` imports a removed module; `uses/track_box.py` calls
-  `generate_crop` without its required padding argument.
-- `output/file.py` is empty; saved output is test-only.
-- Shared adapter base classes carry output defaults even for input adapters,
-  use loose metadata dictionaries, and have incomplete lifecycle behavior.
-  `FrameOutput.is_in_use` contains `raise True`, which raises a `TypeError`.
-
-Prioritized remediation and the future API direction are in the
-[improvement plan](improvement-plan.md).
+See [remaining improvement plan](improvement-plan.md).
