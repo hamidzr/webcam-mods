@@ -113,6 +113,6 @@ Other remaining gaps:
 - No hot input switching, user-facing file output, HTTP service or cross-process control.
 - Lazy legacy helper compatibility remains; CLI startup uses a validated immutable snapshot.
 - No live-camera latency, power or segmentation-quality benchmark on moving people.
-- Legacy demos, stale mypy configuration and historical TODO entries remain.
+- Stale mypy configuration and historical TODO entries remain; legacy demos are repaired.
 
 See [remaining improvement plan](improvement-plan.md).

@@ -1,13 +1,17 @@
-from webcam_mods.loopback import live_loop
-import webcam_mods.mods.face_tracker_mod as ft
-from webcam_mods.mods.record_replay import engage
+"""Compatibility entrypoint for the supported track-face command."""
 
-ft.init(prediction_rate=0.5)
-
-
-def frame_modr(frame):
-    frame = ft.track_face(frame)
-    return engage(frame)
+import sys
+from collections.abc import Sequence
 
 
-live_loop(frame_modr)
+def main(args: Sequence[str] | None = None) -> None:
+    from webcam_mods.entry import app
+
+    app(
+        args=["track-face", *(sys.argv[1:] if args is None else args)],
+        prog_name="python -m webcam_mods.uses.track_face",
+    )
+
+
+if __name__ == "__main__":
+    main()
