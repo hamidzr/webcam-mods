@@ -63,6 +63,7 @@ def open_video_capture(width=None, height=None, input_dev=0):
 class Webcam(FrameInput):
     def __init__(self, device_index: int = config.VIDEO_IN, **kwargs):
         super().__init__(**kwargs)
+        self.cap = None
         self.device_index = (
             device_index
             if device_index is not None

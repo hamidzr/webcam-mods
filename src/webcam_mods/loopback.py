@@ -7,12 +7,15 @@ from webcam_mods.config import (
     ERROR_IMAGE,
 )
 import cv2
-from webcam_mods.uses.interactive_controls import key_listener
 import platform
 from loguru import logger
 from webcam_mods.input.video_dev import Webcam
 from webcam_mods.input.input import FrameInput, FrameOutput
+from webcam_mods.utils.video import Frame
 import time
+from typing import Any, Callable, Optional
+
+_DEFAULT_LISTENER = object()
 
 # We need to look at system information (os) and write to the device (fcntl)
 from webcam_mods.mods.video_mods import resize_and_pad
@@ -33,13 +36,22 @@ def default_frame_output(in_fps: int):
 
 
 def live_loop(
-    mod=None,
-    on_demand=ON_DEMAND,
-    fIn: FrameInput = None,
-    fOut: FrameOutput = None,
-    interactive_listener=key_listener,
-    freeze_on_error=False,
-):
+    mod: Optional[Callable[[Frame], Optional[Frame]]] = None,
+    on_demand: bool = ON_DEMAND,
+    fIn: Optional[FrameInput] = None,
+    fOut: Optional[FrameOutput] = None,
+    interactive_listener: Any = _DEFAULT_LISTENER,
+    freeze_on_error: bool = False,
+    max_frames: Optional[int] = None,
+    strict_errors: bool = False,
+) -> Optional[int]:
+    """Pass frames through a mod; bounded runs raise on missing input."""
+    if max_frames is not None and max_frames < 1:
+        raise ValueError("max_frames must be positive")
+    if interactive_listener is _DEFAULT_LISTENER:
+        from webcam_mods.uses.interactive_controls import key_listener
+
+        interactive_listener = key_listener
     if fIn is None:
         fIn = Webcam(width=IN_WIDTH, height=IN_HEIGHT)
 
@@ -57,60 +69,75 @@ def live_loop(
         f"begin passing from #{fIn.__class__.__name__} to #{fOut.__class__.__name__}"
     )
 
-    if interactive_listener is not None:
-        interactive_listener.start()
-    paused = False if not on_demand else True
+    try:
+        if interactive_listener is not None:
+            interactive_listener.start()
+        paused = False if not on_demand else True
 
-    inp_props = fIn.setup()
-    # This is the loop that reads from the input, edits, and then writes to the loopback
-    with fOut as (cam, outp_props):
-        logger.info(f"input: {inp_props}, output: {outp_props}")
-        paused_frame = resize_and_pad(
-            cv2.imread(str(NO_SIGNAL_IMAGE)), sw=fOut.width, sh=fOut.height
-        )
-        error_frame = resize_and_pad(
-            cv2.imread(str(ERROR_IMAGE)), sw=fOut.width, sh=fOut.height
-        )
+        inp_props = fIn.setup()
+        # This is the loop that reads from the input, edits, and then writes to the loopback
+        with fOut as (cam, outp_props):
+            logger.info(f"input: {inp_props}, output: {outp_props}")
+            paused_frame = resize_and_pad(
+                cv2.imread(str(NO_SIGNAL_IMAGE)), sw=fOut.width, sh=fOut.height
+            )
+            error_frame = resize_and_pad(
+                cv2.imread(str(ERROR_IMAGE)), sw=fOut.width, sh=fOut.height
+            )
 
-        last_frame = paused_frame
+            last_frame = paused_frame
 
-        def handle_empty_frame():
-            return last_frame if freeze_on_error else error_frame
+            def handle_empty_frame() -> Frame:
+                return last_frame if freeze_on_error else error_frame
 
-        while True:
-            if on_demand:
-                paused = not cam.is_in_use()
+            sent_frames = 0
+            while max_frames is None or sent_frames < max_frames:
+                if on_demand:
+                    paused = not cam.is_in_use()
+                    if paused:
+                        fIn.teardown()
+
+                frame = None
                 if paused:
-                    fIn.teardown()
+                    frame = paused_frame
+                    time.sleep(0.5)  # lower the fps when paused
+                else:
+                    if not fIn.is_setup():
+                        fIn.setup()
 
-            frame = None
-            if paused:
-                frame = paused_frame
-                time.sleep(0.5)  # lower the fps when paused
-            else:
-                if not fIn.is_setup():
-                    fIn.setup()
-
-                frame = fIn.frame()
-                if frame is None:
-                    continue
-                try:
-                    if mod:
-                        frame = mod(frame)
+                    frame = fIn.frame()
+                    if frame is None:
+                        if max_frames is not None or strict_errors:
+                            raise RuntimeError("input returned no frame")
+                        continue
+                    try:
+                        if mod:
+                            frame = mod(frame)
                         if frame is not None:
                             frame = resize_and_pad(frame, sw=fOut.width, sh=fOut.height)
                             last_frame = frame
                         else:
+                            if strict_errors:
+                                raise RuntimeError("mod returned no frame")
                             frame = handle_empty_frame()
-                except Exception as e:
-                    logger.error(f"failed to process frame. {e}")
-                    frame = handle_empty_frame()
+                    except Exception as e:
+                        if strict_errors:
+                            raise
+                        logger.error(f"failed to process frame. {e}")
+                        frame = handle_empty_frame()
 
-            # assert frame.shape[0] == fOut.height
-            # assert frame.shape[1] == fOut.width
-            # logger.debug('sending frame shape', frame.shape)
-            cam.send(frame)
-            cam.wait_until_next_frame()
+                # assert frame.shape[0] == fOut.height
+                # assert frame.shape[1] == fOut.width
+                # logger.debug('sending frame shape', frame.shape)
+                cam.send(frame)
+                cam.wait_until_next_frame()
+                sent_frames += 1
+    finally:
+        try:
+            fIn.teardown()
+        finally:
+            if interactive_listener is not None:
+                interactive_listener.stop()
 
 
 if __name__ == "__main__":

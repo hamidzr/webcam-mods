@@ -41,3 +41,9 @@ check:
 
 test:
 	uv run python -m unittest discover -s tests
+
+.PHONY: e2e verify
+e2e:
+	uv run python tests/test_pipeline.py --artifacts dist/e2e
+
+verify: check test

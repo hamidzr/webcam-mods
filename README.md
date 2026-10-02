@@ -92,6 +92,34 @@ the CPU delegate ([upstream issue](https://github.com/google-ai-edge/mediapipe/i
 The two MediaPipe models are downloaded once into `~/.cache/webcam-mods/models`
 and verified with SHA-256; later runs use the cached copies.
 
+## Repeatable end-to-end checks
+
+```sh
+make e2e     # headless pipeline with saved output
+make verify  # static checks + full test suite (includes E2E)
+```
+
+`make e2e` writes deterministic PNG inputs, runs them through the production
+`live_loop` and real CPU MediaPipe effects, writes lossless PNG output, and
+reopens it to assert frame count, dimensions, ordering, crop/brightness,
+background blur/color/replacement, positive and negative face detection,
+foreground preservation, error/freeze behavior, and cleanup on failures.
+Eight frames per scenario keep repeat runs cheap. Models download on first
+use; cached models and the bundled person fixture allow offline repeat runs.
+No webcam, OBS, display, keyboard hooks, or external API is needed.
+
+Outputs live under `dist/e2e/<test>/`: input PNGs, output PNGs,
+`preview.png` (input left, output right), and `metrics.json`.
+`dist/e2e/report.json` records overall success and elapsed time. A failed
+assertion exits nonzero. `make test` uses temporary output directories.
+Timings include disk I/O and model startup, not live-camera FPS.
+
+These checks cover the processing loop and effects. They do not validate CLI
+option wiring, keyboard controls, record/replay, hardware capture, OBS delivery,
+or a conferencing app. For the hardware check, run
+`uv run webcam_mods bg-blur --brighten 20`, select OBS Virtual Camera in the
+receiving app, and confirm moving video, blur, brightness, and clean shutdown.
+
 ## Setting up a virtual webcam device on Linux
 
 On Linux once you have the v4l2 module installed you can run `sudo make add-video-dev` to add a virtual

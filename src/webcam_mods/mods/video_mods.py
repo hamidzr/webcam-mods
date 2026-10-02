@@ -65,8 +65,13 @@ def crop(frame: NDArray, w: int, h: int, x1=0, y1=0) -> Optional[NDArray]:
     return frame[y1 : y1 + h, x1 : x1 + w].copy()
 
 
-def crop_rect(frame: NDArray, box: Rect):
-    return crop(frame, box.w, box.h, box.l, box.t)
+def crop_rect(frame: NDArray, box: Rect) -> Optional[NDArray]:
+    """Keep a padded face crop inside the image, preserving its size when possible."""
+    height, width = frame.shape[:2]
+    crop_width, crop_height = min(box.w, width), min(box.h, height)
+    left = max(0, min(box.l, width - crop_width))
+    top = max(0, min(box.t, height - crop_height))
+    return crop(frame, crop_width, crop_height, left, top)
 
 
 def ensure_rgb_color(color):
