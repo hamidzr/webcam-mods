@@ -59,6 +59,8 @@ class CliTests(unittest.TestCase):
             patch("webcam_mods.mods.person_segmentation.PersonEffects") as effects,
             patch.object(entry, "live_loop") as loop,
             patch("webcam_mods.session.Config", return_value=Config(path=None)),
+            patch.object(entry.sys, "platform", "darwin"),
+            patch.object(entry.importlib.util, "find_spec", return_value=Mock()),
         ):
             result = CliRunner().invoke(
                 entry.app,
@@ -79,6 +81,18 @@ class CliTests(unittest.TestCase):
             )
             effects.return_value.close.assert_called_once()
             self.assertIsNone(loop.call_args.kwargs["interactive_listener"])
+
+    def test_native_backend_rejected_on_other_platforms(self) -> None:
+        with (
+            patch.object(entry.sys, "platform", "linux"),
+            patch.object(entry, "live_loop") as loop,
+        ):
+            result = CliRunner().invoke(
+                entry.app, ["--segmentation-backend", "vision", "bg-blur"]
+            )
+            self.assertNotEqual(result.exit_code, 0)
+            self.assertIn("require macOS", result.output)
+            loop.assert_not_called()
 
     def test_effect_and_session_close_when_capture_fails(self) -> None:
         effect = Mock()
@@ -102,3 +116,50 @@ class CliTests(unittest.TestCase):
                 result = CliRunner().invoke(entry.app, args)
                 self.assertNotEqual(result.exit_code, 0)
                 loop.assert_not_called()
+
+
+class CliPipelineTests(unittest.TestCase):
+    def test_camera_commands_run_real_pipeline_without_desktop_controls(self) -> None:
+        import cv2
+        from test_pipeline import ImageSequence, ImageWriter
+        from webcam_mods.loopback import live_loop
+
+        fixture = Path(__file__).parent / "fixtures/astronaut.png"
+        with tempfile.TemporaryDirectory() as directory:
+            for command in (
+                "crop-cam",
+                "bg-color",
+                "bg-swap",
+                "bg-blur",
+                "brighten",
+                "track-face",
+                "test-loop",
+            ):
+                with self.subTest(command=command):
+                    source = ImageSequence([fixture] * 3)
+                    source.width = source.height = 512
+                    sink = ImageWriter(Path(directory) / command)
+
+                    def bounded_loop(**kwargs):
+                        kwargs["fIn"] = source
+                        live_loop(**kwargs, fOut=sink, max_frames=3, strict_errors=True)
+
+                    with (
+                        patch.object(entry, "live_loop", side_effect=bounded_loop),
+                        patch(
+                            "webcam_mods.session.Config",
+                            return_value=Config(path=None, width=512, height=512),
+                        ),
+                    ):
+                        result = CliRunner().invoke(
+                            entry.app, ["--no-controls", command]
+                        )
+                    self.assertEqual(
+                        result.exit_code, 0, (result.output, result.exception)
+                    )
+                    self.assertEqual(len(sink.paths), 3)
+                    self.assertFalse(source.is_setup())
+                    self.assertFalse(sink.is_setup())
+                    self.assertEqual(
+                        cv2.imread(str(sink.paths[0])).shape, (120, 160, 3)
+                    )

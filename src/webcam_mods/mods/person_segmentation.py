@@ -47,8 +47,10 @@ class MediaPipeSegmenter:
     def close(self) -> None:
         self._closed = True
         if self._segmenter is not None:
-            self._segmenter.close()
-            self._segmenter = None
+            try:
+                self._segmenter.close()
+            finally:
+                self._segmenter = None
 
 
 class PersonEffects:

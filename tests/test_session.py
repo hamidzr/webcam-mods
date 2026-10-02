@@ -112,3 +112,52 @@ class SessionTests(unittest.TestCase):
             finally:
                 controls.stop()
                 os.close(write_fd)
+
+
+class SessionFailureTests(unittest.TestCase):
+    def test_full_queue_rejects_without_overwriting(self):
+        session = RunSession(Config(path=None))
+        for _ in range(256):
+            self.assertTrue(session.submit(Command("stop")))
+        self.assertFalse(session.submit(Command("record")))
+        results = session.apply_commands()
+        self.assertEqual(len(results), 256)
+        self.assertTrue(all(result.command.action == "stop" for result in results))
+        self.assertFalse(session.recorder.recording)
+
+    def test_persistence_failure_rolls_back(self):
+        from unittest.mock import patch
+
+        session = RunSession(Config(path=None))
+        original = session.settings.to_dict()
+        session.submit(Command("resize", -10, -10))
+        with patch.object(
+            session.settings, "persist", side_effect=OSError("disk full")
+        ):
+            with self.assertRaisesRegex(OSError, "disk full"):
+                session.apply_commands()
+        self.assertEqual(session.settings.to_dict(), original)
+
+    def test_prepared_crop_adapts_to_negotiated_dimensions(self):
+        config = Config(path=None, width=640, height=480)
+        config.crop_dims = [100, 100]
+        config.crop_pos = [10, 10]
+        session = RunSession(config)
+        frame = np.full((240, 320, 3), 50, np.uint8)
+        self.assertEqual(session.prepare(frame).shape, (100, 100, 3))
+        self.assertEqual((config.width, config.height), (320, 240))
+        config.crop_dims = [400, 300]
+        self.assertEqual(
+            session.prepare(np.full((120, 160, 3), 50, np.uint8)).shape, (120, 160, 3)
+        )
+
+    def test_keyboard_failed_start_can_stop_without_join(self):
+        from unittest.mock import Mock
+        from webcam_mods.uses.interactive_controls import KeyboardControls
+
+        controls = KeyboardControls(RunSession(Config(path=None)))
+        listener = Mock(ident=None)
+        controls.listener = listener
+        controls.stop()
+        listener.stop.assert_called_once()
+        listener.join.assert_not_called()

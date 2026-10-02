@@ -66,6 +66,21 @@ class CoreImageTest(unittest.TestCase):
         self.processor.process(self.frame, mask, blur_radius=3)
         self.assertIs(self.processor._context, context)
 
+    def test_each_frame_uses_autorelease_pool(self) -> None:
+        import objc
+        from unittest.mock import patch
+
+        with patch.object(
+            objc, "autorelease_pool", wraps=objc.autorelease_pool
+        ) as pool:
+            self.processor.process(
+                self.frame, np.ones(self.frame.shape[:2]), color=(0, 0, 0)
+            )
+            self.processor.process(
+                self.frame, np.ones(self.frame.shape[:2]), color=(0, 0, 0)
+            )
+            self.assertEqual(pool.call_count, 2)
+
     def test_fractional_mask_matches_numeric_bgr_blending(self) -> None:
         for foreground, background in ((255, 128), (128, 255), (128, 0)):
             frame = np.full((7, 9, 3), foreground, dtype=np.uint8)
