@@ -21,7 +21,7 @@ class StdinControls:
     def start(self) -> None:
         try:
             fd = self.stream.fileno()
-        except (AttributeError, OSError, ValueError):
+        except AttributeError, OSError, ValueError:
             return
         self._stop.clear()
         self._thread = Thread(target=self._read, args=(fd,), daemon=True)
@@ -45,7 +45,7 @@ class StdinControls:
                     self._submit_line(line)
                 if len(pending) > 4096:
                     pending = b""
-            except (OSError, ValueError):
+            except OSError, ValueError:
                 return
 
     def _submit_line(self, line: bytes) -> None:

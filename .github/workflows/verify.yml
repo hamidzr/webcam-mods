@@ -13,13 +13,12 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-24.04, macos-15]
-        python: ['3.13', '3.14']
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
-          python-version: ${{ matrix.python }}
+          python-version: '3.14'
           enable-cache: true
       - name: Install supported platform dependencies
         run: uv sync --locked --all-extras

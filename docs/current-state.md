@@ -84,10 +84,10 @@ record/replay bounds, model state isolation, partial startup cleanup, real CPU
 MediaPipe, real Vision/Core Image and native buffer orientation/stride/lifetime.
 Use make verify UV_FLAGS='--extra macos' to run optional native tests.
 
-Local macOS ARM64 Python 3.13 and 3.14 checks pass: 125 tests on each version.
+Supported runtime: Python 3.14 only. Local macOS ARM64 checks pass: 125 tests.
 Both CLI entrypoints run and wheel/source-distribution builds succeed. GitHub verification workflow
-now targets both versions on macOS ARM64 and Linux x86_64; it has not run remotely
-because these changes have not been pushed. Local Linux execution was not performed.
+targets Python 3.14 on macOS ARM64 and Linux x86_64; remote validation
+is excluded by user choice. Local Linux execution was not performed.
 
 Bare-window preview displays the final resized/padded BGR frame without overlays.
 It pumps GUI events, paces against monotonic deadlines and stops the run on close

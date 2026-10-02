@@ -7,13 +7,12 @@ name = "webcam-mods"
 version = "0.2.0"
 description = "Face tracking, background effects, crop, zoom, and replay for virtual cameras"
 readme = "README.md"
-requires-python = ">=3.13,<3.15"
+requires-python = ">=3.14,<3.15"
 license = "GPL-2.0-only"
 authors = [{ name = "Hamid Zare", email = "contact@hamidza.re" }]
 keywords = ["webcam", "virtual-camera", "background", "face-tracking"]
 classifiers = [
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Topic :: Multimedia :: Video",
     "Topic :: Multimedia :: Video :: Capture",

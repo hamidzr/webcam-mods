@@ -70,7 +70,7 @@ class Config:
         try:
             conf = json.loads(target.read_text())
             return conf if isinstance(conf, dict) else None
-        except (OSError, ValueError):
+        except OSError, ValueError:
             return None
 
     def persist(self, path: str | None = None) -> None:

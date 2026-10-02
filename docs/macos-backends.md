@@ -90,7 +90,7 @@ Run `make verify UV_FLAGS='--extra macos'` to include native fixture tests; base
 installations skip optional native tests. Tests exercise real Vision/Core Image,
 fractional alpha, orientation, padded pixel-buffer lifetime, mailbox dropping,
 repeated mocked camera startup and failure cleanup. CI is configured for Python
-3.13/3.14 on macOS ARM64 and Linux x86_64; remote results require a later push.
+3.14 on macOS ARM64 and Linux x86_64; remote validation is excluded.
 
 Camera hardware requests from the T3 Code-launched Python process failed permission
 checks during this change, including OpenCV's AVFoundation backend. Mocked camera

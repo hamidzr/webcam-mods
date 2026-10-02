@@ -7,7 +7,7 @@ product requirement.
 
 ## Completed
 
-- Added macOS/Linux Python 3.13/3.14 verification workflow; remote execution awaits push.
+- Added macOS/Linux Python 3.14 verification workflow; remote validation excluded by user.
 - Removed import-time listeners, stdin threads and config writes; explicit controls.
 - Added RunSession-owned settings, bounded ordered command queue, validated mutations,
   atomic persistence and bounded recording/replay.

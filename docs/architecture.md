@@ -120,7 +120,7 @@ scope rather than by a generic plugin/session framework.
 
 ## Dependencies and frame representation
 
-Python 3.13/3.14, tracked uv.lock, setuptools, explicit OpenCV-contrib/NumPy,
+Python 3.14 only, tracked uv.lock, setuptools, explicit OpenCV-contrib/NumPy,
 MediaPipe Tasks 0.10.35 CPU, and pyvirtualcam remain portable defaults. Linux-only
 dependencies stay in the `linux` extra. PyObjC frameworks are lazy imports in the
 optional `macos` extra. All supported effects/output still exchange BGR arrays;

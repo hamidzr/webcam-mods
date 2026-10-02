@@ -56,7 +56,7 @@ _For entertainment purposes only_
 
 System dependencies:
 
-- Python 3.13 or 3.14 and [uv](https://docs.astral.sh/uv/)
+- Python 3.14 and [uv](https://docs.astral.sh/uv/)
 - [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
 - A virtual camera device: [Linux] v4l2loopback [Windows or MacOS] [OBS](https://obsproject.com/).
 Follow [pyvirtualcam's instructions](https://github.com/letmaik/pyvirtualcam#supported-virtual-cameras) to set this up.
