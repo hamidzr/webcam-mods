@@ -2,6 +2,8 @@
 
 Tested on Arch Linux.
 
+Developer documentation: [current architecture, state, and improvement plan](docs/README.md).
+
 
 Checkout my other repository for some ffmpeg-only solutions [here](https://github.com/hamidzr/scripts/tree/master/ffmpeg)
 
