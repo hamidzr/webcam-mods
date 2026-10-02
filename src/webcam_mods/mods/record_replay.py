@@ -1,70 +1,49 @@
-import time
-from loguru import logger
-from webcam_mods.utils.cli_input import inp
+"""Bounded, run-owned recording and replay."""
 
-memory = []  # memory consumption w*h*channels*1
-replay_idx = -1
-recording = False
-replaying = False
+import numpy as np
 
 
-def replay(frames, repeat=True):
-    global replay_idx, replaying
-    replay_idx += 1
-    if replay_idx >= len(memory):
-        if repeat:
-            replay_idx = 0
+class Recorder:
+    def __init__(self, max_bytes: int = 256 * 1024 * 1024) -> None:
+        if max_bytes <= 0:
+            raise ValueError("recording limit must be positive")
+        self.max_bytes = max_bytes
+        self.frames: list[np.ndarray] = []
+        self.size_bytes = 0
+        self.index = 0
+        self.recording = False
+        self.replaying = False
+
+    def command(self, action: str) -> bool:
+        if action == "record":
+            self.frames.clear()
+            self.size_bytes = self.index = 0
+            self.recording, self.replaying = True, False
+        elif action == "stop":
+            self.recording = self.replaying = False
+        elif action == "replay":
+            if not self.frames:
+                return False
+            self.index = 0
+            self.recording, self.replaying = False, True
         else:
-            replaying = False
-            replay_idx = -1
-    return memory[replay_idx]
+            return False
+        return True
 
-
-def replay_2(frames, repeat=True, fps=30):
-    """fps needs match the original fps to match playback speed without dropping frames"""
-    while True:
-        for frame in frames:
-            yield frame
-            time.sleep(1 / fps)
-
-
-def record(frame):
-    global memory
-    memory.append(frame)
-    return frame
-
-
-def reset_memory():
-    global memory
-    memory = []
-
-
-# TODO support concurrent record and replay?
-def process_input():
-    global recording, replaying, memory
-    if inp[0] == "record":
-        inp[0] = ""
-        logger.info("started recording")
-        reset_memory()
-        recording = True
-    elif inp[0] == "stop":
-        inp[0] = ""
-        logger.info("stopping")
-        recording = False
-        replaying = False
-    elif inp[0] == "replay":
-        inp[0] = ""
-        logger.info("start replaying")
-        # also stops recording
-        recording = False
-        replaying = True
-
-
-def engage(frame):
-    process_input()
-    if recording:
-        return record(frame)
-    elif replaying:
-        return replay(memory)
-    else:
+    def engage(self, frame: np.ndarray) -> np.ndarray:
+        if self.recording:
+            if self.size_bytes + frame.nbytes > self.max_bytes:
+                self.recording = False
+            else:
+                self.frames.append(frame.copy())
+                self.size_bytes += frame.nbytes
+        elif self.replaying:
+            result = self.frames[self.index].copy()
+            self.index = (self.index + 1) % len(self.frames)
+            return result
         return frame
+
+    def close(self) -> None:
+        self.frames.clear()
+        self.size_bytes = self.index = 0
+        self.recording = self.replaying = False

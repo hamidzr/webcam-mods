@@ -1,3 +1,5 @@
+UV_FLAGS ?=
+
 default: check
 
 track-face:
@@ -17,10 +19,10 @@ clean:
 	rm -rf dist
 
 build:
-	uv run python -m build
+	uv run $(UV_FLAGS) python -m build
 
 publish: build
-	uv run python -m twine upload dist/*
+	uv run $(UV_FLAGS) python -m twine upload dist/*
 
 # setup-webcam: add-video-dev
 # 	v4l2loopback-ctl set-caps 'video/x-raw,format=I420,width=320,height=240' /dev/video10
@@ -32,18 +34,18 @@ describe-devices:
 	v4l2-ctl --list-formats-ext
 
 fmt:
-	uv run black src tests
+	uv run $(UV_FLAGS) black src tests scripts
 
 check:
-	uv run python -m compileall -q src tests
-	uv run flake8 --select=E9,F63,F7,F821 src tests
-	uv run black --check src tests
+	uv run $(UV_FLAGS) python -m compileall -q src tests scripts
+	uv run $(UV_FLAGS) flake8 --select=E9,F63,F7,F821 src tests scripts
+	uv run $(UV_FLAGS) black --check src tests scripts
 
 test:
-	uv run python -m unittest discover -s tests
+	uv run $(UV_FLAGS) python -m unittest discover -s tests
 
 .PHONY: e2e verify
 e2e:
-	uv run python tests/test_pipeline.py --artifacts dist/e2e
+	uv run $(UV_FLAGS) python tests/test_pipeline.py --artifacts dist/e2e
 
 verify: check test

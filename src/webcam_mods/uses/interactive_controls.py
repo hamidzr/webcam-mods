@@ -1,86 +1,85 @@
-from webcam_mods.config import IN_HEIGHT, IN_WIDTH, PADDING_CONTROL, PAN_CONTROL
-from webcam_mods.mods.video_mods import is_crop_valid
-from webcam_mods.utils.cli_input import inp
-from loguru import logger
-from pynput.keyboard import Key, Listener
-from webcam_mods.utils.config import Config
+"""Optional keyboard adapter; callbacks enqueue changes without mutating settings."""
 
-cur_keys = set()
-JUMP = 10  # pixels
-target_keys = set()  # currently listening keys
-# avoid always engaging these controls
-if PAN_CONTROL:
-    target_keys.add(Key.ctrl)
-if PADDING_CONTROL:
-    target_keys.add(Key.alt)
+from typing import Any
 
-cf = Config()
+from webcam_mods.config import PADDING_CONTROL, PAN_CONTROL
+from webcam_mods.session import Command, RunSession
+from webcam_mods.utils.cli_input import StdinControls
+
+JUMP = 10
 
 
-def on_press(key):
-    global cf, cur_keys
-    cur_keys.add(key)
-    if not any(key in cur_keys for key in target_keys):
-        return
-    if Key.ctrl in cur_keys:
-        if Key.shift in cur_keys:  # control crop dimensions
-            if key == Key.right:
-                cf.crop_dims[0] += JUMP
-                if not is_crop_valid((IN_WIDTH, IN_HEIGHT), cf.crop_pos, cf.crop_dims):
-                    cf.crop_dims[0] -= JUMP
-            elif key == Key.left:
-                cf.crop_dims[0] -= JUMP
-                if not is_crop_valid((IN_WIDTH, IN_HEIGHT), cf.crop_pos, cf.crop_dims):
-                    cf.crop_dims[0] += JUMP
-            elif key == Key.up:
-                cf.crop_dims[1] += JUMP
-                if not is_crop_valid((IN_WIDTH, IN_HEIGHT), cf.crop_pos, cf.crop_dims):
-                    cf.crop_dims[1] -= JUMP
-            elif key == Key.down:
-                cf.crop_dims[1] -= JUMP
-                if not is_crop_valid((IN_WIDTH, IN_HEIGHT), cf.crop_pos, cf.crop_dims):
-                    cf.crop_dims[1] += JUMP
-        else:  # control crop position
-            # left and right are reversed to compensate for mirror effects
-            if key == Key.right:
-                cf.crop_pos[0] -= JUMP
-                if not is_crop_valid((IN_WIDTH, IN_HEIGHT), cf.crop_pos, cf.crop_dims):
-                    cf.crop_pos[0] += JUMP
-            elif key == Key.left:
-                cf.crop_pos[0] += JUMP
-                if not is_crop_valid((IN_WIDTH, IN_HEIGHT), cf.crop_pos, cf.crop_dims):
-                    cf.crop_pos[0] -= JUMP
-            elif key == Key.up:
-                cf.crop_pos[1] -= JUMP
-                if not is_crop_valid((IN_WIDTH, IN_HEIGHT), cf.crop_pos, cf.crop_dims):
-                    cf.crop_pos[1] += JUMP
-            elif key == Key.down:
-                cf.crop_pos[1] += JUMP
-                if not is_crop_valid((IN_WIDTH, IN_HEIGHT), cf.crop_pos, cf.crop_dims):
-                    cf.crop_pos[1] -= JUMP
-    if Key.alt in cur_keys:  # control frame padding
-        if key == Key.right:
-            cf.pad_size[0] = min(cf.crop_dims[0], cf.pad_size[0] + JUMP)
-        elif key == Key.left:
-            cf.pad_size[0] = max(0, cf.pad_size[0] - JUMP)
-        elif key == Key.up:
-            cf.pad_size[1] = min(cf.crop_dims[1], cf.pad_size[1] + JUMP)
-        elif key == Key.down:
-            cf.pad_size[1] = max(0, cf.pad_size[1] - JUMP)
+class KeyboardControls:
+    def __init__(self, session: RunSession) -> None:
+        self.session = session
+        self.keys: set[Any] = set()
+        self.listener = None
 
-    cf.persist()  # TODO reduce unnecessary writes
+    def start(self) -> None:
+        if not (PAN_CONTROL or PADDING_CONTROL):
+            return
+        from pynput.keyboard import Key, Listener
+
+        self.key_type = Key
+        self.listener = Listener(on_press=self.on_press, on_release=self.on_release)
+        self.listener.start()
+
+    def on_press(self, key: Any) -> None:
+        self.keys.add(key)
+        Key = self.key_type
+        directions = {
+            Key.right: (JUMP, 0),
+            Key.left: (-JUMP, 0),
+            Key.up: (0, JUMP),
+            Key.down: (0, -JUMP),
+        }
+        if key not in directions:
+            return
+        x, y = directions[key]
+        if PAN_CONTROL and Key.ctrl in self.keys:
+            if Key.shift in self.keys:
+                self.session.submit(Command("resize", x, y))
+            else:
+                self.session.submit(Command("move", -x, -y))
+        if PADDING_CONTROL and Key.alt in self.keys:
+            self.session.submit(Command("pad", x, y))
+
+    def on_release(self, key: Any) -> None:
+        self.keys.discard(key)
+
+    def stop(self) -> None:
+        if self.listener is not None:
+            self.listener.stop()
+            if self.listener.ident is not None:
+                self.listener.join(timeout=1)
+            self.listener = None
+        self.keys.clear()
 
 
-def process_input():
-    if inp[0] == "reset":
-        cf.reset()
-        logger.info("config reset")
-        inp[0] = ""
+class ControlAdapters:
+    def __init__(self, session: RunSession, owns_session: bool = False) -> None:
+        self.session = session
+        self.owns_session = owns_session
+        self.keyboard = KeyboardControls(session)
+        self.stdin = StdinControls(session.submit)
+
+    def start(self) -> None:
+        self.keyboard.start()
+        self.stdin.start()
+
+    def apply_commands(self) -> None:
+        self.session.apply_commands()
+
+    def stop(self) -> None:
+        try:
+            self.stdin.stop()
+        finally:
+            try:
+                self.keyboard.stop()
+            finally:
+                if self.owns_session:
+                    self.session.close()
 
 
-def on_release(key):
-    if key in cur_keys:
-        cur_keys.remove(key)
-
-
-key_listener = Listener(on_press=on_press, on_release=on_release)
+def create_default_listener() -> ControlAdapters:
+    return ControlAdapters(RunSession(), owns_session=True)

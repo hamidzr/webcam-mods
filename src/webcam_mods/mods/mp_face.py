@@ -11,13 +11,20 @@ from loguru import logger
 from webcam_mods.geometry import Rect
 from webcam_mods.models import model_path
 
-_detector: Optional[mp.tasks.vision.FaceDetector] = None
-_last_timestamp_ms = 0
 
+class FaceDetector:
+    """Own a lazy MediaPipe handle and monotonic video timestamps for one run."""
 
-def init() -> mp.tasks.vision.FaceDetector:
-    global _detector
-    if _detector is None:
+    def __init__(self) -> None:
+        self._detector: Optional[mp.tasks.vision.FaceDetector] = None
+        self._last_timestamp_ms = 0
+        self._closed = False
+
+    def init(self) -> mp.tasks.vision.FaceDetector:
+        if self._closed:
+            raise RuntimeError("Face detector is closed")
+        if self._detector is not None:
+            return self._detector
         options = mp.tasks.vision.FaceDetectorOptions(
             base_options=mp.tasks.BaseOptions(
                 model_asset_path=str(model_path("blaze_face_full_range")),
@@ -26,21 +33,46 @@ def init() -> mp.tasks.vision.FaceDetector:
             running_mode=mp.tasks.vision.RunningMode.VIDEO,
             min_detection_confidence=0.6,
         )
-        _detector = mp.tasks.vision.FaceDetector.create_from_options(options)
-    return _detector
+        self._detector = mp.tasks.vision.FaceDetector.create_from_options(options)
+        return self._detector
+
+    def predict(self, frame: np.ndarray) -> Optional[Rect]:
+        """Return first detected face as a pixel rectangle."""
+        detector = self.init()
+        image = mp.Image(
+            image_format=mp.ImageFormat.SRGB,
+            data=np.ascontiguousarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)),
+        )
+        self._last_timestamp_ms = max(
+            time.monotonic_ns() // 1_000_000, self._last_timestamp_ms + 1
+        )
+        results = detector.detect_for_video(image, self._last_timestamp_ms)
+        if not results.detections:
+            logger.trace("no face detected")
+            return None
+        box = results.detections[0].bounding_box
+        return Rect(w=box.width, h=box.height, l=box.origin_x, t=box.origin_y)
+
+    def close(self) -> None:
+        """Close the native handle; subsequent prediction is an error."""
+        if self._detector is not None:
+            try:
+                self._detector.close()
+            finally:
+                self._detector = None
+                self._closed = True
+        else:
+            self._closed = True
+
+
+# legacy helpers retain one lazy instance; CLI sessions use their own detector
+_default_detector = FaceDetector()
+
+
+def init() -> mp.tasks.vision.FaceDetector:
+    return _default_detector.init()
 
 
 def predict(frame: np.ndarray) -> Optional[Rect]:
-    """Return first detected face as a pixel rectangle."""
-    global _last_timestamp_ms
-    image = mp.Image(
-        image_format=mp.ImageFormat.SRGB,
-        data=np.ascontiguousarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)),
-    )
-    _last_timestamp_ms = max(time.monotonic_ns() // 1_000_000, _last_timestamp_ms + 1)
-    results = init().detect_for_video(image, _last_timestamp_ms)
-    if not results.detections:
-        logger.trace("no face detected")
-        return None
-    box = results.detections[0].bounding_box
-    return Rect(w=box.width, h=box.height, l=box.origin_x, t=box.origin_y)
+    """Compatibility helper; new runs should own a FaceDetector instance."""
+    return _default_detector.predict(frame)

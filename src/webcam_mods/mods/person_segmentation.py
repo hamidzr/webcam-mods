@@ -1,152 +1,166 @@
-from numpy.typing import NDArray
-from webcam_mods.mods.video_mods import ensure_rgb_color
-import cv2
-import mediapipe as mp
-import numpy as np
-import time
+"""Session-owned segmentation with portable and optional macOS backends."""
 
+import time
+from typing import Literal
+
+import cv2
+import numpy as np
+
+from webcam_mods.mods.video_mods import ensure_rgb_color
 from webcam_mods.models import model_path
 
-BG_COLOR = (192, 192, 192)  # gray
-_segmenter = None
-_last_timestamp_ms = 0
+BG_COLOR = (192, 192, 192)
 
 
-def init() -> mp.tasks.vision.ImageSegmenter:
-    global _segmenter
-    if _segmenter is None:
-        options = mp.tasks.vision.ImageSegmenterOptions(
-            base_options=mp.tasks.BaseOptions(
-                model_asset_path=str(model_path("selfie_segmenter")),
-                delegate=mp.tasks.BaseOptions.Delegate.CPU,
-            ),
-            running_mode=mp.tasks.vision.RunningMode.VIDEO,
-            output_confidence_masks=True,
+class MediaPipeSegmenter:
+    def __init__(self) -> None:
+        self._segmenter = None
+        self._timestamp_ms = 0
+        self._closed = False
+
+    def predict(self, frame: np.ndarray) -> np.ndarray:
+        if self._closed:
+            raise RuntimeError("segmenter is closed")
+        import mediapipe as mp
+
+        if self._segmenter is None:
+            self._segmenter = mp.tasks.vision.ImageSegmenter.create_from_options(
+                mp.tasks.vision.ImageSegmenterOptions(
+                    base_options=mp.tasks.BaseOptions(
+                        model_asset_path=str(model_path("selfie_segmenter")),
+                        delegate=mp.tasks.BaseOptions.Delegate.CPU,
+                    ),
+                    running_mode=mp.tasks.vision.RunningMode.VIDEO,
+                    output_confidence_masks=True,
+                )
+            )
+        image = mp.Image(
+            image_format=mp.ImageFormat.SRGB,
+            data=np.ascontiguousarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)),
         )
-        _segmenter = mp.tasks.vision.ImageSegmenter.create_from_options(options)
-    return _segmenter
+        self._timestamp_ms = max(
+            time.monotonic_ns() // 1_000_000, self._timestamp_ms + 1
+        )
+        results = self._segmenter.segment_for_video(image, self._timestamp_ms)
+        return results.confidence_masks[0].numpy_view().squeeze(axis=-1).copy()
+
+    def close(self) -> None:
+        self._closed = True
+        if self._segmenter is not None:
+            self._segmenter.close()
+            self._segmenter = None
 
 
-def biggest_comp(image):
-    """
-    Find the biggest connected component in a black and white mask
-    """
-    # find white blocks
-    nb_components, output, stats, centroids = cv2.connectedComponentsWithStats(
-        image, connectivity=4
-    )
-    sizes = stats[:, -1]
+class PersonEffects:
+    def __init__(
+        self,
+        backend: Literal["mediapipe", "vision"] = "mediapipe",
+        processing: Literal["opencv", "coreimage"] = "opencv",
+        quality: str = "balanced",
+    ) -> None:
+        if backend == "mediapipe":
+            self.segmenter = MediaPipeSegmenter()
+        elif backend == "vision":
+            from webcam_mods.macos.vision import VisionSegmenter
 
-    max_label = 1
-    max_size = sizes[0]
-    for i in range(0, nb_components):
-        if sizes[i] > max_size:
-            max_label = i
-            max_size = sizes[i]
+            self.segmenter = VisionSegmenter(quality=quality)
+        else:
+            raise ValueError(f"unknown segmentation backend: {backend}")
+        self.processor = None
+        if processing == "coreimage":
+            from webcam_mods.macos.core_image import CoreImageProcessor
 
-    img2 = np.zeros(output.shape)
-    img2[output == max_label] = 255
-    # cv2.imshow("Biggest component", img2)
-    return img2
+            self.processor = CoreImageProcessor()
+        elif processing != "opencv":
+            raise ValueError(f"unknown processing backend: {processing}")
+        self.backend = backend
+        self._closed = False
 
+    def mask(self, frame: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        if self._closed:
+            raise RuntimeError("person effects are closed")
+        image = cv2.flip(frame, 1)
+        result = self.segmenter.predict(image)
+        if self.backend == "mediapipe":
+            result = cv2.dilate(result, np.ones((5, 5), np.uint8), iterations=1)
+            result = cv2.blur(result, (10, 10))
+            result = sigmoid(result)
+        return image, result[:, :, None]
 
-def sigmoid(x, a=5.0, b=-10.0):
-    """
-    Converts the 0-1 value to a sigmoid going from zero to 1 in the same range
-    """
-    z = np.exp(a + b * x)
-    sig = 1 / (1 + z)
-    return sig
+    def color_bg(self, frame: np.ndarray, color=BG_COLOR) -> np.ndarray:
+        image, mask = self.mask(frame)
+        color = ensure_rgb_color(color)
+        if self.processor is not None:
+            return self.processor.process(image, mask[:, :, 0], color=tuple(color))
+        return apply_alpha_mask(image, np.asarray(color, dtype=np.float32), mask)
 
+    def blur_bg(self, frame: np.ndarray, kernel_size: int) -> np.ndarray:
+        if kernel_size <= 0 or kernel_size % 2 == 0:
+            raise ValueError("blur kernel size must be a positive odd number")
+        image, mask = self.mask(frame)
+        if self.processor is not None:
+            return self.processor.process(
+                image, mask[:, :, 0], blur_radius=(kernel_size - 1) / 2
+            )
+        return apply_alpha_mask(
+            image, cv2.blur(image, (kernel_size, kernel_size)), mask
+        )
 
-# given a frame generates a mask
-def mask(frame: NDArray):
-    global _last_timestamp_ms
+    def swap_bg(self, frame: np.ndarray, bg_image: np.ndarray) -> np.ndarray:
+        image, mask = self.mask(frame)
+        # background tracks the prepared crop, padding and replay dimensions
+        background = cv2.resize(bg_image, (image.shape[1], image.shape[0]))
+        if self.processor is not None:
+            return self.processor.process(image, mask[:, :, 0], background=background)
+        return apply_alpha_mask(image, background, mask)
 
-    # Flip the image horizontally for a later selfie-view display, and convert
-    # the BGR image to RGB.
-    image = cv2.flip(frame, 1)
-    rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    mp_image = mp.Image(
-        image_format=mp.ImageFormat.SRGB, data=np.ascontiguousarray(rgb_image)
-    )
-    _last_timestamp_ms = max(time.monotonic_ns() // 1_000_000, _last_timestamp_ms + 1)
-    results = init().segment_for_video(mp_image, _last_timestamp_ms)
-    result = results.confidence_masks[0].numpy_view().squeeze(axis=-1)
-
-    # post processing
-    result = cv2.dilate(result, np.ones((5, 5), np.uint8), iterations=1)
-    result = cv2.blur(result.astype(float), (10, 10))
-
-    result = sigmoid(result)
-
-    # condition = np.stack((result,) * 3, axis=-1) > 0.1
-    # condition = result > 0.1
-
-    # bg_image = np.zeros(result.shape, dtype=np.uint8)
-    # bg_image[:] = (0,)
-    # fg_image = np.zeros(result.shape, dtype=np.uint8)
-    # fg_image[:] = (255,)
-    # mask = np.where(condition, fg_image, bg_image)
-
-    # # cv2.imshow('befoe', mask)
-    # mask = biggest_comp(mask) cv2.imshow('after', mask)
-
-    # To improve segmentation around boundaries, consider applying a joint
-    # bilateral filter to "results.segmentation_mask" with "image".
-    # Apply bilateral filter with d = 15,
-    # sigmaColor = sigmaSpace = 75.
-    # mask = cv2.bilateralFilter(mask, 3, 75, 75)
-
-    # se1 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (20,20))
-    # mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, se1)
-    # se2 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (20,20))
-    # mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, se2)
-
-    # mask = cv2.GaussianBlur(mask,(5,5),0)
-
-    # cv2.imshow('after more process', mask)
-
-    # # Generate intermediate image; use morphological closing to keep parts of the brain together
-    # gray = cv2.cvtColor(output_image, cv2.COLOR_RGB2GRAY)
-    # inter = cv2.morphologyEx(gray, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
-
-    # # ret, inter = cv2.threshold(mask, 127, 255, 0)
-    # # Find largest contour in intermediate image
-    # cnts, _ = cv2.findContours(inter, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-    # cnt = max(cnts, key=cv2.contourArea)
-
-    # out = np.zeros(image.shape, np.uint8)
-    # cv2.drawContours(out, [cnt], 0, 255, cv2.FILLED)
-
-    # condition = out > 192
-    # condition = np.stack((mask,) * 3, axis=-1) > 0.1
-    condition = np.stack((result,) * 3, axis=-1)
-
-    # cv2.waitKey(100)
-    return image, condition
+    def close(self) -> None:
+        self._closed = True
+        try:
+            self.segmenter.close()
+        finally:
+            if self.processor is not None:
+                self.processor.close()
 
 
-def color_bg(frame, color=BG_COLOR):
-    image, condition = mask(frame)
-    bg_image = np.zeros(image.shape, dtype=np.uint8)
-    bg_image[:] = ensure_rgb_color(color)
-    return apply_alpha_mask(fg=image, bg=bg_image, mask=condition)
+def sigmoid(x: np.ndarray, a: float = 5.0, b: float = -10.0) -> np.ndarray:
+    return 1 / (1 + np.exp(a + b * x))
 
 
-def blur_bg(frame: NDArray, kernel_size):
-    image, condition = mask(frame)
-    # bg_image = cv2.GaussianBlur(image,(kernel_size,kernel_size),0) # more cpu intensive
-    bg_image = cv2.blur(image, (kernel_size, kernel_size))
-    return apply_alpha_mask(fg=image, bg=bg_image, mask=condition)
+def apply_alpha_mask(fg: np.ndarray, bg: np.ndarray, mask: np.ndarray) -> np.ndarray:
+    # broadcasting keeps masks single-channel and blend intermediates float32
+    alpha = np.asarray(mask, dtype=np.float32)
+    if alpha.ndim == 2:
+        alpha = alpha[:, :, None]
+    foreground = np.asarray(fg, dtype=np.float32)
+    background = np.asarray(bg, dtype=np.float32)
+    result = background + (foreground - background) * alpha
+    return np.clip(result, 0, 255).astype(np.uint8)
 
 
-def swap_bg(frame, bg_image):
-    image, condition = mask(frame)
-    return apply_alpha_mask(fg=image, bg=bg_image, mask=condition)
+# compatibility helpers for existing Python callers; CLI uses owned instances
+_default_effects: PersonEffects | None = None
 
 
-# mask: matrix with values 0-1
-def apply_alpha_mask(fg, bg, mask):
-    output_image = fg * mask + bg * (1 - mask)
-    return output_image.astype(np.uint8)
+def _effects() -> PersonEffects:
+    global _default_effects
+    if _default_effects is None:
+        _default_effects = PersonEffects()
+    return _default_effects
+
+
+def mask(frame: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    image, alpha = _effects().mask(frame)
+    return image, np.broadcast_to(alpha, image.shape)
+
+
+def color_bg(frame: np.ndarray, color=BG_COLOR) -> np.ndarray:
+    return _effects().color_bg(frame, color)
+
+
+def blur_bg(frame: np.ndarray, kernel_size: int) -> np.ndarray:
+    return _effects().blur_bg(frame, kernel_size)
+
+
+def swap_bg(frame: np.ndarray, bg_image: np.ndarray) -> np.ndarray:
+    return _effects().swap_bg(frame, bg_image)

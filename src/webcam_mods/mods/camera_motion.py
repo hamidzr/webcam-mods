@@ -4,11 +4,6 @@ from webcam_mods.config import MAX_OUT_FPS
 from webcam_mods.geometry import Number, Rect, Point
 from loguru import logger
 
-FPS = MAX_OUT_FPS
-last_pred: Optional[Rect] = None
-cur_crop: Optional[Rect] = None
-transition: Optional[Generator] = None
-
 
 def linear_transition(a: Number, b: Number, steps: int) -> Generator[Number, Any, Any]:
     """
@@ -37,7 +32,9 @@ def transition_nd(
         yield [next(g) for g in gs]
 
 
-def transition_point(start: Point, end: Point, over_frames: int = 30) -> Point:
+def transition_point(
+    start: Point, end: Point, over_frames: int = 30
+) -> Generator[Point, None, None]:
     """
     move a point from start to end over n frames in a linear fashion
     """
@@ -57,7 +54,9 @@ def transition_point(start: Point, end: Point, over_frames: int = 30) -> Point:
         yield cur_pos.copy()
 
 
-def transition_rect(start: Rect, end: Rect, over_frames: int = 30):
+def transition_rect(
+    start: Rect, end: Rect, over_frames: int = 30
+) -> Generator[Rect, None, None]:
     """
     transitions location as well as dimensions
     """
@@ -72,7 +71,7 @@ def transition_rect(start: Rect, end: Rect, over_frames: int = 30):
         yield Rect(l=int(l), w=int(w), h=int(h), t=int(t))
 
 
-def wrap_with_padding(box: Rect, wr, hr) -> Rect:
+def wrap_with_padding(box: Rect, wr: float, hr: float) -> Rect:
     """
     wrap a box with padding on all sides based on ratio.
     wr: width ratio
@@ -83,38 +82,55 @@ def wrap_with_padding(box: Rect, wr, hr) -> Rect:
     return output
 
 
+class CropTracker:
+    """Own face-crop interpolation state for one run."""
+
+    def __init__(self, fps: int = MAX_OUT_FPS) -> None:
+        if fps < 1:
+            raise ValueError("Crop tracker FPS must be positive")
+        self.fps = fps
+        self.last_pred: Optional[Rect] = None
+        self.cur_crop: Optional[Rect] = None
+        self.transition: Optional[Generator[Rect, None, None]] = None
+
+    def generate_crop(self, pred: Rect, padding: Optional[Tuple[float, float]]) -> Rect:
+        """Smooth movement to a face rectangle, then apply padding ratios."""
+        threshold = max(pred.w, pred.h) // 3
+        padding = padding or (2, 2.5)
+        if self.last_pred is None:
+            self.last_pred = Rect.from_rect(pred)
+        if self.cur_crop is None:
+            self.cur_crop = Rect.from_rect(pred)
+
+        move_dist = self.last_pred.center - pred.center
+        if (abs(move_dist.l) > threshold or abs(move_dist.t) > threshold) or (
+            pred.h - self.last_pred.height > threshold
+            or pred.w - self.last_pred.w > threshold
+        ):
+            logger.debug(f"motion/zoom detected: {move_dist}")
+            self.transition = transition_rect(
+                self.cur_crop, Rect.from_rect(pred), self.fps
+            )
+            self.last_pred = Rect.from_rect(pred)
+
+        if self.transition is not None:
+            try:
+                self.cur_crop = next(self.transition)
+            except StopIteration:
+                self.transition = None
+                logger.debug("transition finished")
+        return wrap_with_padding(self.cur_crop, wr=padding[0], hr=padding[1])
+
+    def close(self) -> None:
+        """Discard interpolation state after a run."""
+        if self.transition is not None:
+            self.transition.close()
+        self.last_pred = self.cur_crop = self.transition = None
+
+
+_default_tracker = CropTracker()
+
+
 def generate_crop(pred: Rect, padding: Optional[Tuple[float, float]]) -> Rect:
-    """
-    generates a smooth moving crop to `pred` from `last_pred`
-    padding: padding ratio (width_ratio, height_ratio)
-    """
-    # TODO https://github.com/hamidzr/webcam-mods/issues/12
-    global last_pred, transition, cur_crop
-    THRESHOLD = max(pred.w, pred.h) // 3
-    TRANSITION_TIME = 1  # sec
-    padding = padding or (2, 2.5)
-
-    if last_pred is None:
-        last_pred = pred
-    if cur_crop is None:
-        cur_crop = pred
-
-    # did prediction move significantly?
-    move_dist = last_pred.center - pred.center
-    if (abs(move_dist.l) > THRESHOLD or abs(move_dist.t) > THRESHOLD) or (
-        pred.h - last_pred.height > THRESHOLD or pred.w - last_pred.w > THRESHOLD
-    ):
-        logger.debug(f"motion/zoom detected: {move_dist}")
-        transition = transition_rect(cur_crop or last_pred, pred, TRANSITION_TIME * FPS)
-        last_pred = pred
-
-    # keep generating
-    if transition is not None:
-        try:
-            transitioned_pred = next(transition)
-            cur_crop = transitioned_pred
-        except StopIteration:
-            transition = None
-            logger.debug("transition finished")
-
-    return wrap_with_padding(cur_crop, wr=padding[0], hr=padding[1])
+    """Compatibility helper; new runs should own a CropTracker instance."""
+    return _default_tracker.generate_crop(pred, padding)

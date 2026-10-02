@@ -26,7 +26,15 @@ class InNOut:
         raise NotImplementedError()
 
     def __enter__(self) -> Tuple["InNOut", Dict[str, Any]]:
-        return (self, self.setup())
+        try:
+            return (self, self.setup())
+        except BaseException as error:
+            # __exit__ is not called when setup fails
+            try:
+                self.teardown()
+            except Exception as cleanup_error:
+                error.add_note(f"adapter cleanup failed: {cleanup_error}")
+            raise
 
     @abstractmethod
     def teardown(self, *args, **kwargs):

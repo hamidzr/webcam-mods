@@ -45,10 +45,17 @@ class V4l2Cam(FrameOutput):
             "fps": self.fps,
         }
 
-    def teardown(self, *args):
+    def teardown(self, *args: Any) -> None:
         self.consumers = 0
-        self.on_demand.teardown()
-        self.dev.close()
+        try:
+            if getattr(self.on_demand, "inotify", None) is not None:
+                self.on_demand.teardown()
+                self.on_demand.inotify = None
+        finally:
+            dev = getattr(self, "dev", None)
+            if dev is not None:
+                self.dev = None
+                dev.close()
 
     def send(self, frame: Frame):
         self.dev.write(cv2.cvtColor(frame, cv2.COLOR_BGR2YUV_I420))

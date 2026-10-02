@@ -23,8 +23,11 @@ class PyVirtualCam(FrameOutput):
             "fps": self.cam.fps,
         }
 
-    def teardown(self, *args):
-        self.cam.close()
+    def teardown(self, *args: Any) -> None:
+        cam = getattr(self, "cam", None)
+        if cam is not None:
+            self.cam = None
+            cam.close()
 
     def send(self, frame: Frame):
         return self.cam.send(frame)

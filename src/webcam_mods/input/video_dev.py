@@ -3,11 +3,11 @@ import cv2
 from webcam_mods.input.input import FrameInput
 from webcam_mods.utils.video import Frame
 from loguru import logger
-from typing import Optional, cast
+from typing import Any, Iterator, Optional, cast
 import time
 
 
-def available_camera_indices(end: int = 3):
+def available_camera_indices(end: int = 3) -> Iterator[int]:
     """
     Check up to `end` video devices to find available ones.
     """
@@ -15,14 +15,19 @@ def available_camera_indices(end: int = 3):
     i = end
     while i > 0:
         cap = cv2.VideoCapture(index)
-        if cap.read()[0]:
+        try:
+            available = cap.read()[0]
+        finally:
             cap.release()
+        if available:
             yield index
         index += 1
         i -= 1
 
 
-def open_video_capture(width=None, height=None, input_dev=0):
+def open_video_capture(
+    width: Optional[int] = None, height: Optional[int] = None, input_dev: int = 0
+) -> Optional[tuple[cv2.VideoCapture, int, int, float]]:
     # Grab the webcam feed and get the dimensions of a frame
     videoIn = cv2.VideoCapture(input_dev)
 
@@ -31,9 +36,10 @@ def open_video_capture(width=None, height=None, input_dev=0):
         logger.error(
             f"input fmt can be at most 4 characters long, got {len(config.IN_FORMAT)}"
         )
-        exit(1)
+        videoIn.release()
+        raise ValueError("input format must be at most four characters")
 
-    videoIn.set(cv2.CAP_PROP_FPS, 30.0)
+    videoIn.set(cv2.CAP_PROP_FPS, config.IN_FPS)
 
     videoIn.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*config.IN_FORMAT.lower()))
     videoIn.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*config.IN_FORMAT.upper()))
@@ -44,6 +50,7 @@ def open_video_capture(width=None, height=None, input_dev=0):
 
     if not videoIn.isOpened():
         logger.error(f"failed to open video input device #{input_dev}")
+        videoIn.release()
         return None
     in_width = int(videoIn.get(cv2.CAP_PROP_FRAME_WIDTH))
     in_height = int(videoIn.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -79,7 +86,7 @@ class Webcam(FrameInput):
             if open_rv is not None:
                 break
             logger.error(
-                f"retrying ({c+1}) to open video input device #{self.device_index}"
+                f"retrying ({c + 1}) to open video input device #{self.device_index}"
             )
             time.sleep(2)
         if open_rv is None:
@@ -91,9 +98,10 @@ class Webcam(FrameInput):
         self.fps = fps
         return {"width": width, "height": height, "fps": fps}
 
-    def teardown(self, *args):
-        if self.is_setup():
+    def teardown(self, *args: Any) -> None:
+        if self.cap is not None:
             self.cap.release()
+            self.cap = None
 
     def is_setup(self):
         if self.cap is None:

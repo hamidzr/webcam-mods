@@ -1,0 +1,33 @@
+name: Verify
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+        python: ['3.13', '3.14']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          python-version: ${{ matrix.python }}
+          enable-cache: true
+      - name: Install supported platform dependencies
+        run: uv sync --locked --all-extras
+      - name: Check and test without desktop devices
+        run: make verify UV_FLAGS='--no-sync'
+      - name: Verify both CLI entrypoints
+        run: |
+          uv run --no-sync webcam_mods --help
+          uv run --no-sync python -m webcam_mods --help
+      - name: Build package
+        run: uv build

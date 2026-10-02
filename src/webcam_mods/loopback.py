@@ -8,6 +8,7 @@ from webcam_mods.config import (
 )
 import cv2
 import platform
+import math
 from loguru import logger
 from webcam_mods.input.video_dev import Webcam
 from webcam_mods.input.input import FrameInput, FrameOutput
@@ -15,15 +16,12 @@ from webcam_mods.utils.video import Frame
 import time
 from typing import Any, Callable, Optional
 
-_DEFAULT_LISTENER = object()
-
-# We need to look at system information (os) and write to the device (fcntl)
 from webcam_mods.mods.video_mods import resize_and_pad
 
-# WARN output dimensions should be smaller than input.. for now
+_DEFAULT_LISTENER = object()
 
 
-def default_frame_output(in_fps: int):
+def default_frame_output(in_fps: float) -> FrameOutput:
     out_fps = min(MAX_OUT_FPS, in_fps)
     if platform.system() == "Linux":
         from webcam_mods.output.v4l2loopback import V4l2Cam
@@ -35,6 +33,18 @@ def default_frame_output(in_fps: int):
         return PyVirtualCam(fps=out_fps)
 
 
+def _validate_metadata(properties: dict[str, Any], adapter: str) -> None:
+    for name in ("width", "height", "fps"):
+        value = properties.get(name)
+        if (
+            not isinstance(value, (int, float))
+            or isinstance(value, bool)
+            or not math.isfinite(value)
+            or value <= 0
+        ):
+            raise ValueError(f"invalid {adapter} {name}: {value!r}")
+
+
 def live_loop(
     mod: Optional[Callable[[Frame], Optional[Frame]]] = None,
     on_demand: bool = ON_DEMAND,
@@ -44,39 +54,35 @@ def live_loop(
     freeze_on_error: bool = False,
     max_frames: Optional[int] = None,
     strict_errors: bool = False,
+    before_frame: Optional[Callable[[], None]] = None,
 ) -> Optional[int]:
     """Pass frames through a mod; bounded runs raise on missing input."""
     if max_frames is not None and max_frames < 1:
         raise ValueError("max_frames must be positive")
-    if interactive_listener is _DEFAULT_LISTENER:
-        from webcam_mods.uses.interactive_controls import key_listener
-
-        interactive_listener = key_listener
     if fIn is None:
         fIn = Webcam(width=IN_WIDTH, height=IN_HEIGHT)
 
-    if fOut is None:
-        with fIn as (_, inp_props):
-            if inp_props["width"] != IN_WIDTH or inp_props["height"] != IN_HEIGHT:
-                logger.error(
-                    f"Unexpected input resolution: {inp_props['width']}x{inp_props['height']} is not {IN_WIDTH}x{IN_HEIGHT}"
-                )
-                return 1
-            in_fps = inp_props["fps"]
-        fOut = default_frame_output(in_fps)
-
-    logger.info(
-        f"begin passing from #{fIn.__class__.__name__} to #{fOut.__class__.__name__}"
-    )
-
     try:
+        if interactive_listener is _DEFAULT_LISTENER:
+            from webcam_mods.uses.interactive_controls import create_default_listener
+
+            interactive_listener = create_default_listener()
+        if before_frame is None and hasattr(interactive_listener, "apply_commands"):
+            before_frame = interactive_listener.apply_commands
         if interactive_listener is not None:
             interactive_listener.start()
         paused = False if not on_demand else True
 
         inp_props = fIn.setup()
+        _validate_metadata(inp_props, "input")
+        if fOut is None:
+            fOut = default_frame_output(inp_props["fps"])
+        logger.info(
+            f"begin passing from #{fIn.__class__.__name__} to #{fOut.__class__.__name__}"
+        )
         # This is the loop that reads from the input, edits, and then writes to the loopback
         with fOut as (cam, outp_props):
+            _validate_metadata(outp_props, "output")
             logger.info(f"input: {inp_props}, output: {outp_props}")
             paused_frame = resize_and_pad(
                 cv2.imread(str(NO_SIGNAL_IMAGE)), sw=fOut.width, sh=fOut.height
@@ -92,6 +98,8 @@ def live_loop(
 
             sent_frames = 0
             while max_frames is None or sent_frames < max_frames:
+                if before_frame is not None:
+                    before_frame()
                 if on_demand:
                     paused = not cam.is_in_use()
                     if paused:
@@ -103,7 +111,7 @@ def live_loop(
                     time.sleep(0.5)  # lower the fps when paused
                 else:
                     if not fIn.is_setup():
-                        fIn.setup()
+                        _validate_metadata(fIn.setup(), "input")
 
                     frame = fIn.frame()
                     if frame is None:
@@ -136,7 +144,10 @@ def live_loop(
         try:
             fIn.teardown()
         finally:
-            if interactive_listener is not None:
+            if (
+                interactive_listener is not None
+                and interactive_listener is not _DEFAULT_LISTENER
+            ):
                 interactive_listener.stop()
 
 

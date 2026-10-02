@@ -23,12 +23,20 @@ dependencies = [
     "mediapipe==0.10.35",
     "mss>=10.2.0",
     "numpy>=2.0",
+    "opencv-contrib-python>=4.11",
     "pynput>=1.8.2",
     "pyvirtualcam>=0.15.0",
     "typer>=0.27.2",
 ]
 
 [project.optional-dependencies]
+macos = [
+    "pyobjc-framework-Vision>=12.2.2; sys_platform == 'darwin'",
+    "pyobjc-framework-Quartz>=12.2.2; sys_platform == 'darwin'",
+    "pyobjc-framework-AVFoundation>=12.2.2; sys_platform == 'darwin'",
+    "pyobjc-framework-CoreMedia>=12.2.2; sys_platform == 'darwin'",
+    "pyobjc-framework-libdispatch>=12.2.2; sys_platform == 'darwin'",
+]
 linux = [
     "inotify-simple>=2.0.1; sys_platform == 'linux'",
     "v4l2 @ git+https://github.com/hamidzr/python-v4l2.git ; sys_platform == 'linux'",
