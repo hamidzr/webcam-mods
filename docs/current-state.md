@@ -51,6 +51,7 @@ backend environment aliases were added; CLI selects optional native backends.
 | PAN_CONTROL / PADDING_CONTROL | true; exact True enables respective keyboard gestures |
 | freeze_on_error | false; existing Typer environment option |
 | XDG_CACHE_HOME | ~/.cache fallback, verified model cache |
+| --output | virtual-cam default; preview displays final frames in a bare window |
 | --segmentation-backend | mediapipe default; optional vision |
 | --processing-backend | opencv default; optional coreimage for backgrounds |
 | --capture-backend | opencv default; optional avfoundation |
@@ -80,10 +81,15 @@ record/replay bounds, model state isolation, partial startup cleanup, real CPU
 MediaPipe, real Vision/Core Image and native buffer orientation/stride/lifetime.
 Use make verify UV_FLAGS='--extra macos' to run optional native tests.
 
-Local macOS ARM64 Python 3.13 and 3.14 checks pass: 88 tests on each version.
+Local macOS ARM64 Python 3.13 and 3.14 checks pass: 97 tests on each version.
 Both CLI entrypoints run and wheel/source-distribution builds succeed. GitHub verification workflow
 now targets both versions on macOS ARM64 and Linux x86_64; it has not run remotely
 because these changes have not been pushed. Local Linux execution was not performed.
+
+Bare-window preview displays the final resized/padded BGR frame without overlays.
+It pumps GUI events, paces against monotonic deadlines and stops the run on close
+or Escape. Six real macOS preview frames displayed and cleanup passed; camera
+permission checks remain separate.
 
 OBS Virtual Camera initialized, received three synthetic 640x480 frames at 30 FPS
 and closed successfully. A subsequent 12-frame fixture run exercised Vision, Core

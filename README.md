@@ -101,6 +101,20 @@ experimental and do not guarantee better performance or segmentation quality.
 See [backend report](docs/macos-backends.md) for measured results and limitations.
 No own camera extension or paid Apple membership is required.
 
+Preview the exact final webcam frame in a bare window:
+
+```sh
+uv run webcam_mods --no-controls --output preview bg-blur
+# native capture and Vision, with the same preview output
+uv run --extra macos webcam_mods --no-controls --output preview --capture-backend avfoundation --segmentation-backend vision --vision-quality fast bg-blur
+```
+
+Close the window or press Escape to stop. Preview uses configured output dimensions
+and the output FPS cap, including negotiated input FPS. `--output virtual-cam`
+remains the default. Preview sends frames only to the window and requires no OBS
+setup; webcam input still needs Camera permission. The output option applies to
+camera commands; share-screen retains its separate legacy output option.
+
 Run modes with `uv run webcam_mods <command>`. For example,
 `uv run webcam_mods crop-cam`. On Linux, install the video device dependencies
 with `uv sync --extra linux --python 3.14`.

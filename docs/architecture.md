@@ -10,7 +10,9 @@ server, daemon or cross-process runtime control API exists.
 settings, queued commands and bounded recording/replay. Keyboard and stdin adapters
 start explicitly and submit immutable commands. The calling frame thread drains
 commands between frames, then crops, pads, records/replays and invokes the chosen
-effect. `live_loop` resizes/pads and sends to the output, which paces delivery.
+effect. `live_loop` resizes/pads and sends to the output, which paces delivery. Camera commands select virtual-cam or preview with
+--output. Preview receives the same final array and ends the loop through the
+output should_stop hook when its window closes.
 
 `track-face` instead owns its detector, previous prediction and crop tracker, and
 disables crop/replay controls. Optional segmentation follows face cropping. Face
@@ -53,7 +55,7 @@ backend work. GUI output and test PNG adapters remain available as existing seam
 | `macos/core_image.py` | Optional Core Image background compositing/Gaussian blur |
 | `output/pyvirtcam.py` | OBS virtual camera, pacing and idempotent cleanup |
 | `output/v4l2loopback.py` | Native Linux output and consumer monitoring |
-| `output/gui.py` | OpenCV preview |
+| `output/gui.py` | Bare final-frame preview, paced events and close/Escape shutdown |
 | `mods/video_mods.py` | Portable geometry, resize and HSV brightness |
 | `mods/mp_face.py` | Lazy instance-owned CPU MediaPipe face detector |
 | `mods/person_segmentation.py` | Instance-owned MediaPipe/Vision effects and float32 blending |

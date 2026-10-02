@@ -21,8 +21,14 @@ from webcam_mods.mods.video_mods import resize_and_pad
 _DEFAULT_LISTENER = object()
 
 
-def default_frame_output(in_fps: float) -> FrameOutput:
+def default_frame_output(in_fps: float, backend: str = "virtual-cam") -> FrameOutput:
     out_fps = min(MAX_OUT_FPS, in_fps)
+    if backend == "preview":
+        from webcam_mods.output.gui import GUI
+
+        return GUI(fps=out_fps)
+    if backend != "virtual-cam":
+        raise ValueError(f"unknown output backend: {backend}")
     if platform.system() == "Linux":
         from webcam_mods.output.v4l2loopback import V4l2Cam
 
@@ -55,6 +61,7 @@ def live_loop(
     max_frames: Optional[int] = None,
     strict_errors: bool = False,
     before_frame: Optional[Callable[[], None]] = None,
+    output_backend: str = "virtual-cam",
 ) -> Optional[int]:
     """Pass frames through a mod; bounded runs raise on missing input."""
     if max_frames is not None and max_frames < 1:
@@ -76,7 +83,11 @@ def live_loop(
         inp_props = fIn.setup()
         _validate_metadata(inp_props, "input")
         if fOut is None:
-            fOut = default_frame_output(inp_props["fps"])
+            fOut = (
+                default_frame_output(inp_props["fps"])
+                if output_backend == "virtual-cam"
+                else default_frame_output(inp_props["fps"], backend=output_backend)
+            )
         logger.info(
             f"begin passing from #{fIn.__class__.__name__} to #{fOut.__class__.__name__}"
         )
@@ -140,6 +151,8 @@ def live_loop(
                 cam.send(frame)
                 cam.wait_until_next_frame()
                 sent_frames += 1
+                if cam.should_stop():
+                    break
     finally:
         try:
             fIn.teardown()

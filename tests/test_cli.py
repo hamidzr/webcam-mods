@@ -82,6 +82,33 @@ class CliTests(unittest.TestCase):
             effects.return_value.close.assert_called_once()
             self.assertIsNone(loop.call_args.kwargs["interactive_listener"])
 
+    def test_preview_output_propagates_for_camera_commands(self) -> None:
+        for command in (
+            "crop-cam",
+            "bg-color",
+            "bg-swap",
+            "bg-blur",
+            "brighten",
+            "track-face",
+            "test-loop",
+        ):
+            with (
+                self.subTest(command=command),
+                patch.object(entry, "live_loop") as loop,
+                patch("webcam_mods.session.Config", return_value=Config(path=None)),
+            ):
+                result = CliRunner().invoke(
+                    entry.app, ["--no-controls", "--output", "preview", command]
+                )
+                self.assertEqual(result.exit_code, 0, (result.output, result.exception))
+                self.assertEqual(loop.call_args.kwargs["output_backend"], "preview")
+
+    def test_invalid_output_rejected_before_capture(self) -> None:
+        with patch.object(entry, "live_loop") as loop:
+            result = CliRunner().invoke(entry.app, ["--output", "unknown", "crop-cam"])
+            self.assertNotEqual(result.exit_code, 0)
+            loop.assert_not_called()
+
     def test_native_backend_rejected_on_other_platforms(self) -> None:
         with (
             patch.object(entry.sys, "platform", "linux"),

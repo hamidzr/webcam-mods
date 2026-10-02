@@ -12,7 +12,8 @@ uv run --extra macos webcam_mods --no-controls --segmentation-backend vision --p
 uv run --extra macos webcam_mods --no-controls --capture-backend avfoundation --segmentation-backend vision bg-blur
 ```
 
-Global options precede commands. Portable defaults remain OpenCV capture,
+Global options precede commands. Add `--output preview` for a bare final-frame
+window instead of virtual-camera delivery; close or Escape stops the run. Portable defaults remain OpenCV capture,
 MediaPipe segmentation and OpenCV processing. Native options are explicit; there
 is no silent fallback. `--no-controls` disables keyboard and stdin together.
 `PAN_CONTROL=False` and `PADDING_CONTROL=False` independently disable keyboard

@@ -20,6 +20,11 @@ from webcam_mods.uses.interactive_controls import ControlAdapters
 app = typer.Typer()
 
 
+class OutputBackend(str, Enum):
+    virtual_cam = "virtual-cam"
+    preview = "preview"
+
+
 class SegmentationBackend(str, Enum):
     mediapipe = "mediapipe"
     vision = "vision"
@@ -50,6 +55,7 @@ class Common:
     capture: str = "opencv"
     quality: str = "balanced"
     recording_limit_mb: int = 256
+    output: str = "virtual-cam"
 
 
 def _run(
@@ -83,6 +89,7 @@ def _run(
             interactive_listener=controls,
             before_frame=session.apply_commands,
             freeze_on_error=common.freeze_on_error,
+            output_backend=common.output,
         )
 
 
@@ -226,6 +233,9 @@ def common(
     capture_backend: CaptureBackend = CaptureBackend.opencv,
     vision_quality: VisionQuality = VisionQuality.balanced,
     recording_limit_mb: int = typer.Option(256, min=1),
+    output: OutputBackend = typer.Option(
+        OutputBackend.virtual_cam, help="Final-frame output destination."
+    ),
 ) -> None:
     native_modules = set()
     if segmentation_backend == SegmentationBackend.vision:
@@ -247,6 +257,7 @@ def common(
         capture_backend.value,
         vision_quality.value,
         recording_limit_mb,
+        output.value,
     )
 
 
