@@ -12,6 +12,39 @@ from webcam_mods.input.input import FrameInput
 _delegate_class: Any = None
 
 
+def select_capture_format(
+    device: Any, core_media: Any, width: int, height: int, fps: float, index: int
+) -> Any:
+    """Require an exact format; never silently switch to another input device."""
+    available: set[tuple[int, int, float, float]] = set()
+    selected = None
+    for fmt in device.formats():
+        dims = core_media.CMVideoFormatDescriptionGetDimensions(fmt.formatDescription())
+        for rate in fmt.videoSupportedFrameRateRanges():
+            minimum, maximum = rate.minFrameRate(), rate.maxFrameRate()
+            available.add((dims.width, dims.height, minimum, maximum))
+            if (
+                selected is None
+                and (dims.width, dims.height) == (width, height)
+                and minimum <= fps <= maximum
+            ):
+                selected = fmt
+    if selected is not None:
+        return selected
+    choices = (
+        ", ".join(
+            f"{w}x{h} at {low:g}-{high:g} fps" for w, h, low, high in sorted(available)
+        )
+        or "none"
+    )
+    raise ValueError(
+        f"AVFoundation camera {index} ({device.localizedName()}) cannot deliver "
+        f"{width}x{height} at {fps:g} fps. Supported formats: {choices}. "
+        "Choose another camera with --input-device or VIDEO_IN; "
+        "AVFoundation device indices may differ from OpenCV."
+    )
+
+
 class AVFoundationCamera(FrameInput):
     """Copy BGRA callback buffers before returning them to AVFoundation.
 
@@ -176,20 +209,9 @@ class AVFoundationCamera(FrameInput):
                     f"camera index {self.device_index} unavailable ({len(devices)} devices)"
                 )
             device = devices[self.device_index]
-            formats = []
-            for fmt in device.formats():
-                dimensions = cm.CMVideoFormatDescriptionGetDimensions(
-                    fmt.formatDescription()
-                )
-                if (dimensions.width, dimensions.height) == (self.width, self.height):
-                    for rate in fmt.videoSupportedFrameRateRanges():
-                        if rate.minFrameRate() <= self.fps <= rate.maxFrameRate():
-                            formats.append(fmt)
-                            break
-            if not formats:
-                raise ValueError(
-                    f"camera cannot deliver {self.width}x{self.height} at {self.fps} fps"
-                )
+            selected_format = select_capture_format(
+                device, cm, self.width, self.height, self.fps, self.device_index
+            )
             camera_input, error = av.AVCaptureDeviceInput.deviceInputWithDevice_error_(
                 device, None
             )
@@ -220,7 +242,7 @@ class AVFoundationCamera(FrameInput):
                     raise RuntimeError(f"could not configure camera: {error}")
                 try:
                     # configure the attached device directly; inputPriority is unsupported on macOS
-                    device.setActiveFormat_(formats[0])
+                    device.setActiveFormat_(selected_format)
                     duration = cm.CMTimeMake(1000, round(self.fps * 1000))
                     device.setActiveVideoMinFrameDuration_(duration)
                     device.setActiveVideoMaxFrameDuration_(duration)

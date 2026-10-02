@@ -8,10 +8,37 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 
-from webcam_mods.macos.capture import AVFoundationCamera
+from webcam_mods.macos.capture import AVFoundationCamera, select_capture_format
 
 
 class CameraMailboxTest(unittest.TestCase):
+    def test_virtual_camera_format_mismatch_is_actionable(self) -> None:
+        rate = Mock()
+        rate.minFrameRate.return_value = 60.0
+        rate.maxFrameRate.return_value = 60.0
+        fmt = Mock()
+        fmt.videoSupportedFrameRateRanges.return_value = [rate]
+        device = Mock()
+        device.formats.return_value = [fmt]
+        device.localizedName.return_value = "OBS Virtual Camera"
+        cm = SimpleNamespace(
+            CMVideoFormatDescriptionGetDimensions=lambda _: SimpleNamespace(
+                width=1920, height=1080
+            )
+        )
+        with self.assertRaises(ValueError) as error:
+            select_capture_format(device, cm, 640, 480, 30, 0)
+        message = str(error.exception)
+        for fragment in (
+            "OBS Virtual Camera",
+            "1920x1080",
+            "60-60 fps",
+            "--input-device",
+            "VIDEO_IN",
+        ):
+            self.assertIn(fragment, message)
+        self.assertIs(select_capture_format(device, cm, 1920, 1080, 60, 0), fmt)
+
     def test_newest_frame_replaces_older_frame(self) -> None:
         camera = AVFoundationCamera(timeout=0.01)
         camera._running = True

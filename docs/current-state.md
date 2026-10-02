@@ -84,7 +84,7 @@ record/replay bounds, model state isolation, partial startup cleanup, real CPU
 MediaPipe, real Vision/Core Image and native buffer orientation/stride/lifetime.
 Use make verify UV_FLAGS='--extra macos' to run optional native tests.
 
-Supported runtime: Python 3.14 only. Local macOS ARM64 checks pass: 125 tests.
+Supported runtime: Python 3.14 only. Local macOS ARM64 checks pass: 127 tests.
 Both CLI entrypoints run and wheel/source-distribution builds succeed. GitHub verification workflow
 targets Python 3.14 on macOS ARM64 and Linux x86_64; remote validation
 is excluded by user choice. Local Linux execution was not performed.
@@ -104,7 +104,11 @@ unsupported on macOS despite being exported by the Python binding. Setup now
 attaches input/output before selecting activeFormat/FPS directly. Mocked regression covers unsupported explicit preset, setup
 ordering and format-failure cleanup; hardware retest from Terminal remains pending.
 Tests with mocked camera startup do not establish hardware delivery. The new
-live benchmark camera smoke test also failed with permission denial. Five headless
+live benchmark camera smoke test also failed with permission denial. A later
+Terminal run exposed AVFoundation index 0 selecting OBS (1920x1080/60 only),
+while local index 1 supports the requested 640x480/30. Read-only native format
+selection confirmed both; benchmark now accepts `--input-device`, and format
+errors include device identity, available formats and selection guidance. Five headless
 benchmark regressions pass, and its measurement path delivered 12 fixture frames
 through Vision fast/Core Image and real OBS output at 29.67 FPS (30 FPS target).
 This verifies cadence/delivery, not real-camera throughput.

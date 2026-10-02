@@ -199,6 +199,11 @@ def main() -> None:
     parser.add_argument(
         "--output-backend", choices=("preview", "virtual-cam"), default="preview"
     )
+    parser.add_argument(
+        "--input-device",
+        type=int,
+        help="Capture-backend camera index; overrides VIDEO_IN.",
+    )
     parser.add_argument("--frames", type=int, default=100)
     parser.add_argument("--warmup", type=int, default=10)
     parser.add_argument(
@@ -212,7 +217,7 @@ def main() -> None:
     args = parser.parse_args()
     if args.frames < 2 or args.warmup < 0:
         parser.error("frames must be at least two; warmup must be nonnegative")
-    settings = load_settings()
+    settings = load_settings(video_in=args.input_device)
     if args.capture == "avfoundation":
         from webcam_mods.macos.capture import AVFoundationCamera
 

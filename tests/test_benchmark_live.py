@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch
 import cv2
 import numpy as np
 
-from scripts.benchmark_live import run_benchmark
+from scripts.benchmark_live import main, run_benchmark
 from webcam_mods.settings import StartupSettings
 from test_timing import Clock, Source, Sink
 
@@ -40,6 +40,36 @@ class LiveBenchmarkTests(unittest.TestCase):
                 warmup=1,
                 **kwargs,
             )
+
+    def test_cli_device_override_reaches_capture_before_setup(self):
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch(
+                "sys.argv",
+                [
+                    "benchmark_live",
+                    "--input-device",
+                    "1",
+                    "--report",
+                    str(Path(directory) / "report.json"),
+                ],
+            ),
+            patch("webcam_mods.macos.capture.AVFoundationCamera") as camera,
+            patch("scripts.benchmark_live.PersonEffects"),
+            patch(
+                "scripts.benchmark_live.run_benchmark",
+                return_value={
+                    "processing": {},
+                    "capture_to_send": {},
+                    "delivered_fps": 30,
+                    "process_peak_rss_bytes": 0,
+                },
+            ) as benchmark,
+            patch("builtins.print"),
+        ):
+            main()
+        self.assertEqual(camera.call_args.kwargs["device_index"], 1)
+        self.assertEqual(benchmark.call_args.args[3].video_in, 1)
 
     def test_metrics_exclude_warmup_and_match_production_cadence(self):
         report = self.run_benchmark()

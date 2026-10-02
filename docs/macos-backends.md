@@ -23,7 +23,11 @@ optional in the `macos` extra and never imported by CLI help.
 Native capture requests camera permission at setup. Authorize the launching app
 in System Settings > Privacy & Security > Camera. This includes the terminal or
 coding application, depending on how Python is launched. Capture selects a device
-index, requires a format matching requested dimensions/FPS, retains only the
+index from AVFoundation enumeration, which may differ from OpenCV. OBS can
+appear before a physical camera; choose the physical index with `--input-device`
+or `VIDEO_IN`. Unsupported formats report the selected device and available
+resolutions/FPS instead of silently switching cameras. Capture requires a format
+matching requested dimensions/FPS, retains only the
 latest frame, copies callback BGRA buffers into owned BGR arrays and reports sample
 timestamps. Setup attaches input/output before selecting activeFormat and FPS,
 configuring the device directly. The inputPriority preset is unsupported on macOS
@@ -110,7 +114,7 @@ live latency, power consumption and moving-person quality remain hardware checks
 
 ## Live-camera measurements
 
-Run from a camera-authorized Terminal. Keep capture format, output backend and
+Run from the project directory in a camera-authorized Terminal. Keep capture format, output backend and
 scene consistent when comparing effects. Launch each variant in a fresh process
 so lifetime high-water RSS is comparable. Example:
 
@@ -120,6 +124,9 @@ uv run --extra macos python scripts/benchmark_live.py \
   --output-backend preview --frames 300 --warmup 30 \
   --report dist/benchmarks/live-vision-fast.json
 ```
+
+Add `--input-device N` to override `VIDEO_IN` for the chosen capture backend.
+AVFoundation index 0 may be OBS Virtual Camera, so use the physical camera index.
 
 Repeat with `--quality balanced`, `--processing coreimage`, and
 `--backend mediapipe --processing opencv`. Use `--output-backend virtual-cam` to
