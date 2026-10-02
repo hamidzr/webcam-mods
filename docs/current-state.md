@@ -84,7 +84,7 @@ record/replay bounds, model state isolation, partial startup cleanup, real CPU
 MediaPipe, real Vision/Core Image and native buffer orientation/stride/lifetime.
 Use make verify UV_FLAGS='--extra macos' to run optional native tests.
 
-Local macOS ARM64 Python 3.13 and 3.14 checks pass: 118 tests on each version.
+Local macOS ARM64 Python 3.13 and 3.14 checks pass: 123 tests on each version.
 Both CLI entrypoints run and wheel/source-distribution builds succeed. GitHub verification workflow
 now targets both versions on macOS ARM64 and Linux x86_64; it has not run remotely
 because these changes have not been pushed. Local Linux execution was not performed.
@@ -103,7 +103,11 @@ A Terminal hardware attempt exposed use of the inputPriority preset, which is
 unsupported on macOS despite being exported by the Python binding. Setup now
 attaches input/output before selecting activeFormat/FPS directly. Mocked regression covers unsupported explicit preset, setup
 ordering and format-failure cleanup; hardware retest from Terminal remains pending.
-Tests with mocked camera startup do not establish hardware delivery.
+Tests with mocked camera startup do not establish hardware delivery. The new
+live benchmark camera smoke test also failed with permission denial. Five headless
+benchmark regressions pass, and its measurement path delivered 12 fixture frames
+through Vision fast/Core Image and real OBS output at 29.67 FPS (30 FPS target).
+This verifies cadence/delivery, not real-camera throughput.
 
 Other remaining gaps:
 

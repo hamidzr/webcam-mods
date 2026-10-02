@@ -268,3 +268,15 @@ Use [GitHub Issues](https://github.com/hamidzr/webcam-mods/issues/new) to reach 
 - [fangfufu/Linux-Fake-Background-Webcam](https://github.com/fangfufu/Linux-Fake-Background-Webcam)
 For mask post processing and automatic ondemand pause and restart.
 - [letmaik/pyvirtualcam](https://github.com/letmaik/pyvirtualcam)
+
+### Live-camera benchmark
+
+From a camera-authorized Terminal:
+
+```sh
+uv run --extra macos python scripts/benchmark_live.py --frames 300 --warmup 30
+```
+
+Defaults to AVFoundation, Vision fast and preview. Use `--output-backend virtual-cam`
+for OBS. Saves timing/cadence/memory metrics, with optional `--save-frame` for quality
+review. See [measurement details](docs/macos-backends.md#live-camera-measurements).

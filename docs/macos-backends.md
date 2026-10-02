@@ -107,3 +107,41 @@ live latency, power consumption and moving-person quality remain hardware checks
 - [AVFoundation callback queues](https://developer.apple.com/documentation/avfoundation/avcapturevideodataoutput/setsamplebufferdelegate(_:queue:))
 - [Core Image performance](https://developer.apple.com/library/archive/documentation/GraphicsImaging/Conceptual/CoreImaging/ci_performance/ci_performance.html)
 - [PyObjC autorelease pools](https://pyobjc.readthedocs.io/en/latest/api/module-objc.html)
+
+## Live-camera measurements
+
+Run from a camera-authorized Terminal. Keep capture format, output backend and
+scene consistent when comparing effects. Launch each variant in a fresh process
+so lifetime high-water RSS is comparable. Example:
+
+```sh
+uv run --extra macos python scripts/benchmark_live.py \
+  --capture avfoundation --backend vision --quality fast \
+  --output-backend preview --frames 300 --warmup 30 \
+  --report dist/benchmarks/live-vision-fast.json
+```
+
+Repeat with `--quality balanced`, `--processing coreimage`, and
+`--backend mediapipe --processing opencv`. Use `--output-backend virtual-cam` to
+include OBS delivery. The script honors existing capture/output environment
+settings and runs the production loop with controls and recording disabled.
+Closing preview early fails the run instead of publishing incomplete metrics.
+
+Reports include negotiated dimensions/FPS, capture wait, effect time, capture-to-send
+time including final resize/padding, send duration, delivered cadence and process
+peak RSS. Capture wait does not measure exposure latency; send completion does not
+measure conferencing reception. Peak RSS includes imports, model initialization
+and warmup. Power remains unmeasured.
+
+No camera images are saved by default. Add `--save-frame dist/benchmarks/final.png`
+to save the exact final output for visual review. This enables a per-frame copy;
+compare cadence with identical save settings. Check moving hair, hands, fast
+motion and low light in preview before choosing a segmentation quality.
+
+Local validation: five headless regressions cover measured cadence, warmup exclusion,
+exact saved output, partial setup cleanup, early close and invalid workloads. A
+12-frame fixture smoke test (three warmup frames) passed through Vision fast,
+Core Image and OBS at 640x480/30 FPS; observed delivery was 29.67 FPS. This short
+fixture run establishes delivery and cleanup, not live-camera performance.
+Camera benchmark startup from T3 still reports permission denial; no live-camera
+measurements or conferencing reception are claimed.

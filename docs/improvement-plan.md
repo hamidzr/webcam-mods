@@ -20,6 +20,7 @@ product requirement.
 - Repaired legacy face entrypoint and isolated box-demo tracker state.
 - Resolved startup settings once with CLI overrides, validation and actionable Linux-extra errors.
 - Centralized monotonic frame pacing across all outputs; preview pumps events during waits.
+- Added live-camera measurement script; fixture-to-OBS smoke passed, live capture remains permission-blocked.
 - Added repeatable processing benchmark and measured portable float32 improvement.
 
 ## Next checks and priorities
