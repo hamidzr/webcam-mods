@@ -84,7 +84,7 @@ record/replay bounds, model state isolation, partial startup cleanup, real CPU
 MediaPipe, real Vision/Core Image and native buffer orientation/stride/lifetime.
 Use make verify UV_FLAGS='--extra macos' to run optional native tests.
 
-Local macOS ARM64 Python 3.13 and 3.14 checks pass: 117 tests on each version.
+Local macOS ARM64 Python 3.13 and 3.14 checks pass: 118 tests on each version.
 Both CLI entrypoints run and wheel/source-distribution builds succeed. GitHub verification workflow
 now targets both versions on macOS ARM64 and Linux x86_64; it has not run remotely
 because these changes have not been pushed. Local Linux execution was not performed.
@@ -113,6 +113,8 @@ Other remaining gaps:
 - No hot input switching, user-facing file output, HTTP service or cross-process control.
 - Lazy legacy helper compatibility remains; CLI startup uses a validated immutable snapshot.
 - No live-camera latency, power or segmentation-quality benchmark on moving people.
-- Stale mypy configuration and historical TODO entries remain; legacy demos are repaired.
+- Strict mypy checks cover startup settings, pacing, model cache, recording, adapter
+  interfaces, OpenCV capture, session and crop persistence. Legacy demos are repaired;
+  remaining effect/geometry modules are outside the current typing scope.
 
 See [remaining improvement plan](improvement-plan.md).

@@ -1,10 +1,9 @@
-from webcam_mods import config
 from webcam_mods.settings import StartupSettings, load_settings
 import cv2
 from webcam_mods.input.input import FrameInput
 from webcam_mods.utils.video import Frame
 from loguru import logger
-from typing import Any, Iterator, Optional, cast
+from typing import Any, Iterator, Optional
 import time
 
 
@@ -35,14 +34,17 @@ def open_video_capture(
     pixel_format: str | None = None,
 ) -> Optional[tuple[cv2.VideoCapture, int, int, float]]:
     # Grab the webcam feed and get the dimensions of a frame
-    fps = config.IN_FPS if fps is None else fps
-    pixel_format = config.IN_FORMAT if pixel_format is None else pixel_format
+    settings = (
+        load_settings() if fps is None or pixel_format is None else StartupSettings()
+    )
+    fps = settings.in_fps if fps is None else fps
+    pixel_format = settings.in_format if pixel_format is None else pixel_format
     if len(pixel_format) != 4:
         raise ValueError("input format must contain exactly four characters")
     videoIn = cv2.VideoCapture(input_dev)
 
     videoIn.set(cv2.CAP_PROP_FPS, fps)
-    videoIn.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*pixel_format.upper()))
+    videoIn.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter.fourcc(*pixel_format.upper()))
 
     if width is not None and height is not None:
         videoIn.set(cv2.CAP_PROP_FRAME_WIDTH, width)
@@ -82,14 +84,14 @@ class Webcam(FrameInput):
         kwargs.setdefault("device", self.settings.video_out)
         super().__init__(**kwargs)
         device_index = self.settings.video_in if device_index is None else device_index
-        self.cap = None
+        self.cap: cv2.VideoCapture | None = None
         self.device_index = (
             device_index
             if device_index is not None
             else next(available_camera_indices(end=5))
         )
 
-    def setup(self):
+    def setup(self) -> dict[str, int | float]:
         open_rv = None
         for c in range(5):
             open_rv = open_video_capture(
@@ -119,14 +121,15 @@ class Webcam(FrameInput):
             self.cap.release()
             self.cap = None
 
-    def is_setup(self):
+    def is_setup(self) -> bool:
         if self.cap is None:
             return False
         return self.cap.isOpened()
 
     def frame(self) -> Optional[Frame]:
+        if self.cap is None:
+            return None
         ret, frame = self.cap.read()
-        ret = cast(bool, ret)
         if not ret or frame is None:
             return None
         return frame

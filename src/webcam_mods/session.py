@@ -111,6 +111,8 @@ class RunSession:
                 self.settings.reset()
         settings = self.settings.to_dict()
         result = crop(frame, *settings["crop_dims"], *settings["crop_pos"])
+        if result is None:
+            raise RuntimeError("crop returned no frame")
         result = pad_inward_centered(result, *settings["pad_size"])
         return self.recorder.engage(result)
 

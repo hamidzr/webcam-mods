@@ -1,6 +1,6 @@
 from abc import abstractmethod
-from webcam_mods.settings import load_settings
-from typing import Any, Optional, Dict, Generator, Tuple
+from webcam_mods.settings import StartupSettings, load_settings
+from typing import Any, Optional, Dict, Generator, Self
 import cv2
 from webcam_mods.utils.video import Frame
 import datetime as dt
@@ -19,7 +19,7 @@ class InNOut:
         settings = (
             load_settings()
             if any(value is None for value in (width, height, fps, device))
-            else None
+            else StartupSettings()
         )
         self.width = width if width is not None else settings.out_width
         self.height = height if height is not None else settings.out_height
@@ -30,7 +30,7 @@ class InNOut:
     def setup(self) -> Dict[str, Any]:
         raise NotImplementedError()
 
-    def __enter__(self) -> Tuple["InNOut", Dict[str, Any]]:
+    def __enter__(self) -> tuple[Self, Dict[str, Any]]:
         try:
             return (self, self.setup())
         except BaseException as error:
@@ -42,10 +42,10 @@ class InNOut:
             raise
 
     @abstractmethod
-    def teardown(self, *args, **kwargs):
+    def teardown(self, *args: Any, **kwargs: Any) -> None:
         raise NotImplementedError()
 
-    def __exit__(self, *args, **kwargs):
+    def __exit__(self, *args: Any, **kwargs: Any) -> None:
         self.teardown(*args, **kwargs)
 
     @abstractmethod
@@ -58,15 +58,17 @@ class FrameInput(InNOut):
     def frame(self) -> Optional[Frame]:
         raise NotImplementedError()
 
-    def frames(self) -> Generator[Frame, None, None]:
+    def frames(self) -> Generator[Optional[Frame], None, None]:
         while True:
             yield self.frame()
 
-    def demo(self):
+    def demo(self) -> None:
         self.setup()
         start_time = dt.datetime.today().timestamp()
         i = 0
         for frame in self.frames():
+            if frame is None:
+                continue
             cv2.imshow("screen", frame)
             if (cv2.waitKey(1) & 0xFF) == ord("q"):
                 cv2.destroyAllWindows()
@@ -76,21 +78,15 @@ class FrameInput(InNOut):
             if i % 100 == 0:
                 print("fps:", int(i / time_diff))
 
-    def __enter__(self) -> Tuple["FrameInput", Dict[str, Any]]:
-        return super().__enter__()  # type: ignore
-
 
 class FrameOutput(InNOut):
     @abstractmethod
-    def send(self, frame: Frame):
+    def send(self, frame: Frame) -> None:
         raise NotImplementedError()
 
     @abstractmethod
-    def wait_until_next_frame(self):
+    def wait_until_next_frame(self) -> None:
         raise NotImplementedError()
-
-    def __enter__(self) -> Tuple["FrameOutput", Dict[str, Any]]:
-        return super().__enter__()  # type: ignore
 
     def process_events(self) -> None:
         """Pump output events without waiting for the next frame."""

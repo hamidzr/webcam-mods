@@ -4,8 +4,9 @@ import json
 import os
 from pathlib import Path
 import tempfile
+from typing import Any, cast
 
-from webcam_mods.settings import load_settings
+from webcam_mods.settings import StartupSettings, load_settings
 
 default_config_path = Path.home() / ".webcam-mods.conf"
 
@@ -17,7 +18,9 @@ class Config:
         width: int | None = None,
         height: int | None = None,
     ) -> None:
-        settings = load_settings() if width is None or height is None else None
+        settings = (
+            load_settings() if width is None or height is None else StartupSettings()
+        )
         self.width = width if width is not None else settings.in_width
         self.height = height if height is not None else settings.in_height
         self._path = Path(path) if path is not None else None
@@ -33,7 +36,7 @@ class Config:
         self.crop_dims = [self.width, self.height]
         self.reset_dependents()
 
-    def valid(self, conf: dict) -> bool:
+    def valid(self, conf: dict[str, Any]) -> bool:
         pairs = [conf.get(key) for key in ("crop_dims", "crop_pos", "pad_size")]
         if any(
             not isinstance(pair, list)
@@ -42,7 +45,7 @@ class Config:
             for pair in pairs
         ):
             return False
-        dims, pos, pad = pairs
+        dims, pos, pad = cast(list[list[int]], pairs)
         return all(
             0 < dims[i] <= size
             and 0 <= pos[i] <= size - dims[i]
@@ -51,7 +54,7 @@ class Config:
             for i, size in enumerate((self.width, self.height))
         )
 
-    def load(self, path: str | None = None) -> dict | None:
+    def load(self, path: str | None = None) -> dict[str, Any] | None:
         conf = self.read(path)
         if conf is not None and self.valid(conf):
             self.crop_dims = conf["crop_dims"][:]
@@ -60,7 +63,7 @@ class Config:
             return conf
         return None
 
-    def read(self, path: str | None = None) -> dict | None:
+    def read(self, path: str | None = None) -> dict[str, Any] | None:
         target = Path(path) if path else self._path
         if target is None:
             return None

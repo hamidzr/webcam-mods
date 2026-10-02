@@ -138,6 +138,19 @@ class SessionFailureTests(unittest.TestCase):
                 session.apply_commands()
         self.assertEqual(session.settings.to_dict(), original)
 
+    def test_empty_crop_fails_before_padding(self):
+        from unittest.mock import patch
+
+        session = RunSession(Config(path=None))
+        with (
+            patch("webcam_mods.session.crop", return_value=None),
+            patch("webcam_mods.session.pad_inward_centered") as pad,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "crop returned no frame"):
+                session.prepare(np.zeros((480, 640, 3), np.uint8))
+            pad.assert_not_called()
+        session.close()
+
     def test_prepared_crop_adapts_to_negotiated_dimensions(self):
         config = Config(path=None, width=640, height=480)
         config.crop_dims = [100, 100]

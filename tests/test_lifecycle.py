@@ -175,7 +175,7 @@ class AdapterCleanupTest(unittest.TestCase):
         capture.get.return_value = 30
         with (
             patch("webcam_mods.input.video_dev.cv2.VideoCapture", return_value=capture),
-            patch("webcam_mods.input.video_dev.config.IN_FPS", 24),
+            patch.dict("os.environ", {"IN_FPS": "24"}),
         ):
             open_video_capture()
         import cv2

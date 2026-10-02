@@ -40,6 +40,7 @@ check:
 	uv run $(UV_FLAGS) python -m compileall -q src tests scripts
 	uv run $(UV_FLAGS) flake8 --select=E9,F63,F7,F821 src tests scripts
 	uv run $(UV_FLAGS) black --check src tests scripts
+	uv run $(UV_FLAGS) mypy
 
 test:
 	uv run $(UV_FLAGS) python -m unittest discover -s tests

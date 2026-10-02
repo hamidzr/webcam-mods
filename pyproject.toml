@@ -50,7 +50,13 @@ Issues = "https://github.com/hamidzr/webcam-mods/issues"
 webcam_mods = "webcam_mods.__main__:app"
 
 [dependency-groups]
-dev = ["black", "build", "flake8", "twine"]
+dev = [
+    "black",
+    "build",
+    "flake8",
+    "mypy>=2.4.0",
+    "twine",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

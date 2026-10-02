@@ -3,6 +3,7 @@
 from dataclasses import dataclass, fields
 import math
 import os
+from typing import Any
 from collections.abc import Mapping
 
 
@@ -56,7 +57,8 @@ def load_settings(
     unknown = overrides.keys() - names
     if unknown:
         raise ValueError(f"unknown startup settings: {', '.join(sorted(unknown))}")
-    values = {}
+    # field names and value types are validated by the dataclass constructor
+    values: dict[str, Any] = {}
     for name in names:
         value = overrides.get(name)
         if value is None:
