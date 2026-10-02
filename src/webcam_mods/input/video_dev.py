@@ -43,21 +43,28 @@ def open_video_capture(
         raise ValueError("input format must contain exactly four characters")
     videoIn = cv2.VideoCapture(input_dev)
 
-    videoIn.set(cv2.CAP_PROP_FPS, fps)
-    videoIn.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter.fourcc(*pixel_format.upper()))
+    try:
+        videoIn.set(cv2.CAP_PROP_FPS, fps)
+        videoIn.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter.fourcc(*pixel_format.upper()))
 
-    if width is not None and height is not None:
-        videoIn.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-        videoIn.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+        if width is not None and height is not None:
+            videoIn.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+            videoIn.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
 
-    if not videoIn.isOpened():
-        logger.error(f"failed to open video input device #{input_dev}")
-        videoIn.release()
-        return None
-    in_width = int(videoIn.get(cv2.CAP_PROP_FRAME_WIDTH))
-    in_height = int(videoIn.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    fps = videoIn.get(cv2.CAP_PROP_FPS)
-    return (videoIn, in_width, in_height, fps)
+        if not videoIn.isOpened():
+            logger.error(f"failed to open video input device #{input_dev}")
+            videoIn.release()
+            return None
+        in_width = int(videoIn.get(cv2.CAP_PROP_FRAME_WIDTH))
+        in_height = int(videoIn.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        fps = videoIn.get(cv2.CAP_PROP_FPS)
+        return (videoIn, in_width, in_height, fps)
+    except BaseException as error:
+        try:
+            videoIn.release()
+        except Exception as cleanup_error:
+            error.add_note(f"capture cleanup failed: {cleanup_error}")
+        raise
 
 
 # @contextmanager

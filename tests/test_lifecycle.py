@@ -170,6 +170,20 @@ class AdapterCleanupTest(unittest.TestCase):
             self.assertIsNone(open_video_capture())
         capture.release.assert_called_once()
 
+    def test_camera_configuration_failure_releases_handle(self) -> None:
+        for method in ("set", "get"):
+            with self.subTest(method=method):
+                capture = Mock()
+                getattr(capture, method).side_effect = RuntimeError(
+                    "capture setup failed"
+                )
+                with patch(
+                    "webcam_mods.input.video_dev.cv2.VideoCapture", return_value=capture
+                ):
+                    with self.assertRaisesRegex(RuntimeError, "capture setup failed"):
+                        open_video_capture()
+                capture.release.assert_called_once()
+
     def test_camera_honors_configured_fps(self) -> None:
         capture = Mock()
         capture.get.return_value = 30

@@ -121,3 +121,20 @@ class SettingsTests(unittest.TestCase):
             tracker.generate_crop(Rect(l=100, t=100, w=20, h=20), None)
         self.assertIsInstance(tracker.fps, int)
         tracker.close()
+
+    def test_linux_missing_extra_has_actionable_error(self) -> None:
+        import builtins
+
+        original_import = builtins.__import__
+
+        def missing_extra(name, *args, **kwargs):
+            if name == "webcam_mods.output.v4l2loopback":
+                raise ModuleNotFoundError("No module named v4l2", name="v4l2")
+            return original_import(name, *args, **kwargs)
+
+        with (
+            patch("webcam_mods.loopback.platform.system", return_value="Linux"),
+            patch("builtins.__import__", side_effect=missing_extra),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "uv sync --extra linux"):
+                default_frame_output(30)

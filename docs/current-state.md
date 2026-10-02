@@ -84,7 +84,7 @@ record/replay bounds, model state isolation, partial startup cleanup, real CPU
 MediaPipe, real Vision/Core Image and native buffer orientation/stride/lifetime.
 Use make verify UV_FLAGS='--extra macos' to run optional native tests.
 
-Local macOS ARM64 Python 3.13 and 3.14 checks pass: 123 tests on each version.
+Local macOS ARM64 Python 3.13 and 3.14 checks pass: 125 tests on each version.
 Both CLI entrypoints run and wheel/source-distribution builds succeed. GitHub verification workflow
 now targets both versions on macOS ARM64 and Linux x86_64; it has not run remotely
 because these changes have not been pushed. Local Linux execution was not performed.
