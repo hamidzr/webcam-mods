@@ -36,7 +36,10 @@ Linux and pyvirtualcam/OBS elsewhere.
 ## Configuration
 
 [env.example](../env.example) documents existing environment variables. No new
-backend environment aliases were added; CLI selects optional native backends.
+backend environment aliases were added; CLI selects optional native backends. Startup
+settings resolve once before acquisition with CLI > environment > defaults. Numeric
+values are validated; malformed environment does not prevent help. Boolean values
+accept true/false (case-insensitive) and 1/0. See README for CLI overrides.
 
 | Settings | Default / behavior |
 | --- | --- |
@@ -46,9 +49,9 @@ backend environment aliases were added; CLI selects optional native backends.
 | IN_FPS | 30, applied by both capture adapters |
 | IN_FORMAT | YUYV, OpenCV FOURCC request only |
 | OUT_WIDTH / OUT_HEIGHT | 640 / 480 |
-| MAX_OUT_FPS | 30, output cap; Linux output remains unpaced |
-| ON_DEMAND | false; exact True enables consumer polling |
-| PAN_CONTROL / PADDING_CONTROL | true; exact True enables respective keyboard gestures |
+| MAX_OUT_FPS | 30, output cap; loop paces all backends |
+| ON_DEMAND | false; true/1 enables consumer polling |
+| PAN_CONTROL / PADDING_CONTROL | true; true/1 enables respective keyboard gestures |
 | freeze_on_error | false; existing Typer environment option |
 | XDG_CACHE_HOME | ~/.cache fallback, verified model cache |
 | --output | virtual-cam default; preview displays final frames in a bare window |
@@ -81,7 +84,7 @@ record/replay bounds, model state isolation, partial startup cleanup, real CPU
 MediaPipe, real Vision/Core Image and native buffer orientation/stride/lifetime.
 Use make verify UV_FLAGS='--extra macos' to run optional native tests.
 
-Local macOS ARM64 Python 3.13 and 3.14 checks pass: 97 tests on each version.
+Local macOS ARM64 Python 3.13 and 3.14 checks pass: 117 tests on each version.
 Both CLI entrypoints run and wheel/source-distribution builds succeed. GitHub verification workflow
 now targets both versions on macOS ARM64 and Linux x86_64; it has not run remotely
 because these changes have not been pushed. Local Linux execution was not performed.
@@ -104,11 +107,11 @@ Tests with mocked camera startup do not establish hardware delivery.
 
 Other remaining gaps:
 
-- No unified portable pacing or portable consumer/pause capability contract.
+- No portable consumer/pause capability contract; unified pacing is implemented.
 - Screen.setup still lacks width/height metadata expected by default-output path;
   screen sharing was explicitly excluded.
 - No hot input switching, user-facing file output, HTTP service or cross-process control.
-- Globals remain for import-time environment constants and legacy helper compatibility.
+- Lazy legacy helper compatibility remains; CLI startup uses a validated immutable snapshot.
 - No live-camera latency, power or segmentation-quality benchmark on moving people.
 - Legacy demos, stale mypy configuration and historical TODO entries remain.
 

@@ -32,7 +32,7 @@ flowchart TD
     Camera[OpenCV or optional AVFoundation] --> Loop
     Loop --> Effect
     Effect --> Resize[Portable resize and pad]
-    Resize --> Output[Output adapter and pacing]
+    Resize --> Output[Output adapter]
     Output --> Mac[pyvirtualcam / OBS]
     Output --> Linux[Native V4L2]
 ```
@@ -53,7 +53,7 @@ backend work. GUI output and test PNG adapters remain available as existing seam
 | `macos/capture.py` | Optional AVFoundation callback capture and newest-frame mailbox |
 | `macos/vision.py` | Optional instance-owned Vision person masks |
 | `macos/core_image.py` | Optional Core Image background compositing/Gaussian blur |
-| `output/pyvirtcam.py` | OBS virtual camera, pacing and idempotent cleanup |
+| `output/pyvirtcam.py` | OBS virtual camera and idempotent cleanup |
 | `output/v4l2loopback.py` | Native Linux output and consumer monitoring |
 | `output/gui.py` | Bare final-frame preview, paced events and close/Escape shutdown |
 | `mods/video_mods.py` | Portable geometry, resize and HSV brightness |
@@ -64,7 +64,9 @@ backend work. GUI output and test PNG adapters remain available as existing seam
 | `uses/interactive_controls.py` | Lazy optional keyboard/control adapters |
 | `utils/cli_input.py` | Explicit stoppable stdin reader |
 | `utils/config.py` | Validated JSON settings and atomic persistence |
-| `config.py` | Import-time environment constants and bundled image paths |
+| `config.py` | Bundled assets and compatibility setting access |
+| `settings.py` | Validated immutable startup snapshot; CLI > env > defaults |
+| `timing.py` | Monotonic frame pacing and responsive output event polling |
 | `models.py` | Checksum-verified model cache/download |
 
 `output/file.py` remains empty. Legacy `uses/track_face.py` references a missing
@@ -82,19 +84,20 @@ are stopped in `finally`; output context teardown closes output.
 
 Effect exceptions and `None` results produce an error image or, with
 `freeze_on_error`, the last successful resized frame. The initial frozen frame is
-no-signal. Output/capture exceptions propagate. Empty input retries immediately;
+no-signal. Output/capture exceptions propagate. Empty input retries at output cadence and pumps output events;
 bounded runs or strict errors raise. `max_frames`, `strict_errors` and
 `before_frame` are Python testing/control seams, not CLI options.
 
 On-demand mode retains Linux consumer detection. Paused capture is closed and the
-loop sends a no-signal frame after sleeping. pyvirtualcam always reports in use.
-Native Linux output still lacks pacing; cadence unification remains future work.
+loop sends a no-signal frame on a 0.5-second cadence. pyvirtualcam always reports in use.
+The loop owns pacing across all outputs; adapter compatibility waits are not called.
+Preview pumps events at most 20 ms apart during waits. Slow processing skips catch-up bursts.
 
 ## State and threads
 
 | State | Owner |
 | --- | --- |
-| Environment settings | Module constants evaluated at import |
+| Startup settings | Immutable snapshot resolved before opening resources |
 | Crop/padding | RunSession Config |
 | Commands | Bounded session queue; immutable command objects |
 | Pressed keys | Per-run keyboard adapter |

@@ -1,4 +1,5 @@
 from webcam_mods import config
+from webcam_mods.settings import StartupSettings, load_settings
 import cv2
 from webcam_mods.input.input import FrameInput
 from webcam_mods.utils.video import Frame
@@ -26,23 +27,22 @@ def available_camera_indices(end: int = 3) -> Iterator[int]:
 
 
 def open_video_capture(
-    width: Optional[int] = None, height: Optional[int] = None, input_dev: int = 0
+    width: Optional[int] = None,
+    height: Optional[int] = None,
+    input_dev: int = 0,
+    *,
+    fps: float | None = None,
+    pixel_format: str | None = None,
 ) -> Optional[tuple[cv2.VideoCapture, int, int, float]]:
     # Grab the webcam feed and get the dimensions of a frame
+    fps = config.IN_FPS if fps is None else fps
+    pixel_format = config.IN_FORMAT if pixel_format is None else pixel_format
+    if len(pixel_format) != 4:
+        raise ValueError("input format must contain exactly four characters")
     videoIn = cv2.VideoCapture(input_dev)
 
-    # TODO make this a configurable cli option
-    if len(config.IN_FORMAT) > 4:
-        logger.error(
-            f"input fmt can be at most 4 characters long, got {len(config.IN_FORMAT)}"
-        )
-        videoIn.release()
-        raise ValueError("input format must be at most four characters")
-
-    videoIn.set(cv2.CAP_PROP_FPS, config.IN_FPS)
-
-    videoIn.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*config.IN_FORMAT.lower()))
-    videoIn.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*config.IN_FORMAT.upper()))
+    videoIn.set(cv2.CAP_PROP_FPS, fps)
+    videoIn.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*pixel_format.upper()))
 
     if width is not None and height is not None:
         videoIn.set(cv2.CAP_PROP_FRAME_WIDTH, width)
@@ -68,8 +68,20 @@ def open_video_capture(
 
 
 class Webcam(FrameInput):
-    def __init__(self, device_index: int = config.VIDEO_IN, **kwargs):
+    def __init__(
+        self,
+        device_index: int | None = None,
+        *,
+        settings: StartupSettings | None = None,
+        **kwargs: Any,
+    ) -> None:
+        self.settings = settings or load_settings()
+        kwargs.setdefault("width", self.settings.in_width)
+        kwargs.setdefault("height", self.settings.in_height)
+        kwargs.setdefault("fps", self.settings.in_fps)
+        kwargs.setdefault("device", self.settings.video_out)
         super().__init__(**kwargs)
+        device_index = self.settings.video_in if device_index is None else device_index
         self.cap = None
         self.device_index = (
             device_index
@@ -81,7 +93,11 @@ class Webcam(FrameInput):
         open_rv = None
         for c in range(5):
             open_rv = open_video_capture(
-                width=self.width, height=self.height, input_dev=self.device_index
+                width=self.width,
+                height=self.height,
+                input_dev=self.device_index,
+                fps=self.settings.in_fps,
+                pixel_format=self.settings.in_format,
             )
             if open_rv is not None:
                 break

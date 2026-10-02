@@ -1,11 +1,5 @@
-from webcam_mods.config import (
-    IN_HEIGHT,
-    IN_WIDTH,
-    MAX_OUT_FPS,
-    NO_SIGNAL_IMAGE,
-    ON_DEMAND,
-    ERROR_IMAGE,
-)
+from webcam_mods.config import NO_SIGNAL_IMAGE, ERROR_IMAGE
+from webcam_mods.settings import StartupSettings, load_settings
 import cv2
 import platform
 import math
@@ -21,22 +15,41 @@ from webcam_mods.mods.video_mods import resize_and_pad
 _DEFAULT_LISTENER = object()
 
 
-def default_frame_output(in_fps: float, backend: str = "virtual-cam") -> FrameOutput:
-    out_fps = min(MAX_OUT_FPS, in_fps)
+def default_frame_output(
+    in_fps: float,
+    backend: str = "virtual-cam",
+    *,
+    settings: StartupSettings | None = None,
+) -> FrameOutput:
+    settings = settings or load_settings()
+    out_fps = min(settings.max_out_fps, in_fps)
+    options = dict(
+        width=settings.out_width,
+        height=settings.out_height,
+        fps=out_fps,
+        device=settings.video_out,
+    )
     if backend == "preview":
         from webcam_mods.output.gui import GUI
 
-        return GUI(fps=out_fps)
+        return GUI(**options)
     if backend != "virtual-cam":
         raise ValueError(f"unknown output backend: {backend}")
     if platform.system() == "Linux":
-        from webcam_mods.output.v4l2loopback import V4l2Cam
+        try:
+            from webcam_mods.output.v4l2loopback import V4l2Cam
+        except ModuleNotFoundError as error:
+            if error.name not in ("v4l2", "inotify_simple"):
+                raise
+            raise RuntimeError(
+                "Linux virtual camera requires uv sync --extra linux"
+            ) from error
 
-        return V4l2Cam(fps=out_fps)
+        return V4l2Cam(**options)
     else:
         from webcam_mods.output.pyvirtcam import PyVirtualCam
 
-        return PyVirtualCam(fps=out_fps)
+        return PyVirtualCam(**options)
 
 
 def _validate_metadata(properties: dict[str, Any], adapter: str) -> None:
@@ -53,7 +66,7 @@ def _validate_metadata(properties: dict[str, Any], adapter: str) -> None:
 
 def live_loop(
     mod: Optional[Callable[[Frame], Optional[Frame]]] = None,
-    on_demand: bool = ON_DEMAND,
+    on_demand: bool | None = None,
     fIn: Optional[FrameInput] = None,
     fOut: Optional[FrameOutput] = None,
     interactive_listener: Any = _DEFAULT_LISTENER,
@@ -63,18 +76,21 @@ def live_loop(
     before_frame: Optional[Callable[[], None]] = None,
     output_backend: str = "virtual-cam",
     pace: bool = True,
+    settings: StartupSettings | None = None,
 ) -> Optional[int]:
     """Pass frames through a mod; bounded runs raise on missing input."""
     if max_frames is not None and max_frames < 1:
         raise ValueError("max_frames must be positive")
+    settings = settings or load_settings()
+    on_demand = settings.on_demand if on_demand is None else on_demand
     if fIn is None:
-        fIn = Webcam(width=IN_WIDTH, height=IN_HEIGHT)
+        fIn = Webcam(settings=settings)
 
     try:
         if interactive_listener is _DEFAULT_LISTENER:
             from webcam_mods.uses.interactive_controls import create_default_listener
 
-            interactive_listener = create_default_listener()
+            interactive_listener = create_default_listener(settings)
         if before_frame is None and hasattr(interactive_listener, "apply_commands"):
             before_frame = interactive_listener.apply_commands
         if interactive_listener is not None:
@@ -84,10 +100,8 @@ def live_loop(
         inp_props = fIn.setup()
         _validate_metadata(inp_props, "input")
         if fOut is None:
-            fOut = (
-                default_frame_output(inp_props["fps"])
-                if output_backend == "virtual-cam"
-                else default_frame_output(inp_props["fps"], backend=output_backend)
+            fOut = default_frame_output(
+                inp_props["fps"], backend=output_backend, settings=settings
             )
         logger.info(
             f"begin passing from #{fIn.__class__.__name__} to #{fOut.__class__.__name__}"

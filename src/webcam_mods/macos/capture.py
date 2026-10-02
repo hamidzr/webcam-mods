@@ -6,7 +6,7 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
-from webcam_mods import config
+from webcam_mods.settings import load_settings
 from webcam_mods.input.input import FrameInput
 
 _delegate_class: Any = None
@@ -21,7 +21,7 @@ class AVFoundationCamera(FrameInput):
 
     def __init__(
         self,
-        device_index: int = config.VIDEO_IN,
+        device_index: int | None = None,
         *,
         timeout: float = 10.0,
         **kwargs: Any,
@@ -36,7 +36,9 @@ class AVFoundationCamera(FrameInput):
             or not np.isfinite(self.fps)
         ):
             raise ValueError("camera dimensions and fps must be positive")
-        self.device_index = device_index
+        self.device_index = (
+            load_settings().video_in if device_index is None else device_index
+        )
         self.timeout = timeout
         self.timestamp: float | None = None
         self._condition = Condition()

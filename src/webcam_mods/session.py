@@ -10,6 +10,7 @@ import numpy as np
 from webcam_mods.mods.record_replay import Recorder
 from webcam_mods.mods.video_mods import crop, pad_inward_centered
 from webcam_mods.utils.config import Config
+from webcam_mods.settings import StartupSettings
 
 
 @dataclass(frozen=True)
@@ -28,9 +29,21 @@ class CommandResult:
 
 class RunSession:
     def __init__(
-        self, settings: Config | None = None, recording_limit: int = 256 * 1024 * 1024
+        self,
+        settings: Config | None = None,
+        recording_limit: int = 256 * 1024 * 1024,
+        *,
+        startup: StartupSettings | None = None,
     ) -> None:
-        self.settings = settings if settings is not None else Config()
+        self.settings = (
+            settings
+            if settings is not None
+            else (
+                Config(width=startup.in_width, height=startup.in_height)
+                if startup
+                else Config()
+            )
+        )
         self.recorder = Recorder(recording_limit)
         self.commands: Queue[Command] = Queue(maxsize=256)
         self._lock = Lock()

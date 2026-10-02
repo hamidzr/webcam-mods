@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from webcam_mods import config
+from webcam_mods.settings import load_settings
 from typing import Any, Optional, Dict, Generator, Tuple
 import cv2
 from webcam_mods.utils.video import Frame
@@ -11,15 +11,20 @@ class InNOut:
 
     def __init__(
         self,
-        width: int = config.OUT_WIDTH,
-        height: int = config.OUT_HEIGHT,
-        fps: int = config.MAX_OUT_FPS,
-        device: str = config.VIDEO_OUT,
-    ):
-        self.width = width
-        self.height = height
-        self.fps = fps
-        self.device = device
+        width: int | None = None,
+        height: int | None = None,
+        fps: float | None = None,
+        device: str | None = None,
+    ) -> None:
+        settings = (
+            load_settings()
+            if any(value is None for value in (width, height, fps, device))
+            else None
+        )
+        self.width = width if width is not None else settings.out_width
+        self.height = height if height is not None else settings.out_height
+        self.fps = fps if fps is not None else settings.max_out_fps
+        self.device = device if device is not None else settings.video_out
 
     @abstractmethod
     def setup(self) -> Dict[str, Any]:

@@ -10,7 +10,8 @@ import cv2
 import numpy as np
 import typer
 
-from webcam_mods.config import DEFAULT_BG_IMAGE, IN_FPS, IN_HEIGHT, IN_WIDTH, VIDEO_IN
+from webcam_mods.config import DEFAULT_BG_IMAGE
+from webcam_mods.settings import StartupSettings, load_settings
 from webcam_mods.loopback import live_loop
 from webcam_mods.mods.video_mods import brighten as brighten_mod, crop_rect
 from webcam_mods.output.gui import GUI
@@ -56,6 +57,7 @@ class Common:
     quality: str = "balanced"
     recording_limit_mb: int = 256
     output: str = "virtual-cam"
+    settings: StartupSettings | None = None
 
 
 def _run(
@@ -64,18 +66,29 @@ def _run(
     *,
     prepare: bool = True,
 ) -> None:
+    settings = common.settings or load_settings()
     with ExitStack() as resources:
         if effect is not None and hasattr(effect, "close"):
             resources.callback(effect.close)
-        session = RunSession(recording_limit=common.recording_limit_mb * 1024 * 1024)
+        session = RunSession(
+            recording_limit=common.recording_limit_mb * 1024 * 1024, startup=settings
+        )
         resources.callback(session.close)
-        controls = ControlAdapters(session) if common.controls and prepare else None
+        controls = (
+            ControlAdapters(session, settings=settings)
+            if common.controls and prepare
+            else None
+        )
         source = None
         if common.capture == "avfoundation":
             from webcam_mods.macos.capture import AVFoundationCamera
 
             source = AVFoundationCamera(
-                device_index=VIDEO_IN, width=IN_WIDTH, height=IN_HEIGHT, fps=IN_FPS
+                device_index=settings.video_in,
+                width=settings.in_width,
+                height=settings.in_height,
+                fps=settings.in_fps,
+                device=settings.video_out,
             )
 
         def process(frame: np.ndarray) -> np.ndarray | None:
@@ -90,6 +103,7 @@ def _run(
             before_frame=session.apply_commands,
             freeze_on_error=common.freeze_on_error,
             output_backend=common.output,
+            settings=settings,
         )
 
 
@@ -174,7 +188,8 @@ def track_face(
     with ExitStack() as resources:
         detector = FaceDetector()
         resources.callback(detector.close)
-        tracker = CropTracker()
+        settings = ctx.obj.settings or load_settings()
+        tracker = CropTracker(fps=min(settings.in_fps, settings.max_out_fps))
         resources.callback(tracker.close)
         background = (
             BackgroundEffect(ctx.obj, "blur_bg", blur_kernel_size) if blur else None
@@ -236,7 +251,38 @@ def common(
     output: OutputBackend = typer.Option(
         OutputBackend.virtual_cam, help="Final-frame output destination."
     ),
+    input_device: int | None = typer.Option(None, min=0),
+    input_width: int | None = typer.Option(None, min=1),
+    input_height: int | None = typer.Option(None, min=1),
+    input_fps: float | None = typer.Option(None, min=0.01),
+    input_format: str | None = None,
+    output_width: int | None = typer.Option(None, min=1),
+    output_height: int | None = typer.Option(None, min=1),
+    output_fps: float | None = typer.Option(None, min=0.01),
+    output_device: str | None = None,
+    on_demand: bool | None = typer.Option(None, "--on-demand/--no-on-demand"),
+    pan_control: bool | None = typer.Option(None, "--pan-control/--no-pan-control"),
+    padding_control: bool | None = typer.Option(
+        None, "--padding-control/--no-padding-control"
+    ),
 ) -> None:
+    try:
+        settings = load_settings(
+            video_in=input_device,
+            in_width=input_width,
+            in_height=input_height,
+            in_fps=input_fps,
+            in_format=input_format,
+            out_width=output_width,
+            out_height=output_height,
+            max_out_fps=output_fps,
+            video_out=output_device,
+            on_demand=on_demand,
+            pan_control=pan_control,
+            padding_control=padding_control,
+        )
+    except ValueError as error:
+        raise typer.BadParameter(str(error)) from error
     native_modules = set()
     if segmentation_backend == SegmentationBackend.vision:
         native_modules.update(("Vision", "Quartz"))
@@ -258,6 +304,7 @@ def common(
         vision_quality.value,
         recording_limit_mb,
         output.value,
+        settings,
     )
 
 

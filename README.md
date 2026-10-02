@@ -188,8 +188,13 @@ a text file to your disk which is by default located at `$HOME/.webcam-mods.conf
 
 Environment variables are used to configure different parameters. Read more about how to set or
 persist them [here](https://lmgtfy.app/?q=how+to+set+environment+variables+in+linux)
-These are mostly defined in the `config.py` file. To see their default values take a look at that
-file.
+Startup settings resolve once at command execution: CLI options override environment variables,
+then defaults from `settings.py`. Invalid values fail before devices open; `--help` remains available.
+Use `--input-device`, `--input-width`, `--input-height`, `--input-fps`, `--input-format`,
+`--output-width`, `--output-height`, `--output-fps`, `--output-device`,
+`--on-demand/--no-on-demand`, `--pan-control/--no-pan-control`, and
+`--padding-control/--no-padding-control` before the camera command.
+Booleans accept true/false (case-insensitive) or 1/0. Crop/padding persistence remains separate.
 
 - `VIDEO_IN` & `VIDEO_OUT`:
 If you have multiple video input devices, aka webcams, you can pick the one you want by providing its
@@ -226,7 +231,6 @@ house cleaning:
 - set up a language server for development with Vim and VSCode
 - replace the facetracking model with mediapipe
 - move the config file to `$XDG_CONFIG_HOME`
-- cli support for settings currently supported by env variables
 
 features:
 - [x] more stable edges for person segmentation

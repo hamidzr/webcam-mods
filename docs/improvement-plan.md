@@ -16,6 +16,7 @@ product requirement.
 - Scoped CLI model/timestamp/motion/native-context state to each run with cleanup.
 - Declared OpenCV dependency and optional native PyObjC extra.
 - Added optional Vision masks, Core Image backgrounds and AVFoundation capture.
+- Resolved startup settings once with CLI overrides, validation and actionable Linux-extra errors.
 - Centralized monotonic frame pacing across all outputs; preview pumps events during waits.
 - Added repeatable processing benchmark and measured portable float32 improvement.
 
@@ -27,7 +28,6 @@ product requirement.
 | Deferred | Remote CI validation excluded by user; Linux hardware remains untested | Explicit future request before remote validation |
 | 3 | Native quality tradeoffs measured on one moving fixture | Real moving-person footage including hair/hands/low light, comparable latency/memory/power |
 | 4 | Linux consumer detection differs across adapters | Real V4L2 consumer smoke check |
-| 5 | Settings remain partly import-time environment constants; Linux missing-extra errors may be opaque | Resolve startup settings once, preserve existing names, actionable backend errors |
 | 6 | External status/control and runtime settings changes remain unsupported | Define transport, local/remote access, auth, operation/status contract before adding API |
 | 7 | Legacy demos and stale mypy configuration | Separate scoped cleanup and typed interface checks |
 

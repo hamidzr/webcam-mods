@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 import tempfile
 
-from webcam_mods.config import IN_HEIGHT, IN_WIDTH
+from webcam_mods.settings import load_settings
 
 default_config_path = Path.home() / ".webcam-mods.conf"
 
@@ -14,10 +14,12 @@ class Config:
     def __init__(
         self,
         path: Path | None = default_config_path,
-        width: int = IN_WIDTH,
-        height: int = IN_HEIGHT,
+        width: int | None = None,
+        height: int | None = None,
     ) -> None:
-        self.width, self.height = width, height
+        settings = load_settings() if width is None or height is None else None
+        self.width = width if width is not None else settings.in_width
+        self.height = height if height is not None else settings.in_height
         self._path = Path(path) if path is not None else None
         self.reset()
         if self._path is not None:

@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from webcam_mods.config import PADDING_CONTROL, PAN_CONTROL
+from webcam_mods.settings import StartupSettings, load_settings
 from webcam_mods.session import Command, RunSession
 from webcam_mods.utils.cli_input import StdinControls
 
@@ -10,13 +10,16 @@ JUMP = 10
 
 
 class KeyboardControls:
-    def __init__(self, session: RunSession) -> None:
+    def __init__(
+        self, session: RunSession, settings: StartupSettings | None = None
+    ) -> None:
         self.session = session
+        self.settings = settings or load_settings()
         self.keys: set[Any] = set()
         self.listener = None
 
     def start(self) -> None:
-        if not (PAN_CONTROL or PADDING_CONTROL):
+        if not (self.settings.pan_control or self.settings.padding_control):
             return
         from pynput.keyboard import Key, Listener
 
@@ -36,12 +39,12 @@ class KeyboardControls:
         if key not in directions:
             return
         x, y = directions[key]
-        if PAN_CONTROL and Key.ctrl in self.keys:
+        if self.settings.pan_control and Key.ctrl in self.keys:
             if Key.shift in self.keys:
                 self.session.submit(Command("resize", x, y))
             else:
                 self.session.submit(Command("move", -x, -y))
-        if PADDING_CONTROL and Key.alt in self.keys:
+        if self.settings.padding_control and Key.alt in self.keys:
             self.session.submit(Command("pad", x, y))
 
     def on_release(self, key: Any) -> None:
@@ -57,10 +60,15 @@ class KeyboardControls:
 
 
 class ControlAdapters:
-    def __init__(self, session: RunSession, owns_session: bool = False) -> None:
+    def __init__(
+        self,
+        session: RunSession,
+        owns_session: bool = False,
+        settings: StartupSettings | None = None,
+    ) -> None:
         self.session = session
         self.owns_session = owns_session
-        self.keyboard = KeyboardControls(session)
+        self.keyboard = KeyboardControls(session, settings)
         self.stdin = StdinControls(session.submit)
 
     def start(self) -> None:
@@ -81,5 +89,8 @@ class ControlAdapters:
                     self.session.close()
 
 
-def create_default_listener() -> ControlAdapters:
-    return ControlAdapters(RunSession(), owns_session=True)
+def create_default_listener(settings: StartupSettings | None = None) -> ControlAdapters:
+    settings = settings or load_settings()
+    return ControlAdapters(
+        RunSession(startup=settings), owns_session=True, settings=settings
+    )

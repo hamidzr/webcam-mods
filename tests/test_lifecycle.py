@@ -98,7 +98,8 @@ class LifecycleTest(unittest.TestCase):
             "webcam_mods.loopback.default_frame_output", return_value=self.sink
         ) as factory:
             self.run_loop(fOut=None)
-        factory.assert_called_once_with(29.97)
+        self.assertEqual(factory.call_args.args, (29.97,))
+        self.assertEqual(factory.call_args.kwargs["backend"], "virtual-cam")
         self.assertEqual(self.source.setup_count, 1)
         self.assertEqual(self.sink.sent, 2)
         self.assertFalse(self.source.active)

@@ -1,6 +1,6 @@
 from typing import Callable, Generator, Optional, List, Any, Tuple
 import math
-from webcam_mods.config import MAX_OUT_FPS
+from webcam_mods.settings import load_settings
 from webcam_mods.geometry import Number, Rect, Point
 from loguru import logger
 
@@ -85,10 +85,11 @@ def wrap_with_padding(box: Rect, wr: float, hr: float) -> Rect:
 class CropTracker:
     """Own face-crop interpolation state for one run."""
 
-    def __init__(self, fps: int = MAX_OUT_FPS) -> None:
-        if fps < 1:
+    def __init__(self, fps: float | None = None) -> None:
+        fps = load_settings().max_out_fps if fps is None else fps
+        if not math.isfinite(fps) or fps <= 0:
             raise ValueError("Crop tracker FPS must be positive")
-        self.fps = fps
+        self.fps = max(1, round(fps))
         self.last_pred: Optional[Rect] = None
         self.cur_crop: Optional[Rect] = None
         self.transition: Optional[Generator[Rect, None, None]] = None

@@ -65,8 +65,7 @@ class PreviewTests(unittest.TestCase):
         self.assertFalse(preview.is_setup())
 
     def test_selection_uses_negotiated_fps_and_configured_output_dimensions(self):
-        with patch("webcam_mods.loopback.MAX_OUT_FPS", 30):
-            preview = default_frame_output(12, backend="preview")
+        preview = default_frame_output(12, backend="preview")
         self.assertIsInstance(preview, GUI)
         self.assertEqual(preview.fps, 12)
         from webcam_mods import config
