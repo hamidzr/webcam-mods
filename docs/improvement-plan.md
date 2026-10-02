@@ -20,14 +20,14 @@ product requirement.
 - Repaired legacy face entrypoint and isolated box-demo tracker state.
 - Resolved startup settings once with CLI overrides, validation and actionable Linux-extra errors.
 - Centralized monotonic frame pacing across all outputs; preview pumps events during waits.
-- Added live-camera measurement script; fixture-to-OBS smoke passed, live capture remains permission-blocked.
+- Added live-camera measurement script; fixture-to-OBS smoke passed, Terminal live capture confirmed; native-format override found and fixed with retained device lock.
 - Added repeatable processing benchmark and measured portable float32 improvement.
 
 ## Next checks and priorities
 
 | Priority | Remaining issue | Acceptance evidence |
 | --- | --- | --- |
-| 1 | Native camera permission/hardware capture, conferencing reception | Run from authorized Terminal; prove repeated start/stop, negotiated dimensions/FPS, OBS reception |
+| 1 | Native-format fix hardware rerun, repeated start/stop, conferencing reception | Confirm 640x480 input from Terminal; prove repeated start/stop and OBS reception |
 | Deferred | Remote CI validation excluded by user; Linux hardware remains untested | Explicit future request before remote validation |
 | 3 | Native quality tradeoffs measured on one moving fixture | Real moving-person footage including hair/hands/low light, comparable latency/memory/power |
 | 4 | Linux consumer detection differs across adapters | Real V4L2 consumer smoke check |

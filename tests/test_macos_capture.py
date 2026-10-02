@@ -68,6 +68,29 @@ class CameraMailboxTest(unittest.TestCase):
         output.setSampleBufferDelegate_queue_.assert_called_once_with(None, None)
         self.assertIsNone(camera._output)
 
+    def test_owned_device_lock_is_released_once_on_teardown(self) -> None:
+        camera = AVFoundationCamera()
+        device = Mock()
+        camera._locked_device = device
+        camera.teardown()
+        camera.teardown()
+        device.unlockForConfiguration.assert_called_once()
+        self.assertIsNone(camera._locked_device)
+
+    def test_stopping_timeout_keeps_device_lock_until_worker_finishes(self) -> None:
+        camera = AVFoundationCamera(timeout=0.01)
+        device = Mock()
+        worker = Mock()
+        camera._locked_device = device
+        camera._worker = worker
+        worker.is_alive.return_value = True
+        with self.assertRaises(TimeoutError):
+            camera.teardown()
+        device.unlockForConfiguration.assert_not_called()
+        worker.is_alive.return_value = False
+        camera.teardown()
+        device.unlockForConfiguration.assert_called_once()
+
     @unittest.skipUnless(
         sys.platform == "darwin" and importlib.util.find_spec("Quartz") is not None,
         "optional macOS Quartz bindings unavailable",
@@ -126,7 +149,18 @@ class CameraMailboxTest(unittest.TestCase):
         rate.maxFrameRate.return_value = 60
         fmt.videoSupportedFrameRateRanges.return_value = [rate]
         device.formats.return_value = [fmt]
-        device.lockForConfiguration_.return_value = (True, None)
+        lock_state = {"held": False}
+
+        def lock_device(_):
+            lock_state["held"] = True
+            return True, None
+
+        def unlock_device():
+            self.assertTrue(lock_state["held"])
+            lock_state["held"] = False
+
+        device.lockForConfiguration_.side_effect = lock_device
+        device.unlockForConfiguration.side_effect = unlock_device
         device.activeVideoMinFrameDuration.return_value = cm.CMTimeMake(1, 30)
         session = Mock()
         # macOS rejects inputPriority even though the binding exposes it
@@ -142,9 +176,21 @@ class CameraMailboxTest(unittest.TestCase):
             self.assertIs(selected, fmt)
 
         device.setActiveFormat_.side_effect = configure_format
-        session.startRunning.side_effect = lambda: camera._publish(
-            np.zeros((3, 7, 3), dtype=np.uint8), 0.0
-        )
+
+        def commit_configuration():
+            self.assertTrue(
+                lock_state["held"], "macOS format must stay locked through commit"
+            )
+
+        def start_running():
+            self.assertTrue(
+                lock_state["held"], "macOS format must stay locked through start"
+            )
+            camera._publish(np.zeros((3, 7, 3), dtype=np.uint8), 0.0)
+
+        session.stopRunning.side_effect = lambda: self.assertTrue(lock_state["held"])
+        session.commitConfiguration.side_effect = commit_configuration
+        session.startRunning.side_effect = start_running
         session.canAddInput_.return_value = True
         session.canAddOutput_.return_value = True
         sessions = Mock()
@@ -174,9 +220,11 @@ class CameraMailboxTest(unittest.TestCase):
                 metadata = camera.setup()
                 self.assertEqual(metadata, {"width": 7, "height": 3, "fps": 30.0})
                 self.assertTrue(camera.is_setup())
+                self.assertTrue(lock_state["held"])
                 self.assertEqual(camera.frame().shape, (3, 7, 3))
                 camera.teardown()
                 self.assertFalse(camera.is_setup())
+                self.assertFalse(lock_state["held"])
             session.startRunning.side_effect = RuntimeError("native startup failure")
             with self.assertRaisesRegex(RuntimeError, "startup failed"):
                 camera.setup()
@@ -188,11 +236,22 @@ class CameraMailboxTest(unittest.TestCase):
             self.assertIsNone(camera._session)
             self.assertIsNone(camera._output)
             self.assertFalse(camera.is_setup())
-        self.assertEqual(session.stopRunning.call_count, 3)
+            device.setActiveFormat_.side_effect = configure_format
+            session.startRunning.side_effect = lambda: camera._publish(
+                np.zeros((24, 32, 3), dtype=np.uint8), 0.0
+            )
+            with self.assertRaisesRegex(
+                RuntimeError, "camera returned 32x24; requested 7x3"
+            ):
+                camera.setup()
+            self.assertFalse(lock_state["held"])
+            self.assertIsNone(camera._locked_device)
+        self.assertEqual(session.stopRunning.call_count, 4)
+        self.assertEqual(device.unlockForConfiguration.call_count, 5)
         session.canSetSessionPreset_.assert_not_called()
         session.setSessionPreset_.assert_not_called()
-        self.assertEqual(session.beginConfiguration.call_count, 4)
-        self.assertEqual(session.commitConfiguration.call_count, 4)
+        self.assertEqual(session.beginConfiguration.call_count, 5)
+        self.assertEqual(session.commitConfiguration.call_count, 5)
 
 
 if __name__ == "__main__":

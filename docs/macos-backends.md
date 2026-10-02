@@ -30,7 +30,11 @@ resolutions/FPS instead of silently switching cameras. Capture requires a format
 matching requested dimensions/FPS, retains only the
 latest frame, copies callback BGRA buffers into owned BGR arrays and reports sample
 timestamps. Setup attaches input/output before selecting activeFormat and FPS,
-configuring the device directly. The inputPriority preset is unsupported on macOS
+configuring the device directly and holding its configuration lock through capture.
+The lock is released after the native worker stops, including startup-failure cleanup.
+Unexpected first-frame dimensions fail startup instead of silently increasing the
+processing workload. [Apple documents automatic macOS format changes](https://developer.apple.com/documentation/avfoundation/capture-device-formats).
+The inputPriority preset is unsupported on macOS
 and is never selected. Startup, frame waits and shutdown have timeouts. `IN_FPS` now applies
 to both capture backends. Native capture ignores OpenCV's `IN_FORMAT` FOURCC.
 
@@ -150,5 +154,10 @@ exact saved output, partial setup cleanup, early close and invalid workloads. A
 12-frame fixture smoke test (three warmup frames) passed through Vision fast,
 Core Image and OBS at 640x480/30 FPS; observed delivery was 29.67 FPS. This short
 fixture run establishes delivery and cleanup, not live-camera performance.
-Camera benchmark startup from T3 still reports permission denial; no live-camera
-measurements or conferencing reception are claimed.
+Camera benchmark startup from T3 still reports permission denial. An authorized
+Terminal run confirmed camera delivery: 300 frames after 30 warmup, Vision fast,
+OpenCV blur and preview. Capture unexpectedly returned 1920x1080 despite a 640x480
+request. Processing median/p95 was 24.32/31.70 ms, capture-to-send 25.29/32.68 ms,
+delivery 26.35 FPS and process peak RSS 458,276,864 bytes. Device-lock retention
+now prevents automatic format changes; a hardware rerun must confirm the requested
+640x480 input. Conferencing reception remains unverified.

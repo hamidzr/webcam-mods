@@ -84,7 +84,7 @@ record/replay bounds, model state isolation, partial startup cleanup, real CPU
 MediaPipe, real Vision/Core Image and native buffer orientation/stride/lifetime.
 Use make verify UV_FLAGS='--extra macos' to run optional native tests.
 
-Supported runtime: Python 3.14 only. Local macOS ARM64 checks pass: 127 tests.
+Supported runtime: Python 3.14 only. Local macOS ARM64 checks pass: 129 tests.
 Both CLI entrypoints run and wheel/source-distribution builds succeed. GitHub verification workflow
 targets Python 3.14 on macOS ARM64 and Linux x86_64; remote validation
 is excluded by user choice. Local Linux execution was not performed.
@@ -98,11 +98,14 @@ OBS Virtual Camera initialized, received three synthetic 640x480 frames at 30 FP
 and closed successfully. A subsequent 12-frame fixture run exercised Vision, Core
 Image and production live_loop through real OBS output with cleanup. Conferencing-app reception was not checked. Initial
 camera permission requests from T3 Code/Python failed for both direct AVFoundation
-and OpenCV; native device capture remains pending permission/hardware verification.
+and OpenCV. Capture is now confirmed from authorized Terminal; T3 still lacks access.
 A Terminal hardware attempt exposed use of the inputPriority preset, which is
 unsupported on macOS despite being exported by the Python binding. Setup now
 attaches input/output before selecting activeFormat/FPS directly. Mocked regression covers unsupported explicit preset, setup
-ordering and format-failure cleanup; hardware retest from Terminal remains pending.
+ordering and format-failure cleanup. Native capture retains the device configuration
+lock until session shutdown, preventing macOS from overriding the selected format
+at commit/start. Cleanup releases it once, including startup failures; a stopping
+timeout retains it until the worker finishes. Startup rejects unexpected frame dimensions.
 Tests with mocked camera startup do not establish hardware delivery. The new
 live benchmark camera smoke test also failed with permission denial. A later
 Terminal run exposed AVFoundation index 0 selecting OBS (1920x1080/60 only),
@@ -111,7 +114,15 @@ selection confirmed both; benchmark now accepts `--input-device`, and format
 errors include device identity, available formats and selection guidance. Five headless
 benchmark regressions pass, and its measurement path delivered 12 fixture frames
 through Vision fast/Core Image and real OBS output at 29.67 FPS (30 FPS target).
-This verifies cadence/delivery, not real-camera throughput.
+This fixture smoke verifies cadence/delivery, not real-camera throughput.
+
+User Terminal run: physical index 1 delivered 300 measured frames after 30 warmup,
+Vision fast/OpenCV blur/preview, 640x480 output at a 30 FPS target. Before the lock
+fix, capture unexpectedly returned 1920x1080: processing median 24.32 ms/p95
+31.70 ms, capture-to-send median 25.29 ms/p95 32.68 ms, delivery 26.35 FPS and
+process peak RSS 458,276,864 bytes. This confirms hardware capture but exposes an
+incorrect capture resolution. Requested 640x480 delivery after the lock fix and
+repeated hardware start/stop still need a Terminal rerun.
 
 Other remaining gaps:
 

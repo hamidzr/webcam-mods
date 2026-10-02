@@ -80,6 +80,7 @@ class AVFoundationCamera(FrameInput):
         self._running = False
         self._stop = Event()
         self._worker: Thread | None = None
+        self._locked_device: Any = None
         self._session: Any = None
         self._output: Any = None
         self._delegate: Any = None
@@ -240,14 +241,12 @@ class AVFoundationCamera(FrameInput):
                 locked, error = device.lockForConfiguration_(None)
                 if not locked:
                     raise RuntimeError(f"could not configure camera: {error}")
-                try:
-                    # configure the attached device directly; inputPriority is unsupported on macOS
-                    device.setActiveFormat_(selected_format)
-                    duration = cm.CMTimeMake(1000, round(self.fps * 1000))
-                    device.setActiveVideoMinFrameDuration_(duration)
-                    device.setActiveVideoMaxFrameDuration_(duration)
-                finally:
-                    device.unlockForConfiguration()
+                # macOS may override the format at commit/start unless this lock is retained
+                self._locked_device = device
+                device.setActiveFormat_(selected_format)
+                duration = cm.CMTimeMake(1000, round(self.fps * 1000))
+                device.setActiveVideoMinFrameDuration_(duration)
+                device.setActiveVideoMaxFrameDuration_(duration)
             finally:
                 self._session.commitConfiguration()
             self._running = True
@@ -287,7 +286,11 @@ class AVFoundationCamera(FrameInput):
                         "camera produced no frame before startup timeout"
                     )
                 first, _ = self._pending
-                self.height, self.width = first.shape[:2]
+                height, width = first.shape[:2]
+                if (width, height) != (self.width, self.height):
+                    raise RuntimeError(
+                        f"camera returned {width}x{height}; requested {self.width}x{self.height}"
+                    )
             duration = device.activeVideoMinFrameDuration()
             self.fps = 1.0 / cm.CMTimeGetSeconds(duration)
             return {"width": self.width, "height": self.height, "fps": self.fps}
@@ -332,8 +335,15 @@ class AVFoundationCamera(FrameInput):
             if self._worker.is_alive():
                 raise TimeoutError("native camera session is still stopping")
             self._worker = None
-        elif self._output is not None:
-            self._output.setSampleBufferDelegate_queue_(None, None)
-        if self._delegate is not None:
-            self._delegate.owner = None
-        self._session = self._output = self._delegate = self._queue = None
+        try:
+            if self._output is not None:
+                self._output.setSampleBufferDelegate_queue_(None, None)
+            if self._delegate is not None:
+                self._delegate.owner = None
+        finally:
+            device, self._locked_device = self._locked_device, None
+            try:
+                if device is not None:
+                    device.unlockForConfiguration()
+            finally:
+                self._session = self._output = self._delegate = self._queue = None
