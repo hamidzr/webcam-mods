@@ -169,7 +169,13 @@ class CliPipelineTests(unittest.TestCase):
 
                     def bounded_loop(**kwargs):
                         kwargs["fIn"] = source
-                        live_loop(**kwargs, fOut=sink, max_frames=3, strict_errors=True)
+                        live_loop(
+                            **kwargs,
+                            fOut=sink,
+                            max_frames=3,
+                            strict_errors=True,
+                            pace=False,
+                        )
 
                     with (
                         patch.object(entry, "live_loop", side_effect=bounded_loop),

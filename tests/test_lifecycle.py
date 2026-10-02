@@ -83,6 +83,7 @@ class LifecycleTest(unittest.TestCase):
 
     def run_loop(self, **kwargs: Any) -> None:
         live_loop(
+            pace=False,
             fIn=self.source,
             fOut=kwargs.pop("fOut", self.sink),
             interactive_listener=kwargs.pop("interactive_listener", None),
@@ -147,7 +148,7 @@ class LifecycleTest(unittest.TestCase):
         self.assertEqual(
             self.source.events, ["control", "capture", "control", "capture"]
         )
-        self.assertEqual(self.sink.waits, 2)
+        self.assertEqual(self.sink.waits, 0)
 
     def test_control_failure_cleanup(self) -> None:
         with self.assertRaisesRegex(RuntimeError, "control failure"):

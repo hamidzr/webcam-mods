@@ -13,7 +13,7 @@ from loguru import logger
 from webcam_mods.input.video_dev import Webcam
 from webcam_mods.input.input import FrameInput, FrameOutput
 from webcam_mods.utils.video import Frame
-import time
+from webcam_mods.timing import FramePacer
 from typing import Any, Callable, Optional
 
 from webcam_mods.mods.video_mods import resize_and_pad
@@ -62,6 +62,7 @@ def live_loop(
     strict_errors: bool = False,
     before_frame: Optional[Callable[[], None]] = None,
     output_backend: str = "virtual-cam",
+    pace: bool = True,
 ) -> Optional[int]:
     """Pass frames through a mod; bounded runs raise on missing input."""
     if max_frames is not None and max_frames < 1:
@@ -107,6 +108,12 @@ def live_loop(
             def handle_empty_frame() -> Frame:
                 return last_frame if freeze_on_error else error_frame
 
+            pacer = FramePacer(outp_props["fps"])
+
+            def process_output_events() -> bool:
+                cam.process_events()
+                return not cam.should_stop()
+
             sent_frames = 0
             while max_frames is None or sent_frames < max_frames:
                 if before_frame is not None:
@@ -119,7 +126,6 @@ def live_loop(
                 frame = None
                 if paused:
                     frame = paused_frame
-                    time.sleep(0.5)  # lower the fps when paused
                 else:
                     if not fIn.is_setup():
                         _validate_metadata(fIn.setup(), "input")
@@ -128,6 +134,11 @@ def live_loop(
                     if frame is None:
                         if max_frames is not None or strict_errors:
                             raise RuntimeError("input returned no frame")
+                        if pace:
+                            if not pacer.wait(process_events=process_output_events):
+                                break
+                        elif not process_output_events():
+                            break
                         continue
                     try:
                         if mod:
@@ -149,9 +160,14 @@ def live_loop(
                 # assert frame.shape[1] == fOut.width
                 # logger.debug('sending frame shape', frame.shape)
                 cam.send(frame)
-                cam.wait_until_next_frame()
                 sent_frames += 1
-                if cam.should_stop():
+                if pace:
+                    if not pacer.wait(
+                        interval=0.5 if paused else None,
+                        process_events=process_output_events,
+                    ):
+                        break
+                elif not process_output_events():
                     break
     finally:
         try:

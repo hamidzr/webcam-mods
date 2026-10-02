@@ -1,11 +1,11 @@
 """Bare, paced preview of the final output frame."""
 
-import time
 from typing import Any
 
 import cv2
 
 from webcam_mods.input.input import FrameOutput, Frame
+from webcam_mods.timing import FramePacer
 
 
 class GUI(FrameOutput):
@@ -16,13 +16,13 @@ class GUI(FrameOutput):
         super().__init__(**kwargs)
         self._active = False
         self._closed = False
-        self._deadline = 0.0
+        self._pacer: FramePacer | None = None
 
     def setup(self) -> dict[str, Any]:
         self._closed = False
         self._active = True
         cv2.namedWindow(self.window_name, cv2.WINDOW_AUTOSIZE | cv2.WINDOW_GUI_NORMAL)
-        self._deadline = time.monotonic()
+        self._pacer = FramePacer(self.fps)
         return {"width": self.width, "height": self.height, "fps": self.fps}
 
     def teardown(self, *args: Any) -> None:
@@ -44,21 +44,25 @@ class GUI(FrameOutput):
         if not self._closed:
             cv2.imshow(self.window_name, frame)
 
+    def process_events(self) -> None:
+        if self._closed:
+            return
+        key = cv2.waitKey(1) & 0xFF
+        try:
+            visible = cv2.getWindowProperty(self.window_name, cv2.WND_PROP_VISIBLE)
+        except cv2.error:
+            visible = 0
+        if key == 27 or visible < 1:
+            self._closed = True
+
     def wait_until_next_frame(self) -> None:
-        self._deadline = max(self._deadline + 1 / self.fps, time.monotonic())
-        while not self._closed:
-            key = cv2.waitKey(1) & 0xFF
-            try:
-                visible = cv2.getWindowProperty(self.window_name, cv2.WND_PROP_VISIBLE)
-            except cv2.error:
-                visible = 0
-            if key == 27 or visible < 1:
-                self._closed = True
-                break
-            remaining = self._deadline - time.monotonic()
-            if remaining <= 0:
-                break
-            time.sleep(min(remaining, 0.02))
+        """Compatibility pacing for callers outside live_loop."""
+        if self._pacer is not None:
+            self._pacer.wait(process_events=self._process_and_continue)
+
+    def _process_and_continue(self) -> bool:
+        self.process_events()
+        return not self.should_stop()
 
     def should_stop(self) -> bool:
         return self._closed

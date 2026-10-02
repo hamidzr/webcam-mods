@@ -87,10 +87,13 @@ class FrameOutput(InNOut):
     def __enter__(self) -> Tuple["FrameOutput", Dict[str, Any]]:
         return super().__enter__()  # type: ignore
 
+    def process_events(self) -> None:
+        """Pump output events without waiting for the next frame."""
+
     def should_stop(self) -> bool:
         """Allow interactive outputs to end a run normally."""
         return False
 
     def is_in_use(self) -> bool:
         # implement to support on_demand processing feature
-        raise True
+        raise NotImplementedError("output does not support consumer detection")

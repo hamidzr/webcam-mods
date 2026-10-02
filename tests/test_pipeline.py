@@ -111,6 +111,7 @@ class PipelineTest(unittest.TestCase):
         start = time.perf_counter()
         try:
             live_loop(
+                pace=False,
                 mod=mod,
                 fIn=self.source,
                 fOut=self.sink,
@@ -294,6 +295,7 @@ class PipelineTest(unittest.TestCase):
         ):
             with self.assertRaisesRegex(FileNotFoundError, "failed to open"):
                 live_loop(
+                    pace=False,
                     fIn=camera,
                     fOut=self.sink,
                     interactive_listener=None,

@@ -123,19 +123,17 @@ class PreviewTests(unittest.TestCase):
     def test_processing_time_counts_toward_frame_period(self):
         self.windows()
         preview = GUI(fps=10)
-        with patch("webcam_mods.output.gui.time.monotonic", return_value=10):
-            preview.setup()
-        clock = [10.08]
+        clock = [10.0]
 
         def sleep(seconds):
             clock[0] += seconds
 
         with (
-            patch(
-                "webcam_mods.output.gui.time.monotonic", side_effect=lambda: clock[0]
-            ),
-            patch("webcam_mods.output.gui.time.sleep", side_effect=sleep) as wait,
+            patch("webcam_mods.timing.time.monotonic", side_effect=lambda: clock[0]),
+            patch("webcam_mods.timing.time.sleep", side_effect=sleep) as wait,
         ):
+            preview.setup()
+            clock[0] += 0.08
             preview.wait_until_next_frame()
         self.assertAlmostEqual(sum(call.args[0] for call in wait.call_args_list), 0.02)
         self.assertAlmostEqual(clock[0], 10.1)
