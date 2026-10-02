@@ -188,29 +188,12 @@ class AVFoundationCamera(FrameInput):
                 raise ValueError(
                     f"camera cannot deliver {self.width}x{self.height} at {self.fps} fps"
                 )
-            locked, error = device.lockForConfiguration_(None)
-            if not locked:
-                raise RuntimeError(f"could not configure camera: {error}")
-            try:
-                device.setActiveFormat_(formats[0])
-                duration = cm.CMTimeMake(1000, round(self.fps * 1000))
-                device.setActiveVideoMinFrameDuration_(duration)
-                device.setActiveVideoMaxFrameDuration_(duration)
-            finally:
-                device.unlockForConfiguration()
             camera_input, error = av.AVCaptureDeviceInput.deviceInputWithDevice_error_(
                 device, None
             )
             if camera_input is None:
                 raise RuntimeError(f"could not open camera: {error}")
             self._session = av.AVCaptureSession.alloc().init()
-            if not self._session.canSetSessionPreset_(
-                av.AVCaptureSessionPresetInputPriority
-            ):
-                raise RuntimeError(
-                    "camera session cannot honor explicit capture format"
-                )
-            self._session.setSessionPreset_(av.AVCaptureSessionPresetInputPriority)
             self._output = av.AVCaptureVideoDataOutput.alloc().init()
             self._output.setVideoSettings_(
                 {q.kCVPixelBufferPixelFormatTypeKey: q.kCVPixelFormatType_32BGRA}
@@ -222,12 +205,27 @@ class AVFoundationCamera(FrameInput):
                 b"webcam-mods.capture", None
             )
             self._output.setSampleBufferDelegate_queue_(self._delegate, self._queue)
-            if not self._session.canAddInput_(camera_input):
-                raise RuntimeError("could not attach camera input")
-            self._session.addInput_(camera_input)
-            if not self._session.canAddOutput_(self._output):
-                raise RuntimeError("could not attach camera output")
-            self._session.addOutput_(self._output)
+            self._session.beginConfiguration()
+            try:
+                if not self._session.canAddInput_(camera_input):
+                    raise RuntimeError("could not attach camera input")
+                self._session.addInput_(camera_input)
+                if not self._session.canAddOutput_(self._output):
+                    raise RuntimeError("could not attach camera output")
+                self._session.addOutput_(self._output)
+                locked, error = device.lockForConfiguration_(None)
+                if not locked:
+                    raise RuntimeError(f"could not configure camera: {error}")
+                try:
+                    # attached device format makes the session use inputPriority automatically
+                    device.setActiveFormat_(formats[0])
+                    duration = cm.CMTimeMake(1000, round(self.fps * 1000))
+                    device.setActiveVideoMinFrameDuration_(duration)
+                    device.setActiveVideoMaxFrameDuration_(duration)
+                finally:
+                    device.unlockForConfiguration()
+            finally:
+                self._session.commitConfiguration()
             self._running = True
             session, output, stop = self._session, self._output, self._stop
 

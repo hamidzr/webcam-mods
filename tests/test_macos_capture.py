@@ -102,6 +102,19 @@ class CameraMailboxTest(unittest.TestCase):
         device.lockForConfiguration_.return_value = (True, None)
         device.activeVideoMinFrameDuration.return_value = cm.CMTimeMake(1, 30)
         session = Mock()
+        # inputPriority is inferred from activeFormat, not explicitly settable
+        session.canSetSessionPreset_.return_value = False
+
+        def configure_format(selected):
+            self.assertTrue(
+                session.addInput_.called, "attach camera before format selection"
+            )
+            self.assertTrue(
+                session.addOutput_.called, "attach output before format selection"
+            )
+            self.assertIs(selected, fmt)
+
+        device.setActiveFormat_.side_effect = configure_format
         session.startRunning.side_effect = lambda: camera._publish(
             np.zeros((3, 7, 3), dtype=np.uint8), 0.0
         )
@@ -142,7 +155,17 @@ class CameraMailboxTest(unittest.TestCase):
                 camera.setup()
             self.assertIsNone(camera._session)
             self.assertFalse(camera.is_setup())
+            device.setActiveFormat_.side_effect = RuntimeError("format rejected")
+            with self.assertRaisesRegex(RuntimeError, "format rejected"):
+                camera.setup()
+            self.assertIsNone(camera._session)
+            self.assertIsNone(camera._output)
+            self.assertFalse(camera.is_setup())
         self.assertEqual(session.stopRunning.call_count, 3)
+        session.canSetSessionPreset_.assert_not_called()
+        session.setSessionPreset_.assert_not_called()
+        self.assertEqual(session.beginConfiguration.call_count, 4)
+        self.assertEqual(session.commitConfiguration.call_count, 4)
 
 
 if __name__ == "__main__":

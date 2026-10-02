@@ -90,6 +90,10 @@ and closed successfully. A subsequent 12-frame fixture run exercised Vision, Cor
 Image and production live_loop through real OBS output with cleanup. Conferencing-app reception was not checked. Initial
 camera permission requests from T3 Code/Python failed for both direct AVFoundation
 and OpenCV; native device capture remains pending permission/hardware verification.
+A Terminal hardware attempt exposed premature explicit inputPriority selection.
+Setup now attaches input/output before selecting activeFormat/FPS, without manually
+setting inputPriority. Mocked regression covers unsupported explicit preset, setup
+ordering and format-failure cleanup; hardware retest from Terminal remains pending.
 Tests with mocked camera startup do not establish hardware delivery.
 
 Other remaining gaps:
