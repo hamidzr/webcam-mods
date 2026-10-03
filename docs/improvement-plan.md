@@ -5,6 +5,22 @@ remaining work below is proposed. Preserve macOS and Linux behavior and existing
 CLI commands. Do not add a server or generic plugin framework without a concrete
 product requirement.
 
+## Goal and review cadence
+
+Goal: improve macOS capture/processing and predictable run/session ownership while
+preserving the supported CLI, portable fallback, test seams and OBS output.
+
+Reprioritize after each completed section, hardware result or scope change. Before
+starting the next section, review the full completed/remaining/deferred log against
+this goal, update acceptance evidence and explain any priority change. New visual
+issues belong in the backlog unless promoted deliberately. Keep each validated
+implementation section independently committed.
+
+Latest review: corrected native capture/cadence is confirmed. Boundary polish is
+explicitly deferred. Repeated lifecycle and actual OBS/conferencing delivery are
+the next acceptance checks; remote CI, screen sharing and an own camera extension
+remain excluded.
+
 ## Completed
 
 - Added macOS/Linux Python 3.14 verification workflow; remote validation excluded by user.
@@ -23,16 +39,40 @@ product requirement.
 - Centralized monotonic frame pacing across outputs; removed redundant deadline GUI polling and cumulative jitter drift.
 - Added live-camera measurement script; fixture-to-OBS smoke passed, Terminal live capture confirmed; native-format override found and fixed with retained device lock.
 - Added repeatable processing benchmark and measured portable float32 improvement.
+- Confirmed corrected native camera -> Vision fast -> preview at 640x480/30 from Terminal: 300 measured frames, 29.96 FPS.
 
-## Next checks and priorities
+## Current checkpoint and next checks
 
-| Priority | Remaining issue | Acceptance evidence |
+Core session/control ownership, startup settings, native capture/processing adapters,
+preview output, pacing, typing and legacy cleanup are implemented. The 640x480
+native capture fix is now hardware-confirmed. Continue validation of these changes
+before adding new architecture or visual polish.
+
+| Priority | Remaining check | Acceptance evidence |
 | --- | --- | --- |
-| 1 | Native-format fix hardware rerun, repeated start/stop, conferencing reception | Confirm 640x480 input from Terminal; prove repeated start/stop and OBS reception |
-| Deferred | Remote CI validation excluded by user; Linux hardware remains untested | Explicit future request before remote validation |
-| 3 | Native quality tradeoffs measured on one moving fixture | Real moving-person footage including hair/hands/low light, comparable latency/memory/power |
-| 4 | Linux consumer detection differs across adapters | Real V4L2 consumer smoke check |
-| 6 | External status/control and runtime settings changes remain unsupported | Define transport, local/remote access, auth, operation/status contract before adding API |
+| 1 | Repeated native start/stop and actual OBS/conferencing delivery | Several authorized Terminal runs with cleanup; camera reception in a conferencing client |
+| 2 | Broader native quality/cost comparison | Compare fast/balanced/accurate and portable masks on moving hair/hands/low light; record latency/memory and visual results |
+| 3 | Linux consumer detection and native output parity | Real V4L2 consumer smoke check when Linux hardware is available |
+
+Remote CI validation is explicitly excluded. Python 3.14 is the only supported
+runtime. Screen sharing and an own signed virtual-camera extension are excluded;
+retain OBS output.
+
+## Deferred visual polish
+
+- Background-blur boundary shifts/jitters many times per second in the live
+  Vision fast preview (user observation, 2026-10-02).
+- Investigate quality-level tradeoffs, edge feathering and temporal mask
+  stabilization with motion-aware reset/adaptation.
+- Acceptance: steadier static edges and smoother hair/hands without obvious
+  motion trails, delayed subject departure or lost fine detail; measure added
+  cost and preserve the 640x480/30 target.
+- Deferred by user choice. No mask-refinement implementation has been added.
+  Resume as a separate section after the current improvement checkpoints.
+
+External runtime control/API, hot input switching and native-frame experiments
+remain future product/architecture decisions, not active implementation tasks.
+The sections below retain the design constraints for that later work.
 
 ## Shared control direction
 

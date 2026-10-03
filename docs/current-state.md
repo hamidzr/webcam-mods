@@ -131,8 +131,14 @@ Vision fast/OpenCV blur/preview, 640x480 output at a 30 FPS target. Before the l
 fix, capture unexpectedly returned 1920x1080: processing median 24.32 ms/p95
 31.70 ms, capture-to-send median 25.29 ms/p95 32.68 ms, delivery 26.35 FPS and
 process peak RSS 458,276,864 bytes. This confirms hardware capture but exposes an
-incorrect capture resolution. Requested 640x480 delivery after the lock fix and
-repeated hardware start/stop still need a Terminal rerun.
+incorrect capture resolution. Corrected Terminal rerun is now confirmed: 300 measured frames after 30 warmup,
+640x480 input/output at 30 FPS target, delivery 29.955 FPS. Processing median/p95
+6.34/15.23 ms, capture-to-send 21.30/31.64 ms, capture wait 14.01/17.03 ms, and
+process peak RSS 315,473,920 bytes. This is the requested resolution, not a same-
+resolution comparison with the earlier 1080p run. Repeated hardware start/stop and
+conferencing reception remain unverified. User observed frequent mask-boundary
+jitter in Vision fast preview; visual refinement is explicitly deferred in the
+[improvement plan](improvement-plan.md).
 
 Other remaining gaps:
 

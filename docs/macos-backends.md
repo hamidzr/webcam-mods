@@ -162,8 +162,13 @@ Terminal run confirmed camera delivery: 300 frames after 30 warmup, Vision fast,
 OpenCV blur and preview. Capture unexpectedly returned 1920x1080 despite a 640x480
 request. Processing median/p95 was 24.32/31.70 ms, capture-to-send 25.29/32.68 ms,
 delivery 26.35 FPS and process peak RSS 458,276,864 bytes. Device-lock retention
-now prevents automatic format changes; a hardware rerun must confirm the requested
-640x480 input. Conferencing reception remains unverified.
+now prevents automatic format changes. Corrected Terminal run confirmed 640x480
+input/output, 300 measured frames after 30 warmup, delivery 29.955 FPS, processing
+median/p95 6.34/15.23 ms and capture-to-send 21.30/31.64 ms. Capture wait was
+14.01/17.03 ms and process peak RSS 315,473,920 bytes. Earlier run processed 1080p;
+these results are not a same-resolution backend comparison. Conferencing reception
+and repeated hardware start/stop remain unverified. User observed frequent boundary
+jitter with Vision fast; mask refinement is deferred in the improvement plan.
 
 Preview pacing follow-up: a 120-frame fixed-fixture run (10 warmup, 640x480,
 Vision fast/OpenCV blur) observed 22.19 FPS with the original pacing and 30.00
@@ -172,4 +177,5 @@ and prevents minor timing jitter from shifting every subsequent deadline. Proces
 medians differed (11.92/6.03 ms), so this short fixture evidence does not establish
 a model-speed gain. Fake-clock regressions independently isolate event overhead,
 sleep overruns and whole-period missed deadlines. Live-camera cadence must be
-remeasured after the format fix.
+remeasured independently of fixture results; the corrected Terminal run above
+confirmed 29.955 FPS.
