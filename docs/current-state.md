@@ -17,6 +17,13 @@ closed every adapter. Local reports: `dist/benchmarks/lifecycle.json` and
 `dist/capture-check.json`. Conferencing reception and 720p effects/output remain
 unchecked. Earlier checkpoints below describe evidence available at their time.
 
+2026-10-03 screen selection: `share-screen --select area|screen|visible` uses
+the installed macOS `select-region` helper. Global point geometry matches MSS
+nominal capture resolution, including secondary displays and Retina scaling.
+Selection is explicit, conflicts with coordinate flags, and failures stop before
+capture/output acquisition. Current selection is fixed; window-following and
+camera/screen switching remain future work.
+
 2026-10-03 CLI polish and screen sharing: grouped root help presents frequent
 options; command help includes the full common option set. Common options parse
 before or after commands, with explicit command-side values overriding root

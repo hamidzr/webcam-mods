@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 import numpy as np
 
 from webcam_mods.input.input import AdapterMetadata, FrameOutput
-from webcam_mods.input.screen import Screen
+from webcam_mods.input.screen import Screen, ScreenSelection, select_screen_region
 from webcam_mods.loopback import live_loop
 from webcam_mods.utils.video import Frame
 
@@ -33,6 +33,65 @@ class RecordingOutput(FrameOutput):
 
     def wait_until_next_frame(self) -> None:
         raise AssertionError("unpaced loop must not wait")
+
+
+class ScreenSelectionTest(unittest.TestCase):
+    def test_picker_modes_use_global_points_not_retina_pixels(self) -> None:
+        for mode, flags in (
+            (ScreenSelection.area, []),
+            (ScreenSelection.screen, ["--screen"]),
+            (ScreenSelection.visible, ["--visible"]),
+        ):
+            with (
+                self.subTest(mode=mode),
+                patch("webcam_mods.input.screen.sys.platform", "darwin"),
+                patch(
+                    "webcam_mods.input.screen.shutil.which", return_value="/bin/picker"
+                ),
+                patch("webcam_mods.input.screen.subprocess.run") as run,
+            ):
+                run.return_value = Mock(returncode=0, stdout="-1440 -100 800 600\n")
+                region = select_screen_region(mode)
+                self.assertEqual(
+                    (region.l, region.t, region.w, region.h), (-1440, -100, 800, 600)
+                )
+                self.assertEqual(
+                    run.call_args.args[0], ["/bin/picker", *flags, "-f", "%X %Y %W %H"]
+                )
+
+    def test_cancel_and_invalid_output_are_rejected(self) -> None:
+        for status, output in (
+            (1, ""),
+            (0, ""),
+            (0, "0 0 0 100"),
+            (0, "0 0 100 -1"),
+            (0, "0 0 100 100 extra"),
+        ):
+            with (
+                self.subTest(status=status, output=output),
+                patch("webcam_mods.input.screen.sys.platform", "darwin"),
+                patch(
+                    "webcam_mods.input.screen.shutil.which", return_value="/bin/picker"
+                ),
+                patch(
+                    "webcam_mods.input.screen.subprocess.run",
+                    return_value=Mock(returncode=status, stdout=output),
+                ),
+            ):
+                with self.assertRaises(ValueError):
+                    select_screen_region(ScreenSelection.area)
+
+    def test_unavailable_picker_never_launches(self) -> None:
+        for platform, executable in (("linux", "/bin/picker"), ("darwin", None)):
+            with (
+                self.subTest(platform=platform),
+                patch("webcam_mods.input.screen.sys.platform", platform),
+                patch("webcam_mods.input.screen.shutil.which", return_value=executable),
+                patch("webcam_mods.input.screen.subprocess.run") as run,
+            ):
+                with self.assertRaises(ValueError):
+                    select_screen_region(ScreenSelection.area)
+                run.assert_not_called()
 
 
 class ScreenTest(unittest.TestCase):

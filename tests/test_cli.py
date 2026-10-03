@@ -235,6 +235,53 @@ class CliTests(unittest.TestCase):
         self.assertTrue(kwargs["freeze_on_error"])
         controls.assert_not_called()
 
+    def test_screen_picker_wires_selected_geometry(self) -> None:
+        from webcam_mods.geometry import Rect
+
+        with (
+            patch.object(
+                entry,
+                "select_screen_region",
+                return_value=Rect(t=-20, l=-800, w=800, h=600),
+            ) as picker,
+            patch.object(entry, "_run") as run,
+        ):
+            result = CliRunner().invoke(
+                entry.app, ["share-screen", "--select", "area", "--output", "preview"]
+            )
+        self.assertEqual(result.exit_code, 0, (result.output, result.exception))
+        picker.assert_called_once_with(entry.ScreenSelection.area)
+        screen = run.call_args.kwargs["source"]
+        self.assertEqual(
+            (screen.left, screen.top, screen.width, screen.height),
+            (-800, -20, 800, 600),
+        )
+
+    def test_screen_picker_conflicts_and_cancellation_never_start_capture(self) -> None:
+        for options in (
+            ["--left", "0"],
+            ["--top", "0"],
+            ["--width", "100"],
+            ["--height", "100"],
+            [],
+        ):
+            with (
+                self.subTest(options=options),
+                patch.object(
+                    entry,
+                    "select_screen_region",
+                    side_effect=ValueError("selection cancelled"),
+                ) as picker,
+                patch.object(entry, "_run") as run,
+            ):
+                result = CliRunner().invoke(
+                    entry.app, ["share-screen", "--select", "area", *options]
+                )
+                self.assertNotEqual(result.exit_code, 0)
+                run.assert_not_called()
+                if options:
+                    picker.assert_not_called()
+
     def test_screen_default_region_and_legacy_gui_alias(self) -> None:
         with patch.object(entry, "_run") as run:
             result = CliRunner().invoke(

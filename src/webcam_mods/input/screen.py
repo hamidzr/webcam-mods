@@ -1,4 +1,8 @@
+from enum import Enum
 import math
+import shutil
+import subprocess
+import sys
 from typing import Any
 
 from mss import mss
@@ -8,6 +12,49 @@ import numpy as np
 from webcam_mods.geometry import Rect
 from webcam_mods.input.input import AdapterMetadata, FrameInput
 from webcam_mods.utils.video import Frame
+
+
+class ScreenSelection(str, Enum):
+    area = "area"
+    screen = "screen"
+    visible = "visible"
+
+
+def select_screen_region(mode: ScreenSelection) -> Rect:
+    """Select global screen points matching MSS's nominal-resolution capture."""
+    if sys.platform != "darwin":
+        raise ValueError("--select requires macOS; use explicit region coordinates")
+    executable = shutil.which("select-region")
+    if executable is None:
+        raise ValueError(
+            "--select requires select-region on PATH; "
+            "install from ~/scripts/compat with just install or use explicit coordinates"
+        )
+    flags = {
+        ScreenSelection.area: [],
+        ScreenSelection.screen: ["--screen"],
+        ScreenSelection.visible: ["--visible"],
+    }[mode]
+    try:
+        result = subprocess.run(
+            [executable, *flags, "-f", "%X %Y %W %H"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError as error:
+        raise ValueError("could not launch select-region") from error
+    if result.returncode != 0:
+        raise ValueError(
+            "screen selection cancelled or failed; capture was not started"
+        )
+    try:
+        left, top, width, height = map(int, result.stdout.split())
+    except ValueError as error:
+        raise ValueError("select-region returned invalid geometry") from error
+    if width <= 0 or height <= 0:
+        raise ValueError("select-region returned non-positive region dimensions")
+    return Rect(t=top, l=left, w=width, h=height)
 
 
 class Screen(FrameInput):

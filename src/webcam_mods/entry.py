@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Callable, Literal, cast
 from webcam_mods.utils.video import Frame
 from webcam_mods.input.input import FrameInput
+from webcam_mods.input.screen import ScreenSelection, select_screen_region
 from webcam_mods.capture import CaptureBackend as CaptureMode, create_camera
 from webcam_mods.cli import SharedOptionsCommand, SharedOptionsGroup
 from webcam_mods.macos.vision import Quality
@@ -258,17 +259,20 @@ def track_face(
 @app.command(cls=SharedOptionsCommand, rich_help_panel="Screen")
 def share_screen(
     ctx: typer.Context,
-    top: int = typer.Option(
-        0, help="Capture region's top edge; negative values allowed."
+    top: int | None = typer.Option(
+        None, help="Capture region's top edge; negative values allowed."
     ),
-    left: int = typer.Option(
-        0, help="Capture region's left edge; negative values allowed."
+    left: int | None = typer.Option(
+        None, help="Capture region's left edge; negative values allowed."
     ),
     width: int | None = typer.Option(
         None, min=1, help="Region width; defaults to input width."
     ),
     height: int | None = typer.Option(
         None, min=1, help="Region height; defaults to input height."
+    ),
+    select: ScreenSelection | None = typer.Option(
+        None, "--select", help="macOS picker: area, full screen, or visible screen."
     ),
 ) -> None:
     """Share a screen region with the same output and controls as camera commands."""
@@ -280,9 +284,19 @@ def share_screen(
         raise typer.BadParameter(
             "--capture-backend selects cameras, not screen capture"
         )
+    if select is not None:
+        if any(value is not None for value in (top, left, width, height)):
+            raise typer.BadParameter(
+                "--select cannot be combined with region coordinates"
+            )
+        try:
+            region = select_screen_region(select)
+        except ValueError as error:
+            raise typer.BadParameter(str(error)) from error
+        top, left, width, height = region.t, region.l, region.w, region.h
     screen = Screen(
-        top=top,
-        left=left,
+        top=top if top is not None else 0,
+        left=left if left is not None else 0,
         width=width if width is not None else settings.in_width,
         height=height if height is not None else settings.in_height,
         fps=settings.in_fps,

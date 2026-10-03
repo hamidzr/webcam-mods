@@ -17,7 +17,16 @@ this goal, update acceptance evidence and explain any priority change. New visua
 issues belong in the backlog unless promoted deliberately. Keep each validated
 implementation section independently committed.
 
-Latest review (2026-10-03): user accepted observed blur-edge quality and requested
+Latest review (2026-10-03): user activated screen-sharing selection after reviewing
+~/scripts recording patterns. Added explicit macOS area/screen/visible selection
+through installed select-region, with global point geometry for MSS and rejection
+of coordinate conflicts or failed selection before resources open. All 268 tests
+and static checks pass via just verify; installed CLI refreshed and help/conflict
+behavior checked. Interactive selection and receiving-app delivery remain manual
+acceptance. Camera/screen switching and ScreenCaptureKit window-following remain
+separate implementation work.
+
+Previous review (2026-10-03): user accepted observed blur-edge quality and requested
 moving on. Visual quality checkpoint is accepted based on user observation; no
 claim of dedicated hair/hand/low-light coverage or live cost measurement is added.
 Smoothing remains opt-in. Next existing acceptance gap is OBS/conferencing

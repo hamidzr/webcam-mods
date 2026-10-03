@@ -156,9 +156,21 @@ configured camera index.
 Share a screen region through the same preview or virtual-camera output:
 
 ```sh
+# macOS interactive selection (requires select-region on PATH)
+uv run webcam_mods share-screen --select area --output preview --no-controls
+uv run webcam_mods share-screen --select screen --output virtual-cam --no-controls
 uv run webcam_mods share-screen --width 1280 --height 720 --output preview --no-controls
 uv run webcam_mods share-screen --left 0 --top 0 --width 1280 --height 720 --output virtual-cam
 ```
+
+`--select area|screen|visible` opens the macOS `select-region` picker for a
+rectangle, full display, or display excluding menu bar/dock. Install the helper
+with `just install` in `~/scripts/compat`; explicit coordinates need no
+helper. Selection uses global screen points, including negative coordinates on
+secondary displays. Cancellation or picker failure exits before capture/output
+opens. `--select` cannot be combined with `--left`, `--top`, `--width` or
+`--height`. Selection is fixed for the run; clicking a window selects its current
+rectangle, without following it. No picker opens unless `--select` is passed.
 
 `--width`/`--height` set the capture region, defaulting to input dimensions.
 `--input-fps` sets requested screen cadence (30 by default); `--output-width`,
