@@ -5,7 +5,7 @@ from queue import Empty, Queue
 from threading import Lock
 from typing import Literal
 
-import numpy as np
+from webcam_mods.utils.video import Frame
 
 from webcam_mods.mods.record_replay import Recorder
 from webcam_mods.mods.video_mods import crop, pad_inward_centered
@@ -103,7 +103,7 @@ class RunSession:
                 raise
         return CommandResult(command, True)
 
-    def prepare(self, frame: np.ndarray) -> np.ndarray:
+    def prepare(self, frame: Frame) -> Frame:
         height, width = frame.shape[:2]
         if (width, height) != (self.settings.width, self.settings.height):
             self.settings.width, self.settings.height = width, height

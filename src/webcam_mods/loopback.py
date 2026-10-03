@@ -8,9 +8,17 @@ from webcam_mods.input.video_dev import Webcam
 from webcam_mods.input.input import FrameInput, FrameOutput
 from webcam_mods.utils.video import Frame
 from webcam_mods.timing import FramePacer
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, TypedDict, cast
 
 from webcam_mods.mods.video_mods import resize_and_pad
+
+
+class OutputOptions(TypedDict):
+    width: int
+    height: int
+    fps: float
+    device: str
+
 
 _DEFAULT_LISTENER = object()
 
@@ -23,7 +31,7 @@ def default_frame_output(
 ) -> FrameOutput:
     settings = settings or load_settings()
     out_fps = min(settings.max_out_fps, in_fps)
-    options = dict(
+    options: OutputOptions = dict(
         width=settings.out_width,
         height=settings.out_height,
         fps=out_fps,
@@ -73,11 +81,11 @@ def live_loop(
     freeze_on_error: bool = False,
     max_frames: Optional[int] = None,
     strict_errors: bool = False,
-    before_frame: Optional[Callable[[], None]] = None,
+    before_frame: Optional[Callable[[], object]] = None,
     output_backend: str = "virtual-cam",
     pace: bool = True,
     settings: StartupSettings | None = None,
-) -> Optional[int]:
+) -> None:
     """Pass frames through a mod; bounded runs raise on missing input."""
     if max_frames is not None and max_frames < 1:
         raise ValueError("max_frames must be positive")
@@ -110,11 +118,15 @@ def live_loop(
         with fOut as (cam, outp_props):
             _validate_metadata(outp_props, "output")
             logger.info(f"input: {inp_props}, output: {outp_props}")
+            signal_image = cv2.imread(str(NO_SIGNAL_IMAGE))
+            failure_image = cv2.imread(str(ERROR_IMAGE))
+            if signal_image is None or failure_image is None:
+                raise RuntimeError("bundled signal images could not be read")
             paused_frame = resize_and_pad(
-                cv2.imread(str(NO_SIGNAL_IMAGE)), sw=fOut.width, sh=fOut.height
+                cast(Frame, signal_image), sw=fOut.width, sh=fOut.height
             )
             error_frame = resize_and_pad(
-                cv2.imread(str(ERROR_IMAGE)), sw=fOut.width, sh=fOut.height
+                cast(Frame, failure_image), sw=fOut.width, sh=fOut.height
             )
 
             last_frame = paused_frame

@@ -4,7 +4,9 @@ from enum import Enum
 import importlib.util
 import sys
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Literal, cast
+from webcam_mods.utils.video import Frame
+from webcam_mods.macos.vision import Quality
 
 import cv2
 import numpy as np
@@ -51,10 +53,10 @@ class VisionQuality(str, Enum):
 class Common:
     freeze_on_error: bool = False
     controls: bool = True
-    segmentation: str = "mediapipe"
-    processing: str = "opencv"
+    segmentation: Literal["mediapipe", "vision"] = "mediapipe"
+    processing: Literal["opencv", "coreimage"] = "opencv"
     capture: str = "opencv"
-    quality: str = "balanced"
+    quality: Quality = "balanced"
     recording_limit_mb: int = 256
     output: str = "virtual-cam"
     settings: StartupSettings | None = None
@@ -62,7 +64,7 @@ class Common:
 
 def _run(
     common: Common,
-    effect: Callable[[np.ndarray], np.ndarray | None] | None = None,
+    effect: Callable[[Frame], Frame | None] | None = None,
     *,
     prepare: bool = True,
 ) -> None:
@@ -91,7 +93,7 @@ def _run(
                 device=settings.video_out,
             )
 
-        def process(frame: np.ndarray) -> np.ndarray | None:
+        def process(frame: Frame) -> Frame | None:
             if prepare:
                 frame = session.prepare(frame)
             return effect(frame) if effect is not None else frame
@@ -107,9 +109,19 @@ def _run(
         )
 
 
+def _common(ctx: typer.Context) -> Common:
+    if not isinstance(ctx.obj, Common):
+        raise RuntimeError("CLI startup settings are unavailable")
+    return ctx.obj
+
+
 class BackgroundEffect:
     def __init__(
-        self, common: Common, mode: str, value: object, brightness: int = 0
+        self,
+        common: Common,
+        mode: Literal["blur_bg", "color_bg", "swap_bg"],
+        value: int | Frame,
+        brightness: int = 0,
     ) -> None:
         from webcam_mods.mods.person_segmentation import PersonEffects
 
@@ -118,10 +130,24 @@ class BackgroundEffect:
             processing=common.processing,
             quality=common.quality,
         )
-        self.mode, self.value, self.brightness = mode, value, brightness
+        if mode == "swap_bg":
+            if not isinstance(value, np.ndarray):
+                raise TypeError("background replacement requires an image")
+            self.transform: Callable[[Frame], Frame] = (
+                lambda frame: self.effects.swap_bg(frame, value)
+            )
+        else:
+            if not isinstance(value, int):
+                raise TypeError("background color and blur require an integer")
+            self.transform = (
+                (lambda frame: self.effects.blur_bg(frame, value))
+                if mode == "blur_bg"
+                else (lambda frame: self.effects.color_bg(frame, value))
+            )
+        self.brightness = brightness
 
-    def __call__(self, frame: np.ndarray) -> np.ndarray:
-        result = getattr(self.effects, self.mode)(frame, self.value)
+    def __call__(self, frame: Frame) -> Frame:
+        result = self.transform(frame)
         return brighten_mod(result, self.brightness) if self.brightness else result
 
     def close(self) -> None:
@@ -131,7 +157,7 @@ class BackgroundEffect:
 @app.command()
 def crop_cam(ctx: typer.Context) -> None:
     """Interactive crop, padding and bounded recording/replay."""
-    _run(ctx.obj)
+    _run(_common(ctx))
 
 
 @app.command()
@@ -139,7 +165,7 @@ def bg_color(
     ctx: typer.Context, color: int = typer.Option(192, min=0, max=255)
 ) -> None:
     """Basic controls and a solid color background."""
-    _run(ctx.obj, BackgroundEffect(ctx.obj, "color_bg", color))
+    _run(_common(ctx), BackgroundEffect(_common(ctx), "color_bg", color))
 
 
 @app.command()
@@ -150,7 +176,9 @@ def bg_swap(ctx: typer.Context, img_path: str = str(DEFAULT_BG_IMAGE)) -> None:
         raise typer.BadParameter(
             "background image could not be read", param_hint="img-path"
         )
-    _run(ctx.obj, BackgroundEffect(ctx.obj, "swap_bg", background))
+    _run(
+        _common(ctx), BackgroundEffect(_common(ctx), "swap_bg", cast(Frame, background))
+    )
 
 
 @app.command()
@@ -162,13 +190,13 @@ def bg_blur(
     """Blur background; kernel size must be odd. Core Image uses Gaussian blur."""
     if kernel_size % 2 == 0:
         raise typer.BadParameter("kernel size must be odd", param_hint="kernel-size")
-    _run(ctx.obj, BackgroundEffect(ctx.obj, "blur_bg", kernel_size, brighten))
+    _run(_common(ctx), BackgroundEffect(_common(ctx), "blur_bg", kernel_size, brighten))
 
 
 @app.command()
 def brighten(ctx: typer.Context, level: int = typer.Option(30, min=0, max=255)) -> None:
     """Increase HSV brightness by LEVEL."""
-    _run(ctx.obj, lambda frame: brighten_mod(frame, level))
+    _run(_common(ctx), lambda frame: brighten_mod(frame, level))
 
 
 @app.command()
@@ -188,17 +216,19 @@ def track_face(
     with ExitStack() as resources:
         detector = FaceDetector()
         resources.callback(detector.close)
-        settings = ctx.obj.settings or load_settings()
+        settings = _common(ctx).settings or load_settings()
         tracker = CropTracker(fps=min(settings.in_fps, settings.max_out_fps))
         resources.callback(tracker.close)
         background = (
-            BackgroundEffect(ctx.obj, "blur_bg", blur_kernel_size) if blur else None
+            BackgroundEffect(_common(ctx), "blur_bg", blur_kernel_size)
+            if blur
+            else None
         )
         if background is not None:
             resources.callback(background.close)
         last_prediction = None
 
-        def process(frame: np.ndarray) -> np.ndarray | None:
+        def process(frame: Frame) -> Frame | None:
             nonlocal last_prediction
             prediction = detector.predict(frame)
             if prediction is not None:
@@ -210,7 +240,7 @@ def track_face(
             )
             return background(result) if result is not None and background else result
 
-        _run(ctx.obj, process, prepare=False)
+        _run(_common(ctx), process, prepare=False)
 
 
 @app.command()
@@ -235,7 +265,7 @@ def share_screen(
 @app.command()
 def test_loop(ctx: typer.Context) -> None:
     """Camera pass-through for delivery checks."""
-    _run(ctx.obj, prepare=False)
+    _run(_common(ctx), prepare=False)
 
 
 @app.callback()
@@ -285,7 +315,7 @@ def common(
         )
     except ValueError as error:
         raise typer.BadParameter(str(error)) from error
-    native_modules = set()
+    native_modules: set[str] = set()
     if segmentation_backend == SegmentationBackend.vision:
         native_modules.update(("Vision", "Quartz"))
     if processing_backend == ProcessingBackend.coreimage:

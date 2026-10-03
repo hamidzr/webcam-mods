@@ -3,7 +3,7 @@ import cv2
 from webcam_mods.input.input import FrameInput
 from webcam_mods.utils.video import Frame
 from loguru import logger
-from typing import Any, Iterator, Optional
+from typing import cast, Any, Iterator, Optional
 import time
 
 
@@ -139,4 +139,4 @@ class Webcam(FrameInput):
         ret, frame = self.cap.read()
         if not ret or frame is None:
             return None
-        return frame
+        return cast(Frame, frame)

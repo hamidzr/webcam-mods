@@ -1,9 +1,11 @@
 from time import sleep
-from typing import Any
+import numpy as np
+from numpy.typing import NDArray
 
-Frame = Any
+# OpenCV BGR pixels; shape remains a runtime adapter contract
+Frame = NDArray[np.uint8]
 
 
-def sleep_until_fps(fps: int):
+def sleep_until_fps(fps: int) -> None:
     # TODO consider time from last call
     sleep(1 / fps)

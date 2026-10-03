@@ -1,9 +1,12 @@
 from numpy.typing import NDArray
+from webcam_mods.utils.video import Frame
 from webcam_mods.geometry import Rect
 import cv2
 import math
 import numpy as np
-from typing import Tuple, Optional
+from typing import Tuple, Optional, cast
+
+Color = int | float | list[int] | tuple[int, ...] | NDArray[np.uint8]
 
 # def frame_modr(frame):
 #     kernel = np.ones((5, 3)).astype(np.uint8)
@@ -39,7 +42,7 @@ def is_crop_valid(
     return True
 
 
-def crop(frame: NDArray, w: int, h: int, x1=0, y1=0) -> Optional[NDArray]:
+def crop(frame: Frame, w: int, h: int, x1: int = 0, y1: int = 0) -> Optional[Frame]:
     """
     x1, y1: top left corner of the crop area.
     w, h: crop width and height
@@ -65,32 +68,45 @@ def crop(frame: NDArray, w: int, h: int, x1=0, y1=0) -> Optional[NDArray]:
     return frame[y1 : y1 + h, x1 : x1 + w].copy()
 
 
-def crop_rect(frame: NDArray, box: Rect) -> Optional[NDArray]:
+def crop_rect(frame: Frame, box: Rect) -> Optional[Frame]:
     """Keep a padded face crop inside the image, preserving its size when possible."""
     height, width = frame.shape[:2]
-    crop_width, crop_height = min(box.w, width), min(box.h, height)
-    left = max(0, min(box.l, width - crop_width))
-    top = max(0, min(box.t, height - crop_height))
+    crop_width, crop_height = min(box.width, width), min(box.height, height)
+    left = max(0, min(box.left, width - crop_width))
+    top = max(0, min(box.top, height - crop_height))
     return crop(frame, crop_width, crop_height, left, top)
 
 
-def ensure_rgb_color(color):
+def ensure_rgb_color(color: Color) -> tuple[float, ...]:
     # color image but only one color provided
     if not isinstance(color, (list, tuple, np.ndarray)):
-        color = [color] * 3
-    return color
+        return (float(color),) * 3
+    return tuple(float(channel) for channel in color)
 
 
 # pad frame with pixels on each side.
-def pad(frame: np.ndarray, left=0, top=0, right=0, bottom=0, color=[0, 0, 0]):
-    color = ensure_rgb_color(color)
-    return cv2.copyMakeBorder(
-        frame, top, bottom, left, right, cv2.BORDER_CONSTANT, None, color
+def pad(
+    frame: Frame,
+    left: int = 0,
+    top: int = 0,
+    right: int = 0,
+    bottom: int = 0,
+    color: Color = 0,
+) -> Frame:
+    border_color = ensure_rgb_color(color)
+    # OpenCV preserves the input dtype; its stubs expose a broader numeric union
+    return cast(
+        Frame,
+        cv2.copyMakeBorder(
+            frame, top, bottom, left, right, cv2.BORDER_CONSTANT, None, border_color
+        ),
     )
 
 
 # given a frame pad inward while keeping the image centered
-def pad_inward_centered(frame: np.ndarray, horizontal=0, vertical=0, color=0):
+def pad_inward_centered(
+    frame: Frame, horizontal: int = 0, vertical: int = 0, color: Color = 0
+) -> Frame:
     assert horizontal % 2 == 0, "needs an even size"
     assert vertical % 2 == 0, "needs an even size"
     # print('input frame shape', frame.shape)
@@ -104,15 +120,19 @@ def pad_inward_centered(frame: np.ndarray, horizontal=0, vertical=0, color=0):
     crop_height = fh - vertical
     left_pad = horizontal // 2
     top_pad = vertical // 2
-    frame = crop(frame, crop_width, crop_height, left_pad, top_pad)
+    cropped = crop(frame, crop_width, crop_height, left_pad, top_pad)
+    if cropped is None:
+        raise ValueError("inward padding produces an invalid crop")
     # print('cropped frame shape', frame.shape, (crop_height, crop_width))
-    padded = pad(frame, left_pad, top_pad, left_pad, top_pad, color)
+    padded = pad(cropped, left_pad, top_pad, left_pad, top_pad, color)
     # print('padded shape', padded.shape)
     return padded
 
 
 # given a frame pad inward while keeping the image centered
-def pad_outward_centered(frame: np.ndarray, horizontal=0, vertical=0, color=0):
+def pad_outward_centered(
+    frame: Frame, horizontal: int = 0, vertical: int = 0, color: Color = 0
+) -> Frame:
     # TODO remove the need for even dims
     assert horizontal % 2 == 0, "needs an even size"
     assert vertical % 2 == 0, "needs an even size"
@@ -121,7 +141,7 @@ def pad_outward_centered(frame: np.ndarray, horizontal=0, vertical=0, color=0):
     )
 
 
-def resize_to_box(img, tw: int, th: int):
+def resize_to_box(img: Frame, tw: int, th: int) -> Frame:
     """
     Resize to a bounding box while keeping aspect ratio.
     The resulting image is at or lower dimensions than target.
@@ -150,11 +170,11 @@ def resize_to_box(img, tw: int, th: int):
     new_h = math.floor(h * scale / 2) * 2
 
     # scale and pad
-    scaled_img = cv2.resize(img, (new_w, new_h), interpolation=interp)
+    scaled_img = cast(Frame, cv2.resize(img, (new_w, new_h), interpolation=interp))
     return scaled_img
 
 
-def pad_to_box(img, tw: int, th: int, color=0):
+def pad_to_box(img: Frame, tw: int, th: int, color: Color = 0) -> Frame:
     """
     pad an input frame to an equal or bigger bounding box.
     tw: width of the target bounding box
@@ -168,7 +188,7 @@ def pad_to_box(img, tw: int, th: int, color=0):
     return pad_outward_centered(img, tw - w, th - h, color)
 
 
-def resize_and_pad(img: np.ndarray, sw: int, sh: int, pad_color=0) -> np.ndarray:
+def resize_and_pad(img: Frame, sw: int, sh: int, pad_color: Color = 0) -> Frame:
     """
     Resize while keeping the aspect ratio of the input frame by padding horizontally or vertically.
     sw: target width
@@ -180,7 +200,7 @@ def resize_and_pad(img: np.ndarray, sw: int, sh: int, pad_color=0) -> np.ndarray
     return pad_to_box(img, sw, sh, pad_color)
 
 
-def brighten(img, value: int):
+def brighten(img: Frame, value: int) -> Frame:
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     h, s, v = cv2.split(hsv)
 
@@ -189,5 +209,5 @@ def brighten(img, value: int):
     v[v <= lim] += value
 
     final_hsv = cv2.merge((h, s, v))
-    img = cv2.cvtColor(final_hsv, cv2.COLOR_HSV2BGR)
+    img = cast(Frame, cv2.cvtColor(final_hsv, cv2.COLOR_HSV2BGR))
     return img

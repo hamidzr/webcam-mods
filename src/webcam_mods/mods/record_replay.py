@@ -1,6 +1,6 @@
 """Bounded, run-owned recording and replay."""
 
-import numpy as np
+from webcam_mods.utils.video import Frame
 
 
 class Recorder:
@@ -8,7 +8,7 @@ class Recorder:
         if max_bytes <= 0:
             raise ValueError("recording limit must be positive")
         self.max_bytes = max_bytes
-        self.frames: list[np.ndarray] = []
+        self.frames: list[Frame] = []
         self.size_bytes = 0
         self.index = 0
         self.recording = False
@@ -30,7 +30,7 @@ class Recorder:
             return False
         return True
 
-    def engage(self, frame: np.ndarray) -> np.ndarray:
+    def engage(self, frame: Frame) -> Frame:
         if self.recording:
             if self.size_bytes + frame.nbytes > self.max_bytes:
                 self.recording = False
