@@ -40,6 +40,45 @@ class BlendTests(unittest.TestCase):
         effects.close()
         handle.close.assert_called_once()
 
+    def test_segmenter_selects_delegate_and_uses_rgba(self) -> None:
+        from types import SimpleNamespace
+        from unittest.mock import MagicMock, patch
+        from webcam_mods.mods.person_segmentation import MediaPipeSegmenter
+        import mediapipe as mp
+
+        native = MagicMock()
+        native.segment_for_video.return_value = SimpleNamespace(
+            confidence_masks=[
+                SimpleNamespace(numpy_view=lambda: np.ones((4, 5, 1), np.float32))
+            ]
+        )
+        segmenter = MediaPipeSegmenter()
+        with (
+            patch(
+                "webcam_mods.mods.person_segmentation.select_delegate",
+                return_value="gpu",
+            ) as select,
+            patch(
+                "webcam_mods.mods.person_segmentation.model_path",
+                return_value="model.tflite",
+            ),
+            patch.object(
+                mp.tasks.vision.ImageSegmenter,
+                "create_from_options",
+                return_value=native,
+            ) as create,
+        ):
+            result = segmenter.predict(np.zeros((4, 5, 3), np.uint8))
+            segmenter.predict(np.zeros((4, 5, 3), np.uint8))
+            self.assertEqual(select.call_count, 1)
+            self.assertEqual(result.shape, (4, 5))
+            self.assertEqual(
+                native.segment_for_video.call_args.args[0].numpy_view().shape, (4, 5, 4)
+            )
+            self.assertEqual(create.call_args.args[0].base_options.delegate.name, "GPU")
+            segmenter.close()
+            native.close.assert_called_once()
+
     def test_instance_close_prevents_reuse(self) -> None:
         first, second = PersonEffects(), PersonEffects()
         self.assertIsNot(first.segmenter, second.segmenter)

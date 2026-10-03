@@ -38,6 +38,72 @@ class FaceDetectorStateTest(unittest.TestCase):
         first.close()
         second.close()
 
+    def test_auto_delegate_uses_rgba_and_reselects_on_size_change(self) -> None:
+        detector = FaceDetector()
+        native = MagicMock()
+        native.detect_for_video.return_value = SimpleNamespace(detections=[])
+        with (
+            patch(
+                "webcam_mods.mods.mp_face.select_delegate", return_value="gpu"
+            ) as select,
+            patch("webcam_mods.mods.mp_face.model_path", return_value="model.tflite"),
+            patch(
+                "webcam_mods.mods.mp_face.MediaPipeFaceDetector.create_from_options",
+                return_value=native,
+            ) as create,
+        ):
+            detector.predict(np.zeros((4, 5, 3), np.uint8))
+            detector.predict(np.zeros((4, 5, 3), np.uint8))
+            self.assertEqual(select.call_count, 1)
+            self.assertEqual(
+                native.detect_for_video.call_args.args[0].numpy_view().shape, (4, 5, 4)
+            )
+            self.assertEqual(create.call_args.args[0].base_options.delegate.name, "GPU")
+            detector.predict(np.zeros((6, 7, 3), np.uint8))
+            self.assertEqual(select.call_count, 2)
+            native.close.assert_called_once()
+            detector.close()
+
+    def test_explicit_init_still_calibrates_first_prediction(self) -> None:
+        detector = FaceDetector()
+        native = MagicMock()
+        native.detect_for_video.return_value = SimpleNamespace(detections=[])
+        with (
+            patch(
+                "webcam_mods.mods.mp_face.select_delegate", return_value="gpu"
+            ) as select,
+            patch("webcam_mods.mods.mp_face.model_path", return_value="model.tflite"),
+            patch(
+                "webcam_mods.mods.mp_face.MediaPipeFaceDetector.create_from_options",
+                return_value=native,
+            ),
+        ):
+            detector.init()
+            select.assert_not_called()
+            detector.predict(np.zeros((4, 5, 3), np.uint8))
+            select.assert_called_once()
+            self.assertEqual(detector._delegate, "gpu")
+            native.close.assert_called_once()
+            detector.close()
+
+    def test_failed_gpu_initialization_retries_cpu(self) -> None:
+        detector = FaceDetector()
+        native = MagicMock()
+        native.detect_for_video.return_value = SimpleNamespace(detections=[])
+        with (
+            patch("webcam_mods.mods.mp_face.select_delegate", return_value="gpu"),
+            patch("webcam_mods.mods.mp_face.model_path", return_value="model.tflite"),
+            patch(
+                "webcam_mods.mods.mp_face.MediaPipeFaceDetector.create_from_options",
+                side_effect=[RuntimeError("GPU unavailable"), native],
+            ) as create,
+        ):
+            detector.predict(np.zeros((4, 5, 3), np.uint8))
+            self.assertEqual(create.call_count, 2)
+            self.assertEqual(create.call_args.args[0].base_options.delegate.name, "CPU")
+            self.assertEqual(detector._delegate, "cpu")
+            detector.close()
+
     def test_close_is_idempotent_and_prevents_reopen(self) -> None:
         detector = FaceDetector()
         native = MagicMock()

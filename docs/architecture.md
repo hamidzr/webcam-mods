@@ -57,7 +57,7 @@ backend work. GUI output and test PNG adapters remain available as existing seam
 | `output/v4l2loopback.py` | Native Linux output and consumer monitoring |
 | `output/gui.py` | Bare final-frame preview, paced events and close/Escape shutdown |
 | `mods/video_mods.py` | Portable geometry, resize and HSV brightness |
-| `mods/mp_face.py` | Lazy instance-owned CPU MediaPipe face detector |
+| `mods/mp_face.py` | Lazy instance-owned MediaPipe face detector with automatic CPU/Metal selection |
 | `mods/person_segmentation.py` | Instance-owned MediaPipe/Vision effects and float32 blending |
 | `mods/camera_motion.py` | Instance-owned crop interpolation |
 | `mods/record_replay.py` | Bounded recorder and looping replay |
@@ -128,7 +128,7 @@ scope rather than by a generic plugin/session framework.
 ## Dependencies and frame representation
 
 Python 3.14 only, tracked uv.lock, setuptools, explicit OpenCV-contrib/NumPy,
-MediaPipe Tasks 1.0.1 CPU (patched source snapshot on macOS ARM64), and
+MediaPipe Tasks 1.0.1 (patched Metal-enabled source snapshot with automatic delegate selection on macOS ARM64), and
 pyvirtualcam remain portable defaults. Linux-only dependencies stay in the `linux` extra. PyObjC frameworks are lazy imports in the
 optional `macos` extra. All supported effects/output still exchange BGR arrays;
 native backends do not yet eliminate CPU/native conversion boundaries.

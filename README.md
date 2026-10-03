@@ -124,12 +124,18 @@ Run modes with `uv run webcam_mods <command>`. For example,
 with `uv sync --extra linux --python 3.14`.
 
 Face tracking and background effects use MediaPipe Tasks 1.0.1. On macOS ARM64,
-`uv sync` installs our CPU-only source snapshot `1.0.1+git32d0e5b`, which fixes
+`uv sync` installs our Metal-enabled source snapshot `1.0.1+git32d0e5b.metal`, which fixes
 [upstream issue #6356](https://github.com/google-ai-edge/mediapipe/issues/6356).
 The wheel and its native dependencies are included in this repository; see
 [build provenance and rebuild instructions](vendor/mediapipe/README.md).
 Use the `uv` project installation on macOS: standalone `pip` installs do not
 apply this dependency override. Other platforms use the official release.
+On macOS ARM64, each MediaPipe model automatically compares CPU and Metal
+on its first input frame at each resolution. Three isolated, warmed comparisons
+include input conversion and result readback; GPU must be over 5% faster
+in every comparison. Probe failures use CPU. Selection adds several seconds
+at first use, is cached for the process, and is logged; no CLI selection is needed.
+Both delegates use RGBA input. Other platforms use CPU.
 The two MediaPipe models are downloaded once into `~/.cache/webcam-mods/models`
 and verified with SHA-256; later runs use the cached copies.
 
@@ -141,7 +147,7 @@ make verify  # static checks + full test suite (includes E2E)
 ```
 
 `make e2e` writes deterministic PNG inputs, runs them through the production
-`live_loop` and real CPU MediaPipe effects, writes lossless PNG output, and
+`live_loop` and real MediaPipe effects, writes lossless PNG output, and
 reopens it to assert frame count, dimensions, ordering, crop/brightness,
 background blur/color/replacement, positive and negative face detection,
 foreground preservation, error/freeze behavior, and cleanup on failures.

@@ -64,4 +64,4 @@ where = ["src"]
 webcam_mods = ["data/*.jpg", "data/errors/*.jpg"]
 
 [tool.uv.sources]
-mediapipe = { path = "vendor/mediapipe/mediapipe-1.0.1+git32d0e5b-py3-none-macosx_11_0_arm64.whl", marker = "sys_platform == 'darwin' and platform_machine == 'arm64'" }
+mediapipe = { path = "vendor/mediapipe/mediapipe-1.0.1+git32d0e5b.metal-py3-none-macosx_11_0_arm64.whl", marker = "sys_platform == 'darwin' and platform_machine == 'arm64'" }

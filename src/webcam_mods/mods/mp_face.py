@@ -11,6 +11,7 @@ from loguru import logger
 
 from webcam_mods.geometry import Rect
 from webcam_mods.models import model_path
+from webcam_mods.mediapipe_delegate import select_delegate
 from webcam_mods.utils.video import Frame
 
 
@@ -30,29 +31,50 @@ class FaceDetector:
         self._detector: Optional[MediaPipeFaceDetector] = None
         self._last_timestamp_ms = 0
         self._closed = False
+        self._delegate = "cpu"
+        self._frame_shape: tuple[int, ...] | None = None
+        self._needs_selection = False
 
-    def init(self) -> MediaPipeFaceDetector:
+    def init(self, frame: Frame | None = None) -> MediaPipeFaceDetector:
         if self._closed:
             raise RuntimeError("Face detector is closed")
         if self._detector is not None:
             return self._detector
+        if frame is not None:
+            self._delegate = select_delegate("face", frame)
+            self._frame_shape = frame.shape
+        self._needs_selection = frame is None
         options = mp.tasks.vision.FaceDetectorOptions(
             base_options=mp.tasks.BaseOptions(
                 model_asset_path=str(model_path("blaze_face_full_range")),
-                delegate=mp.tasks.BaseOptions.Delegate.CPU,
+                delegate=getattr(mp.tasks.BaseOptions.Delegate, self._delegate.upper()),
             ),
             running_mode=mp.tasks.vision.RunningMode.VIDEO,
             min_detection_confidence=0.6,
         )
-        self._detector = MediaPipeFaceDetector.create_from_options(options)
+        try:
+            self._detector = MediaPipeFaceDetector.create_from_options(options)
+        except RuntimeError, ValueError:
+            if self._delegate != "gpu":
+                raise
+            logger.warning("Metal face initialization failed; using CPU")
+            self._delegate = "cpu"
+            options.base_options.delegate = mp.tasks.BaseOptions.Delegate.CPU
+            self._detector = MediaPipeFaceDetector.create_from_options(options)
         return self._detector
 
     def predict(self, frame: Frame) -> Optional[Rect]:
         """Return first detected face as a pixel rectangle."""
-        detector = self.init()
+        if self._detector is not None and (
+            self._needs_selection
+            or (self._frame_shape is not None and self._frame_shape != frame.shape)
+        ):
+            self._detector.close()
+            self._detector = None
+        detector = self.init(frame)
         image = mp.Image(
-            image_format=mp.ImageFormat.SRGB,
-            data=np.ascontiguousarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)),
+            image_format=mp.ImageFormat.SRGBA,
+            data=np.ascontiguousarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA)),
         )
         self._last_timestamp_ms = max(
             time.monotonic_ns() // 1_000_000, self._last_timestamp_ms + 1

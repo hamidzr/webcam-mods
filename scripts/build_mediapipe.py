@@ -211,15 +211,18 @@ def package_wheel(
     }
     setup = source / "setup.py"
     original = setup.read_bytes()
-    patched = original.decode().replace(
-        "__version__ = 'dev'", f"__version__ = '{VERSION}'"
+    wheel_version = f"{VERSION}.metal" if gpu else VERSION
+    patched = (
+        original.decode()
+        .replace("__version__ = 'dev'", f"__version__ = '{wheel_version}'")
+        .replace(f"__version__ = '{VERSION}'", f"__version__ = '{wheel_version}'")
     )
     patched = patched.replace(
         "BazelExtension('//mediapipe/tasks/c:libmediapipe.so')",
         "BazelExtension('//mediapipe/tasks/c:libmediapipe.dylib')",
     )
     if (
-        f"__version__ = '{VERSION}'" not in patched
+        f"__version__ = '{wheel_version}'" not in patched
         or "BazelExtension('//mediapipe/tasks/c:libmediapipe.dylib')" not in patched
     ):
         raise RuntimeError("Unexpected upstream setup.py")
@@ -332,17 +335,21 @@ def main() -> None:
         default=Path.home() / "Library/Caches/webcam-mods/mediapipe-patched",
     )
     parser.add_argument("--output-dir", type=Path)
-    parser.add_argument(
-        "--gpu", action="store_true", help="enable experimental Metal support"
+    delegates = parser.add_mutually_exclusive_group()
+    delegates.add_argument(
+        "--gpu",
+        dest="gpu",
+        action="store_true",
+        default=True,
+        help="enable Metal support (default)",
+    )
+    delegates.add_argument(
+        "--cpu-only", dest="gpu", action="store_false", help="disable GPU delegates"
     )
     args = parser.parse_args()
     if platform.system() != "Darwin" or platform.machine() != "arm64":
         parser.error("This build supports only macOS ARM64")
-    output = args.output_dir or (
-        REPO / "dist/mediapipe-metal" if args.gpu else REPO / "vendor/mediapipe"
-    )
-    if args.gpu and output.expanduser().resolve() == REPO / "vendor/mediapipe":
-        parser.error("Use a separate output directory for experimental GPU wheels")
+    output = args.output_dir or (REPO / "vendor/mediapipe")
     cache = args.cache_dir.expanduser().resolve()
     cache.mkdir(parents=True, exist_ok=True)
     env = dict(os.environ) | {"HERMETIC_PYTHON_VERSION": "3.11"}

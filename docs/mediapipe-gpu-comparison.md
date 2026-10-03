@@ -3,8 +3,9 @@
 Measured 2026-10-03 on Apple M4 Max, macOS ARM64, Python 3.14.7.
 Metal reduces median face detection time at both resolutions. Segmentation with
 app background blur improves modestly at 480p and becomes slightly slower at 1080p.
-Results support testing an optional GPU face delegate; they do not justify
-switching every effect to GPU. Current app installation and defaults remain CPU.
+Results motivated automatic per-model CPU/Metal latency calibration. The app
+now installs a Metal-enabled wheel and chooses the consistently faster delegate
+for each model and resolution; this recorded comparison predates that integration.
 
 ## Method
 
@@ -63,18 +64,18 @@ Continuous-session stability and camera throughput were not tested.
 
 ## Reproduce
 
-Build an experimental wheel separately; the committed CPU wheel stays intact:
+Build a Metal-enabled wheel separately for comparison:
 
 ```sh
-./scripts/build_mediapipe.py --gpu
+./scripts/build_mediapipe.py --gpu --output-dir dist/mediapipe-metal
 uv venv dist/mediapipe-metal-env --python .venv/bin/python
 uv pip install --python dist/mediapipe-metal-env/bin/python -e .
-uv pip install --python dist/mediapipe-metal-env/bin/python --reinstall dist/mediapipe-metal/mediapipe-1.0.1+git32d0e5b-py3-none-macosx_11_0_arm64.whl
+uv pip install --python dist/mediapipe-metal-env/bin/python --reinstall dist/mediapipe-metal/mediapipe-1.0.1+git32d0e5b.metal-py3-none-macosx_11_0_arm64.whl
 dist/mediapipe-metal-env/bin/python scripts/benchmark_mediapipe.py --frames 500 --warmup 60 --rounds 4 --cpu-baseline --output dist/mediapipe-fair-benchmark
 ```
 
 Full samples, environment, native hash, parity and PNG/NPZ outputs from this run
 are local artifacts under `dist/mediapipe-fair-benchmark-20261003`.
 The wheel SHA256 for this run is `fae7c05922a5211898cb2fbe4ebf65d62a3e9ecd6746e73d416366c8db70545a`.
-Experimental wheel and CPU wheel currently share a source version string;
-use their hashes and isolated environments to distinguish build configuration.
+The wheel measured here predates the distinct `.metal` version suffix. New
+Metal builds use that suffix; CPU-only builds retain the base source version.

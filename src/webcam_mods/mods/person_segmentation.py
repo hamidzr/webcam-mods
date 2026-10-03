@@ -14,6 +14,8 @@ import numpy as np
 
 from webcam_mods.mods.video_mods import Color, ensure_rgb_color
 from webcam_mods.models import model_path
+from webcam_mods.mediapipe_delegate import select_delegate
+from loguru import logger
 
 BG_COLOR = (192, 192, 192)
 Mask = NDArray[np.float32]
@@ -24,26 +26,50 @@ class MediaPipeSegmenter:
         self._segmenter: Any = None
         self._timestamp_ms = 0
         self._closed = False
+        self._delegate = "cpu"
+        self._frame_shape: tuple[int, ...] | None = None
 
     def predict(self, frame: Frame) -> Mask:
         if self._closed:
             raise RuntimeError("segmenter is closed")
         import mediapipe as mp
 
+        if (
+            self._segmenter is not None
+            and self._frame_shape is not None
+            and self._frame_shape != frame.shape
+        ):
+            self._segmenter.close()
+            self._segmenter = None
         if self._segmenter is None:
-            self._segmenter = mp.tasks.vision.ImageSegmenter.create_from_options(
-                mp.tasks.vision.ImageSegmenterOptions(
-                    base_options=mp.tasks.BaseOptions(
-                        model_asset_path=str(model_path("selfie_segmenter")),
-                        delegate=mp.tasks.BaseOptions.Delegate.CPU,
+            self._delegate = select_delegate("segmentation", frame)
+            self._frame_shape = frame.shape
+            options = mp.tasks.vision.ImageSegmenterOptions(
+                base_options=mp.tasks.BaseOptions(
+                    model_asset_path=str(model_path("selfie_segmenter")),
+                    delegate=getattr(
+                        mp.tasks.BaseOptions.Delegate, self._delegate.upper()
                     ),
-                    running_mode=mp.tasks.vision.RunningMode.VIDEO,
-                    output_confidence_masks=True,
-                )
+                ),
+                running_mode=mp.tasks.vision.RunningMode.VIDEO,
+                output_confidence_masks=True,
             )
+            try:
+                self._segmenter = mp.tasks.vision.ImageSegmenter.create_from_options(
+                    options
+                )
+            except RuntimeError, ValueError:
+                if self._delegate != "gpu":
+                    raise
+                logger.warning("Metal segmentation initialization failed; using CPU")
+                self._delegate = "cpu"
+                options.base_options.delegate = mp.tasks.BaseOptions.Delegate.CPU
+                self._segmenter = mp.tasks.vision.ImageSegmenter.create_from_options(
+                    options
+                )
         image = mp.Image(
-            image_format=mp.ImageFormat.SRGB,
-            data=np.ascontiguousarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)),
+            image_format=mp.ImageFormat.SRGBA,
+            data=np.ascontiguousarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA)),
         )
         self._timestamp_ms = max(
             time.monotonic_ns() // 1_000_000, self._timestamp_ms + 1

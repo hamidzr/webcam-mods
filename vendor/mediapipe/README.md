@@ -1,6 +1,6 @@
 # Patched MediaPipe for macOS ARM64
 
-CPU-only source snapshot `1.0.1+git32d0e5b`, built from upstream commit
+Metal-enabled source snapshot `1.0.1+git32d0e5b.metal`, built from upstream commit
 [`32d0e5b1317be070083c630240b274218ce9ed52`](https://github.com/google-ai-edge/mediapipe/commit/32d0e5b1317be070083c630240b274218ce9ed52).
 This snapshot contains the fix for
 [MediaPipe #6356](https://github.com/google-ai-edge/mediapipe/issues/6356), which
@@ -9,9 +9,10 @@ It is a local source build, not an official MediaPipe release.
 
 The wheel includes the source snapshot's Python code, generated metadata,
 native library, OpenCV libraries, and OpenCV dependency license notices.
-GPU delegates are disabled. OpenCV GUI, camera capture, FFmpeg, and GStreamer
+CPU and Metal GPU delegates are enabled. OpenCV GUI, camera capture, FFmpeg, and GStreamer
 backends are disabled in the native library; webcam-mods uses its own capture
-and preview backends and explicitly selects MediaPipe's CPU delegate.
+and preview backends. Each model automatically measures CPU and Metal latency
+at first use per resolution; consistently faster Metal wins, otherwise CPU.
 
 ## Rebuild
 
@@ -28,15 +29,10 @@ The script stops native compilation below 3 GiB free. Cold builds can exceed
 20 minutes. A rebuilt wheel may have a different checksum; run
 `uv lock --refresh-package mediapipe`, update `SHA256SUMS`, then rerun `make verify` and `make e2e` after replacing it.
 
-Experimental Metal-enabled wheels can be built separately for CPU/GPU comparisons:
-
-```sh
-./scripts/build_mediapipe.py --gpu
-```
-
-These go to `dist/mediapipe-metal`, leaving the checked-in CPU wheel unchanged.
-Both builds currently carry the same source version; compare isolated environments
-and record the wheel SHA256 plus build flags. GPU inputs on macOS require RGBA.
+Metal is enabled by default. `--gpu` is an explicit alias; `--cpu-only` builds
+`1.0.1+git32d0e5b` without GPU support into the selected output directory.
+Use `--output-dir dist/mediapipe-cpu` for an isolated CPU build. The default
+Metal version suffix distinguishes configurations. GPU inputs on macOS require RGBA.
 
 Build patches:
 

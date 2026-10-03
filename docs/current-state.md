@@ -81,7 +81,7 @@ fixture. Portable float32 blending improved 1080p median processing time by abou
 
 Checks cover compileall, configured flake8 rules, Black and unittest discovery,
 including CLI option propagation/import side effects, command ordering, persistence,
-record/replay bounds, model state isolation, partial startup cleanup, real CPU
+record/replay bounds, model state isolation, partial startup cleanup, real
 MediaPipe, real Vision/Core Image and native buffer orientation/stride/lifetime.
 Use make verify UV_FLAGS='--extra macos' to run optional native tests.
 

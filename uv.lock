@@ -661,8 +661,8 @@ wheels = [
 
 [[package]]
 name = "mediapipe"
-version = "1.0.1+git32d0e5b"
-source = { path = "vendor/mediapipe/mediapipe-1.0.1+git32d0e5b-py3-none-macosx_11_0_arm64.whl" }
+version = "1.0.1+git32d0e5b.metal"
+source = { path = "vendor/mediapipe/mediapipe-1.0.1+git32d0e5b.metal-py3-none-macosx_11_0_arm64.whl" }
 resolution-markers = [
     "platform_machine == 'arm64' and sys_platform == 'darwin'",
 ]
@@ -676,7 +676,7 @@ dependencies = [
     { name = "sounddevice" },
 ]
 wheels = [
-    { filename = "mediapipe-1.0.1+git32d0e5b-py3-none-macosx_11_0_arm64.whl", hash = "sha256:9c6f6fb7ecb2dce87651d3dc476c2d29c23ced9020e264f4886d9b1d89576a47" },
+    { filename = "mediapipe-1.0.1+git32d0e5b.metal-py3-none-macosx_11_0_arm64.whl", hash = "sha256:089e7b0f7ab8ec8fc6d4d1fce44a7018ab7d3048ab534305783698e60567e9ff" },
 ]
 
 [package.metadata]
@@ -1353,7 +1353,7 @@ source = { editable = "." }
 dependencies = [
     { name = "loguru" },
     { name = "mediapipe", version = "1.0.1", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine != 'arm64' or sys_platform != 'darwin'" },
-    { name = "mediapipe", version = "1.0.1+git32d0e5b", source = { path = "vendor/mediapipe/mediapipe-1.0.1+git32d0e5b-py3-none-macosx_11_0_arm64.whl" }, marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
+    { name = "mediapipe", version = "1.0.1+git32d0e5b.metal", source = { path = "vendor/mediapipe/mediapipe-1.0.1+git32d0e5b.metal-py3-none-macosx_11_0_arm64.whl" }, marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
     { name = "mss" },
     { name = "numpy" },
     { name = "opencv-contrib-python" },
@@ -1389,7 +1389,7 @@ requires-dist = [
     { name = "inotify-simple", marker = "sys_platform == 'linux' and extra == 'linux'", specifier = ">=2.0.1" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "mediapipe", marker = "platform_machine != 'arm64' or sys_platform != 'darwin'", specifier = "==1.0.1" },
-    { name = "mediapipe", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'", path = "vendor/mediapipe/mediapipe-1.0.1+git32d0e5b-py3-none-macosx_11_0_arm64.whl" },
+    { name = "mediapipe", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'", path = "vendor/mediapipe/mediapipe-1.0.1+git32d0e5b.metal-py3-none-macosx_11_0_arm64.whl" },
     { name = "mss", specifier = ">=10.2.0" },
     { name = "numpy", specifier = ">=2.0" },
     { name = "opencv-contrib-python", specifier = ">=4.11" },
