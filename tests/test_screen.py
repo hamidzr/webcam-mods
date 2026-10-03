@@ -7,7 +7,12 @@ from unittest.mock import Mock, patch
 import numpy as np
 
 from webcam_mods.input.input import AdapterMetadata, FrameOutput
-from webcam_mods.input.screen import Screen, ScreenSelection, select_screen_region
+from webcam_mods.input.screen import (
+    Screen,
+    ScreenBorder,
+    ScreenSelection,
+    select_screen_region,
+)
 from webcam_mods.loopback import live_loop
 from webcam_mods.utils.video import Frame
 
@@ -38,7 +43,10 @@ class RecordingOutput(FrameOutput):
 class ScreenSelectionTest(unittest.TestCase):
     def test_picker_modes_use_global_points_not_retina_pixels(self) -> None:
         for mode, flags in (
-            (ScreenSelection.area, []),
+            (
+                ScreenSelection.area,
+                ["--show-hints", "--prompt", "Select screen area to share"],
+            ),
             (ScreenSelection.screen, ["--screen"]),
             (ScreenSelection.visible, ["--visible"]),
         ):
@@ -46,7 +54,8 @@ class ScreenSelectionTest(unittest.TestCase):
                 self.subTest(mode=mode),
                 patch("webcam_mods.input.screen.sys.platform", "darwin"),
                 patch(
-                    "webcam_mods.input.screen.shutil.which", return_value="/bin/picker"
+                    "webcam_mods.input.screen.sharing_helper",
+                    return_value="/bin/picker",
                 ),
                 patch("webcam_mods.input.screen.subprocess.run") as run,
             ):
@@ -71,7 +80,8 @@ class ScreenSelectionTest(unittest.TestCase):
                 self.subTest(status=status, output=output),
                 patch("webcam_mods.input.screen.sys.platform", "darwin"),
                 patch(
-                    "webcam_mods.input.screen.shutil.which", return_value="/bin/picker"
+                    "webcam_mods.input.screen.sharing_helper",
+                    return_value="/bin/picker",
                 ),
                 patch(
                     "webcam_mods.input.screen.subprocess.run",
@@ -92,6 +102,64 @@ class ScreenSelectionTest(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     select_screen_region(ScreenSelection.area)
                 run.assert_not_called()
+
+
+class ScreenBorderTest(unittest.TestCase):
+    def test_border_points_update_and_idempotent_cleanup(self) -> None:
+        from webcam_mods.geometry import Rect
+
+        border = ScreenBorder(Rect(l=-100, t=20, w=400, h=300))
+        with (
+            patch(
+                "webcam_mods.input.screen.sharing_helper", return_value="/bin/picker"
+            ),
+            patch("webcam_mods.input.screen.subprocess.Popen") as launch,
+        ):
+            launch.return_value.poll.return_value = None
+            border.start()
+            path = border.path
+            self.assertEqual(path.read_text(), "-100 20 400 300\n")
+            self.assertIn("--border-points", launch.call_args.args[0])
+            self.assertIn("--parent-pid", launch.call_args.args[0])
+            border.update(Rect(l=-80, t=30, w=320, h=240))
+            self.assertEqual(path.read_text(), "-80 30 320 240\n")
+            border.close()
+            border.close()
+            self.assertFalse(path.exists())
+            launch.return_value.terminate.assert_called_once()
+            launch.return_value.wait.assert_called_once()
+
+    def test_failed_border_launch_removes_temporary_files(self) -> None:
+        from webcam_mods.geometry import Rect
+
+        border = ScreenBorder(Rect(w=400, h=300))
+        with (
+            patch(
+                "webcam_mods.input.screen.sharing_helper", return_value="/bin/picker"
+            ),
+            patch(
+                "webcam_mods.input.screen.subprocess.Popen",
+                side_effect=OSError("failed"),
+            ),
+        ):
+            with self.assertRaises(OSError):
+                border.start()
+        self.assertIsNone(border.directory)
+        border.close()
+
+    def test_area_selection_passes_output_aspect_ratio(self) -> None:
+        with (
+            patch("webcam_mods.input.screen.sys.platform", "darwin"),
+            patch(
+                "webcam_mods.input.screen.sharing_helper", return_value="/bin/picker"
+            ),
+            patch(
+                "webcam_mods.input.screen.subprocess.run",
+                return_value=Mock(returncode=0, stdout="0 0 800 600"),
+            ) as run,
+        ):
+            select_screen_region(ScreenSelection.area, aspect=(800, 600))
+        self.assertIn("800:600", run.call_args.args[0])
 
 
 class ScreenTest(unittest.TestCase):

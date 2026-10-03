@@ -1,8 +1,11 @@
 from enum import Enum
 import math
+import os
+from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tempfile
 from typing import Any
 
 from mss import mss
@@ -20,21 +23,48 @@ class ScreenSelection(str, Enum):
     visible = "visible"
 
 
-def select_screen_region(mode: ScreenSelection) -> Rect:
-    """Select global screen points matching MSS's nominal-resolution capture."""
-    if sys.platform != "darwin":
-        raise ValueError("--select requires macOS; use explicit region coordinates")
+def sharing_helper() -> str:
     executable = shutil.which("select-region")
     if executable is None:
         raise ValueError(
-            "--select requires select-region on PATH; "
-            "install from ~/scripts/compat with just install or use explicit coordinates"
+            "install select-region from ~/scripts/compat with just install"
         )
+    try:
+        capabilities = subprocess.run(
+            [executable, "--capabilities"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise ValueError(
+            "update select-region from ~/scripts/compat with just install"
+        ) from error
+    if (
+        capabilities.returncode != 0
+        or "border-points" not in capabilities.stdout.split()
+    ):
+        raise ValueError("update select-region from ~/scripts/compat with just install")
+    return executable
+
+
+def select_screen_region(
+    mode: ScreenSelection, aspect: tuple[int, int] | None = None
+) -> Rect:
+    """Select global screen points matching MSS's nominal-resolution capture."""
+    if sys.platform != "darwin":
+        raise ValueError("--select requires macOS; use explicit region coordinates")
+    executable = sharing_helper()
     flags = {
         ScreenSelection.area: [],
         ScreenSelection.screen: ["--screen"],
         ScreenSelection.visible: ["--visible"],
     }[mode]
+    if mode == ScreenSelection.area:
+        flags += ["--show-hints", "--prompt", "Select screen area to share"]
+        if aspect is not None:
+            flags += ["--aspect-ratio", f"{aspect[0]}:{aspect[1]}"]
     try:
         result = subprocess.run(
             [executable, *flags, "-f", "%X %Y %W %H"],
@@ -55,6 +85,73 @@ def select_screen_region(mode: ScreenSelection) -> Rect:
     if width <= 0 or height <= 0:
         raise ValueError("select-region returned non-positive region dimensions")
     return Rect(t=top, l=left, w=width, h=height)
+
+
+class ScreenBorder:
+    """Own a click-through border; geometry always uses global screen points."""
+
+    def __init__(self, region: Rect) -> None:
+        self.region = region
+        self.process: subprocess.Popen[bytes] | None = None
+        self.directory: tempfile.TemporaryDirectory[str] | None = None
+
+    def start(self) -> None:
+        executable = sharing_helper()
+        self.directory = tempfile.TemporaryDirectory(prefix="webcam-mods-border-")
+        self.update(self.region)
+        r = self.region
+        try:
+            self.process = subprocess.Popen(
+                [
+                    executable,
+                    "--border-points",
+                    str(r.l),
+                    str(r.t),
+                    str(r.w),
+                    str(r.h),
+                    "--geometry-file",
+                    str(self.path),
+                    "--parent-pid",
+                    str(os.getpid()),
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except OSError:
+            self.close()
+            raise
+
+    @property
+    def path(self) -> Path:
+        if self.directory is None:
+            raise RuntimeError("border is not started")
+        return Path(self.directory.name) / "geometry.txt"
+
+    def update(self, region: Rect) -> None:
+        if self.directory is None:
+            return
+        if self.path.exists() and self.region.__dict__() == region.__dict__():
+            return
+        temporary = self.path.with_suffix(".tmp")
+        temporary.write_text(f"{region.l} {region.t} {region.w} {region.h}\n")
+        temporary.replace(self.path)
+        self.region = region
+
+    def close(self) -> None:
+        process, self.process = self.process, None
+        try:
+            if process is not None:
+                if process.poll() is None:
+                    process.terminate()
+                try:
+                    process.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
+        finally:
+            if self.directory is not None:
+                self.directory.cleanup()
+                self.directory = None
 
 
 class Screen(FrameInput):

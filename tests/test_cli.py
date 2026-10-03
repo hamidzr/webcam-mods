@@ -1,6 +1,8 @@
 """CLI startup and per-command settings propagation without desktop access."""
 
 from pathlib import Path
+from typing import Any
+import numpy as np
 import os
 import subprocess
 import sys
@@ -235,10 +237,42 @@ class CliTests(unittest.TestCase):
         self.assertTrue(kwargs["freeze_on_error"])
         controls.assert_not_called()
 
+    def test_screen_border_tracks_crop_and_closes_on_pipeline_failure(self) -> None:
+        from webcam_mods.input.screen import Screen
+        from webcam_mods.session import Command
+
+        screen = Screen(left=-100, top=20, width=32, height=24, fps=30)
+        indicator = Mock()
+
+        def loop(**kwargs: Any) -> None:
+            frame = np.zeros((24, 32, 3), dtype=np.uint8)
+            result = kwargs["mod"](frame)
+            self.assertEqual(result.shape, frame.shape)
+            session = kwargs["before_frame"].__self__
+            session.submit(Command("resize", -8, -6))
+            session.submit(Command("move", 4, 3))
+            kwargs["before_frame"]()
+            result = kwargs["mod"](frame)
+            self.assertEqual(result.shape, (18, 24, 3))
+            region = indicator.update.call_args.args[0]
+            self.assertEqual(
+                (region.l, region.t, region.w, region.h), (-96, 23, 24, 18)
+            )
+            raise RuntimeError("pipeline failed")
+
+        with patch.object(entry, "live_loop", side_effect=loop):
+            with self.assertRaisesRegex(RuntimeError, "pipeline failed"):
+                entry._run(
+                    entry.Common(controls=False), source=screen, border=indicator
+                )
+        indicator.start.assert_called_once()
+        indicator.close.assert_called_once()
+
     def test_screen_picker_wires_selected_geometry(self) -> None:
         from webcam_mods.geometry import Rect
 
         with (
+            patch.object(entry.sys, "platform", "darwin"),
             patch.object(
                 entry,
                 "select_screen_region",
@@ -250,7 +284,7 @@ class CliTests(unittest.TestCase):
                 entry.app, ["share-screen", "--select", "area", "--output", "preview"]
             )
         self.assertEqual(result.exit_code, 0, (result.output, result.exception))
-        picker.assert_called_once_with(entry.ScreenSelection.area)
+        picker.assert_called_once_with(entry.ScreenSelection.area, aspect=(640, 480))
         screen = run.call_args.kwargs["source"]
         self.assertEqual(
             (screen.left, screen.top, screen.width, screen.height),

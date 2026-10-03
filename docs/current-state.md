@@ -21,7 +21,11 @@ unchecked. Earlier checkpoints below describe evidence available at their time.
 the installed macOS `select-region` helper. Global point geometry matches MSS
 nominal capture resolution, including secondary displays and Retina scaling.
 Selection is explicit, conflicts with coordinate flags, and failures stop before
-capture/output acquisition. Current selection is fixed; window-following and
+capture/output acquisition. Area selection now matches output aspect ratio and shows live tips plus an exact
+fitted-window preview. Selected screen runs own an outside dashed border that
+tracks crop/pan changes, closes on failure, and disappears if the owner dies.
+Screen crop state is fresh and does not overwrite camera persistence.
+Current selection is fixed; window-following and
 camera/screen switching remain future work.
 
 2026-10-03 CLI polish and screen sharing: grouped root help presents frequent

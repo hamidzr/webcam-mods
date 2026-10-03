@@ -8,7 +8,14 @@ from pathlib import Path
 from typing import Callable, Literal, cast
 from webcam_mods.utils.video import Frame
 from webcam_mods.input.input import FrameInput
-from webcam_mods.input.screen import ScreenSelection, select_screen_region
+from webcam_mods.input.screen import (
+    Screen,
+    ScreenBorder,
+    ScreenSelection,
+    select_screen_region,
+)
+from webcam_mods.utils.config import Config
+from webcam_mods.geometry import Rect
 from webcam_mods.capture import CaptureBackend as CaptureMode, create_camera
 from webcam_mods.cli import SharedOptionsCommand, SharedOptionsGroup
 from webcam_mods.macos.vision import Quality
@@ -82,13 +89,20 @@ def _run(
     *,
     prepare: bool = True,
     source: FrameInput | None = None,
+    border: ScreenBorder | None = None,
 ) -> None:
     settings = common.settings or load_settings()
     with ExitStack() as resources:
         if effect is not None and hasattr(effect, "close"):
             resources.callback(effect.close)
         session = RunSession(
-            recording_limit=common.recording_limit_mb * 1024 * 1024, startup=settings
+            settings=(
+                Config(path=None, width=source.width, height=source.height)
+                if isinstance(source, Screen)
+                else None
+            ),
+            recording_limit=common.recording_limit_mb * 1024 * 1024,
+            startup=settings,
         )
         resources.callback(session.close)
         controls = (
@@ -99,9 +113,23 @@ def _run(
         if source is None:
             source = create_camera(settings, common.capture)
 
+        if border is not None:
+            resources.callback(border.close)
+            border.start()
+
         def process(frame: Frame) -> Frame | None:
             if prepare:
                 frame = session.prepare(frame)
+                if border is not None and isinstance(source, Screen):
+                    crop = session.settings
+                    border.update(
+                        Rect(
+                            l=source.left + crop.crop_pos[0],
+                            t=source.top + crop.crop_pos[1],
+                            w=crop.crop_dims[0],
+                            h=crop.crop_dims[1],
+                        )
+                    )
             return effect(frame) if effect is not None else frame
 
         live_loop(
@@ -271,6 +299,11 @@ def share_screen(
     height: int | None = typer.Option(
         None, min=1, help="Region height; defaults to input height."
     ),
+    border: bool | None = typer.Option(
+        None,
+        "--border/--no-border",
+        help="Show captured region border; enabled with --select.",
+    ),
     select: ScreenSelection | None = typer.Option(
         None, "--select", help="macOS picker: area, full screen, or visible screen."
     ),
@@ -290,7 +323,9 @@ def share_screen(
                 "--select cannot be combined with region coordinates"
             )
         try:
-            region = select_screen_region(select)
+            region = select_screen_region(
+                select, aspect=(settings.out_width, settings.out_height)
+            )
         except ValueError as error:
             raise typer.BadParameter(str(error)) from error
         top, left, width, height = region.t, region.l, region.w, region.h
@@ -302,7 +337,15 @@ def share_screen(
         fps=settings.in_fps,
         device=settings.video_out,
     )
-    _run(common, source=screen)
+    show_border = select is not None if border is None else border
+    if show_border and sys.platform != "darwin":
+        raise typer.BadParameter("--border requires macOS")
+    indicator = (
+        ScreenBorder(Rect(l=screen.left, t=screen.top, w=screen.width, h=screen.height))
+        if show_border
+        else None
+    )
+    _run(common, source=screen, border=indicator)
 
 
 @app.command(cls=SharedOptionsCommand, rich_help_panel="Utilities")

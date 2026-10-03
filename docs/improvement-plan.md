@@ -17,7 +17,18 @@ this goal, update acceptance evidence and explain any priority change. New visua
 issues belong in the backlog unless promoted deliberately. Keep each validated
 implementation section independently committed.
 
-Latest review (2026-10-03): user activated screen-sharing selection after reviewing
+Latest review (2026-10-03): user requested selection hints, output-aspect area
+selection and a persistent capture-region indicator. Added opt-in Swift flags
+for live tips, fitted preview/selection, and global-point borders with geometry
+updates and owner-exit cleanup; existing recorder options are preserved. Sharing
+now owns border cleanup and crop updates; fresh screen crop state avoids hidden
+saved camera crops. All 272 tests and static checks pass. Live screenshots
+confirmed hints and border geometry updates. Installed CLI delivered three real
+400x300 screen frames to 640x480/30 preview with border cleanup. Swift fitting
+checks covered four drag directions; legacy screen/visible geometry matched the
+pre-change helper. Multi-display and conferencing acceptance remain.
+
+Previous review (2026-10-03): user activated screen-sharing selection after reviewing
 ~/scripts recording patterns. Added explicit macOS area/screen/visible selection
 through installed select-region, with global point geometry for MSS and rejection
 of coordinate conflicts or failed selection before resources open. All 268 tests

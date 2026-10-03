@@ -169,8 +169,16 @@ with `just install` in `~/scripts/compat`; explicit coordinates need no
 helper. Selection uses global screen points, including negative coordinates on
 secondary displays. Cancellation or picker failure exits before capture/output
 opens. `--select` cannot be combined with `--left`, `--top`, `--width` or
-`--height`. Selection is fixed for the run; clicking a window selects its current
-rectangle, without following it. No picker opens unless `--select` is passed.
+`--height`. Area selection locks aspect ratio to output width/height. The live picker shows
+instructions and highlights the exact fitted region; double-clicking a window
+selects its centered fitted rectangle, without following it. Screen/visible
+selection keeps the whole display region, with output padding if needed.
+A click-through dashed border stays outside the shared region and follows later
+crop/pan controls. Use `--no-border` to hide it, or `--border` with explicit
+coordinates to enable it. The border closes with the run, including failures.
+Screen runs start with fresh crop settings rather than saved webcam crops.
+No picker opens unless `--select` is passed. Reinstall `select-region` for the new
+sharing flags; existing recording/screenshot behavior is unchanged.
 
 `--width`/`--height` set the capture region, defaulting to input dimensions.
 `--input-fps` sets requested screen cadence (30 by default); `--output-width`,
