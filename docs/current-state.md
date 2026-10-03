@@ -84,7 +84,7 @@ record/replay bounds, model state isolation, partial startup cleanup, real CPU
 MediaPipe, real Vision/Core Image and native buffer orientation/stride/lifetime.
 Use make verify UV_FLAGS='--extra macos' to run optional native tests.
 
-Supported runtime: Python 3.14 only. Local macOS ARM64 checks pass: 129 tests.
+Supported runtime: Python 3.14 only. Local macOS ARM64 checks pass: 131 tests.
 Both CLI entrypoints run and wheel/source-distribution builds succeed. GitHub verification workflow
 targets Python 3.14 on macOS ARM64 and Linux x86_64; remote validation
 is excluded by user choice. Local Linux execution was not performed.
@@ -92,7 +92,12 @@ is excluded by user choice. Local Linux execution was not performed.
 Bare-window preview displays the final resized/padded BGR frame without overlays.
 It pumps GUI events, paces against monotonic deadlines and stops the run on close
 or Escape. Six real macOS preview frames displayed and cleanup passed; camera
-permission checks remain separate.
+permission checks remain separate. Pacing preserves phase through small sleep/event
+jitter and avoids a redundant GUI poll after reaching the deadline. Whole-period
+misses restart the schedule without bursts. A 120-frame fixed-fixture/real-preview
+smoke (10 warmup, Vision fast, 640x480) observed 22.19 FPS before and 30.00 after
+this pacing fix. Processing medians differed (11.92/6.03 ms); these short runs
+confirm cadence behavior and are not a controlled model-speed comparison.
 
 OBS Virtual Camera initialized, received three synthetic 640x480 frames at 30 FPS
 and closed successfully. A subsequent 12-frame fixture run exercised Vision, Core

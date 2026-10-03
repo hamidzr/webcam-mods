@@ -91,7 +91,10 @@ bounded runs or strict errors raise. `max_frames`, `strict_errors` and
 On-demand mode retains Linux consumer detection. Paused capture is closed and the
 loop sends a no-signal frame on a 0.5-second cadence. pyvirtualcam always reports in use.
 The loop owns pacing across all outputs; adapter compatibility waits are not called.
-Preview pumps events at most 20 ms apart during waits. Slow processing skips catch-up bursts.
+Preview polls events with sleep slices of at most 20 ms during waits. Event cost
+counts toward each deadline, without a redundant poll once the deadline is reached.
+Small timing overruns preserve schedule phase; whole-period misses restart cadence
+without catch-up bursts.
 
 ## State and threads
 

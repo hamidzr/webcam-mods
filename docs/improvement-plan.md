@@ -19,7 +19,7 @@ product requirement.
 - Replaced obsolete mypy config with strict checks for eight owned/core modules in make check.
 - Repaired legacy face entrypoint and isolated box-demo tracker state.
 - Resolved startup settings once with CLI overrides, validation and actionable Linux-extra errors.
-- Centralized monotonic frame pacing across all outputs; preview pumps events during waits.
+- Centralized monotonic frame pacing across outputs; removed redundant deadline GUI polling and cumulative jitter drift.
 - Added live-camera measurement script; fixture-to-OBS smoke passed, Terminal live capture confirmed; native-format override found and fixed with retained device lock.
 - Added repeatable processing benchmark and measured portable float32 improvement.
 

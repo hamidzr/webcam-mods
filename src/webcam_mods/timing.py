@@ -30,13 +30,19 @@ class FramePacer:
 
         Event callbacks return False to stop and are polled at most 20 ms apart.
         """
-        deadline = self._last_tick + (self.period if interval is None else interval)
+        period = self.period if interval is None else interval
+        deadline = self._last_tick + period
+        if process_events is not None and not process_events():
+            return False
         while True:
-            if process_events is not None and not process_events():
-                return False
             now = self._clock()
             remaining = deadline - now
             if remaining <= 0:
-                self._last_tick = max(deadline, now)
+                # preserve phase through small delays; restart after a whole missed period
+                self._last_tick = now if now - deadline >= period else deadline
                 return True
             self._sleep(min(remaining, 0.02) if process_events else remaining)
+            # don't add another GUI event delay after reaching the deadline
+            if self._clock() < deadline and process_events is not None:
+                if not process_events():
+                    return False

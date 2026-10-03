@@ -106,6 +106,33 @@ class TimingTests(unittest.TestCase):
         self.assertAlmostEqual(clock.now, 10.04)
         self.assertLessEqual(max(clock.sleeps), 0.02)
 
+    def test_event_cost_counts_toward_deadline_without_final_extra_poll(self):
+        clock = Clock()
+        pacer = FramePacer(30, clock=clock.read, sleep=clock.sleep)
+        polls = []
+
+        def events():
+            polls.append(clock.now)
+            clock.now += 0.012
+            return True
+
+        for _ in range(10):
+            clock.now += 0.012
+            pacer.wait(process_events=events)
+        self.assertEqual(len(polls), 10)
+        self.assertAlmostEqual(clock.now, 10 + 10 / 30)
+
+    def test_small_sleep_overruns_do_not_accumulate_drift(self):
+        clock = Clock()
+
+        def oversleep(seconds):
+            clock.sleep(seconds + 0.002)
+
+        pacer = FramePacer(10, clock=clock.read, sleep=oversleep)
+        for _ in range(10):
+            pacer.wait()
+        self.assertAlmostEqual(clock.now, 11.002)
+
     def test_invalid_fps_rejected(self):
         for fps in (0, -1, float("inf"), float("nan")):
             with self.subTest(fps=fps), self.assertRaises(ValueError):

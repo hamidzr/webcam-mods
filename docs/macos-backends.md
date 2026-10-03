@@ -161,3 +161,12 @@ request. Processing median/p95 was 24.32/31.70 ms, capture-to-send 25.29/32.68 m
 delivery 26.35 FPS and process peak RSS 458,276,864 bytes. Device-lock retention
 now prevents automatic format changes; a hardware rerun must confirm the requested
 640x480 input. Conferencing reception remains unverified.
+
+Preview pacing follow-up: a 120-frame fixed-fixture run (10 warmup, 640x480,
+Vision fast/OpenCV blur) observed 22.19 FPS with the original pacing and 30.00
+with the corrected pacing. The fix removes a redundant GUI poll at the deadline
+and prevents minor timing jitter from shifting every subsequent deadline. Processing
+medians differed (11.92/6.03 ms), so this short fixture evidence does not establish
+a model-speed gain. Fake-clock regressions independently isolate event overhead,
+sleep overruns and whole-period missed deadlines. Live-camera cadence must be
+remeasured after the format fix.
