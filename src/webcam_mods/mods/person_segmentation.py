@@ -5,6 +5,7 @@ from typing import Any, Literal, cast
 from numpy.typing import NDArray
 
 from webcam_mods.utils.video import Frame
+from webcam_mods.mods.mask_stabilizer import MaskStabilizer
 from webcam_mods.macos.vision import Quality, VisionSegmenter
 from webcam_mods.macos.core_image import CoreImageProcessor
 
@@ -69,6 +70,7 @@ class PersonEffects:
         backend: Literal["mediapipe", "vision"] = "mediapipe",
         processing: Literal["opencv", "coreimage"] = "opencv",
         quality: Quality = "balanced",
+        smoothing: bool = False,
     ) -> None:
         self.segmenter: MediaPipeSegmenter | VisionSegmenter
         if backend == "mediapipe":
@@ -82,6 +84,7 @@ class PersonEffects:
             self.processor = CoreImageProcessor()
         elif processing != "opencv":
             raise ValueError(f"unknown processing backend: {processing}")
+        self.stabilizer = MaskStabilizer() if smoothing else None
         self.backend = backend
         self._closed = False
 
@@ -96,6 +99,8 @@ class PersonEffects:
             )
             result = cast(Mask, cv2.blur(result, (10, 10)))
             result = sigmoid(result)
+        if self.stabilizer is not None:
+            result = self.stabilizer.apply(image, result)
         return image, result[:, :, None]
 
     def color_bg(self, frame: Frame, color: Color = BG_COLOR) -> Frame:
@@ -131,6 +136,8 @@ class PersonEffects:
 
     def close(self) -> None:
         self._closed = True
+        if self.stabilizer is not None:
+            self.stabilizer.reset()
         try:
             self.segmenter.close()
         finally:

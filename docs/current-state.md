@@ -55,6 +55,7 @@ accept true/false (case-insensitive) and 1/0. See README for CLI overrides.
 | freeze_on_error | false; existing Typer environment option |
 | XDG_CACHE_HOME | ~/.cache fallback, verified model cache |
 | --output | virtual-cam default; preview displays final frames in a bare window |
+| --mask-smoothing | opt-in temporal stabilization with motion bypass |
 | --segmentation-backend | mediapipe default; optional vision |
 | --processing-backend | opencv default; optional coreimage for backgrounds |
 | --capture-backend | opencv default; optional avfoundation |

@@ -182,3 +182,9 @@ a model-speed gain. Fake-clock regressions independently isolate event overhead,
 sleep overruns and whole-period missed deadlines. Live-camera cadence must be
 remeasured independently of fixture results; the corrected Terminal run above
 confirmed 29.955 FPS.
+
+## Boundary stabilization and quality comparison
+
+Use `--mask-smoothing` to enable motion-aware temporal confidence smoothing.
+See [comparison results, limitations and image/video commands](segmentation-comparison.md).
+Defaults stay unchanged; realistic hair/hand/low-light acceptance remains open.

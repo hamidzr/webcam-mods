@@ -72,12 +72,13 @@ class CliTests(unittest.TestCase):
                     "coreimage",
                     "--vision-quality",
                     "fast",
+                    "--mask-smoothing",
                     "bg-blur",
                 ],
             )
             self.assertEqual(result.exit_code, 0, result.output)
             effects.assert_called_once_with(
-                backend="vision", processing="coreimage", quality="fast"
+                backend="vision", processing="coreimage", quality="fast", smoothing=True
             )
             effects.return_value.close.assert_called_once()
             self.assertIsNone(loop.call_args.kwargs["interactive_listener"])

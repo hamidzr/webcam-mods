@@ -1,7 +1,8 @@
 # Improvement plan
 
 Updated 2026-10-02. Session/control and optional native-backend work is implemented;
-remaining work below is proposed. Preserve macOS and Linux behavior and existing
+typing and opt-in boundary stabilization are also implemented; hardware acceptance
+remains outstanding. Preserve macOS and Linux behavior and existing
 CLI commands. Do not add a server or generic plugin framework without a concrete
 product requirement.
 
@@ -16,8 +17,8 @@ this goal, update acceptance evidence and explain any priority change. New visua
 issues belong in the backlog unless promoted deliberately. Keep each validated
 implementation section independently committed.
 
-Latest review: corrected native capture/cadence is confirmed. Boundary polish is
-explicitly deferred. Repeated lifecycle and actual OBS/conferencing delivery are
+Latest review: corrected native capture/cadence is confirmed. User activated typing
+and boundary work; fixture comparison and opt-in smoothing are complete. Repeated lifecycle and actual OBS/conferencing delivery are
 the next acceptance checks; remote CI, screen sharing and an own camera extension
 remain excluded.
 
@@ -43,6 +44,8 @@ remain excluded.
 - Added live-camera measurement script; fixture-to-OBS smoke passed, Terminal live capture confirmed; native-format override found and fixed with retained device lock.
 - Passed three fixture -> Vision fast -> actual OBS producer start/stop cycles with input/effect/output cleanup assertions. This does not verify physical-camera restarts or consumer reception.
 - Added repeatable processing benchmark and measured portable float32 improvement.
+- Typed face pixel bounds, geometry, crop transitions and adapter metadata; preserved compatibility helpers.
+- Added opt-in motion-aware temporal mask smoothing and repeatable image/video quality comparisons; fixture evidence recorded in [segmentation comparison](segmentation-comparison.md).
 - Confirmed corrected native camera -> Vision fast -> preview at 640x480/30 from Terminal: 300 measured frames, 29.96 FPS.
 
 ## Current checkpoint and next checks
@@ -51,14 +54,14 @@ Core session/control ownership, startup settings, native capture/processing adap
 preview output, pacing, typing and legacy cleanup are implemented. The 640x480
 native capture fix is now hardware-confirmed. Type-safety expansion, targeted
 effect/output modernization and camera-selection diagnostics are complete.
-The 2026-10-02 checkpoint passed 140 local tests, strict mypy, Black, Flake8 and
+The typing/stabilization 2026-10-02 checkpoint passed 153 local tests, strict mypy, Black, Flake8 and
 compile checks on Python 3.14. Hardware-dependent evidence remains separate.
 
 | Priority | Remaining work | Acceptance evidence |
 | --- | --- | --- |
 | 1 | Repeated physical-camera starts/stops and OBS/conferencing reception | Authorized Terminal runs with cleanup; actual reception in a conferencing client. Fixture producer restarts passed; T3 camera permission remains unavailable |
-| 2 | Further targeted typing/modernization when touching face tracking or metadata | Concrete prediction/geometry and metadata contracts; preserve public compatibility helpers unless removal is justified by caller evidence |
-| Deferred | Broader native quality/cost comparison and boundary refinement | Compare moving hair/hands/low light; measure latency/memory and visual results before picking defaults or smoothing |
+| Completed | Face prediction, geometry and adapter metadata typing | Strict contracts and regression tests; integer pixel division corrected; compatibility helpers retained |
+| Implemented; visual acceptance outstanding | Quality/cost comparison and opt-in boundary stabilization | Four real backends/quality configurations compared on fixtures; 65% fast static variation reduction; recorded/live hair, hands and low-light noise still needed |
 | When hardware is available | Linux consumer detection and native output parity | Real V4L2 consumer smoke check; mocked ownership checks already pass |
 
 Ordering reflects work/value: close the hardware evidence gap when possible, then
@@ -70,17 +73,20 @@ Remote CI validation is explicitly excluded. Python 3.14 is the only supported
 runtime. Screen sharing and an own signed virtual-camera extension are excluded;
 retain OBS output.
 
-## Deferred visual polish
+## Boundary refinement checkpoint
 
 - Background-blur boundary shifts/jitters many times per second in the live
   Vision fast preview (user observation, 2026-10-02).
-- Investigate quality-level tradeoffs, edge feathering and temporal mask
-  stabilization with motion-aware reset/adaptation.
+- Compared quality-level cost and fixture output; added temporal mask
+  stabilization with motion-aware reset/adaptation. Spatial feathering remains
+  pending fine-detail evidence.
 - Acceptance: steadier static edges and smoother hair/hands without obvious
   motion trails, delayed subject departure or lost fine detail; measure added
   cost and preserve the 640x480/30 target.
-- Deferred by user choice. No mask-refinement implementation has been added.
-  Resume as a separate section after the current improvement checkpoints.
+- Activated by user request. Opt-in motion-aware mask refinement now exists; defaults stay unchanged.
+- Fixture comparison is complete: [results and commands](segmentation-comparison.md).
+  Moving hair/hands and realistic low-light/subject-departure acceptance remain
+  unverified. Vision fast misclassifies black input even without smoothing.
 
 External runtime control/API, hot input switching and native-frame experiments
 remain future product/architecture decisions, not active implementation tasks.

@@ -60,6 +60,7 @@ class Common:
     recording_limit_mb: int = 256
     output: str = "virtual-cam"
     settings: StartupSettings | None = None
+    mask_smoothing: bool = False
 
 
 def _run(
@@ -129,6 +130,7 @@ class BackgroundEffect:
             backend=common.segmentation,
             processing=common.processing,
             quality=common.quality,
+            smoothing=common.mask_smoothing,
         )
         if mode == "swap_bg":
             if not isinstance(value, np.ndarray):
@@ -303,6 +305,9 @@ def common(
     processing_backend: ProcessingBackend = ProcessingBackend.opencv,
     capture_backend: CaptureBackend = CaptureBackend.opencv,
     vision_quality: VisionQuality = VisionQuality.balanced,
+    mask_smoothing: bool = typer.Option(
+        False, help="Stabilize static segmentation edges; reset moving pixels."
+    ),
     recording_limit_mb: int = typer.Option(256, min=1),
     output: OutputBackend = typer.Option(
         OutputBackend.virtual_cam, help="Final-frame output destination."
@@ -363,6 +368,7 @@ def common(
         recording_limit_mb,
         output.value,
         settings,
+        mask_smoothing,
     )
 
 
