@@ -28,6 +28,16 @@ The script stops native compilation below 3 GiB free. Cold builds can exceed
 20 minutes. A rebuilt wheel may have a different checksum; run
 `uv lock --refresh-package mediapipe`, update `SHA256SUMS`, then rerun `make verify` and `make e2e` after replacing it.
 
+Experimental Metal-enabled wheels can be built separately for CPU/GPU comparisons:
+
+```sh
+./scripts/build_mediapipe.py --gpu
+```
+
+These go to `dist/mediapipe-metal`, leaving the checked-in CPU wheel unchanged.
+Both builds currently carry the same source version; compare isolated environments
+and record the wheel SHA256 plus build flags. GPU inputs on macOS require RGBA.
+
 Build patches:
 
 - `620ce401.patch`, `1d6e3acd.patch`: upstream LLVM mirror fixes, preserving the

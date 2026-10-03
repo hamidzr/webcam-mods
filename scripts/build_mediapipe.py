@@ -3,7 +3,7 @@
 # requires-python = ">=3.13"
 # dependencies = ["setuptools==84.0.0", "wheel==0.48.0", "delocate==0.13.0"]
 # ///
-"""Build pinned CPU-only MediaPipe from source for macOS ARM64."""
+"""Build pinned MediaPipe from source for macOS ARM64."""
 
 import argparse
 import hashlib
@@ -144,7 +144,9 @@ def prepare_bazel(cache: Path) -> Path:
     return executable
 
 
-def build_native(bazel: Path, cache: Path, source: Path, env: dict[str, str]) -> None:
+def build_native(
+    bazel: Path, cache: Path, source: Path, env: dict[str, str], *, gpu: bool = False
+) -> None:
     startup = [str(bazel), f"--output_user_root={cache / 'bazel-cache'}"]
     command = startup + [
         "build",
@@ -152,7 +154,7 @@ def build_native(bazel: Path, cache: Path, source: Path, env: dict[str, str]) ->
         "opt",
         "--jobs=10",
         "--local_ram_resources=16000",
-        "--define=MEDIAPIPE_DISABLE_GPU=1",
+        f"--define=MEDIAPIPE_DISABLE_GPU={0 if gpu else 1}",
         "--define=OPENCV=source",
         "--copt=-DNDEBUG",
         "--copt=-DLITERT_DISABLE_NPU",
@@ -183,7 +185,13 @@ def build_native(bazel: Path, cache: Path, source: Path, env: dict[str, str]) ->
 
 
 def package_wheel(
-    bazel: Path, cache: Path, source: Path, output: Path, env: dict[str, str]
+    bazel: Path,
+    cache: Path,
+    source: Path,
+    output: Path,
+    env: dict[str, str],
+    *,
+    gpu: bool = False,
 ) -> None:
     # setup.py invokes bazel by name; keep metadata generation on the same cache
     wrapper_dir = cache / "packaging-bin"
@@ -198,7 +206,7 @@ def package_wheel(
     package_env = env | {
         "PATH": f"{wrapper_dir}:{env['PATH']}",
         "SKIP_LIBMEDIAPIPE_BUILD": "1",
-        "MEDIAPIPE_DISABLE_GPU": "1",
+        "MEDIAPIPE_DISABLE_GPU": "0" if gpu else "1",
         "DYLD_LIBRARY_PATH": str(source / "bazel-bin/third_party/opencv_cmake/lib"),
     }
     setup = source / "setup.py"
@@ -323,18 +331,28 @@ def main() -> None:
         type=Path,
         default=Path.home() / "Library/Caches/webcam-mods/mediapipe-patched",
     )
-    parser.add_argument("--output-dir", type=Path, default=REPO / "vendor/mediapipe")
+    parser.add_argument("--output-dir", type=Path)
+    parser.add_argument(
+        "--gpu", action="store_true", help="enable experimental Metal support"
+    )
     args = parser.parse_args()
     if platform.system() != "Darwin" or platform.machine() != "arm64":
         parser.error("This build supports only macOS ARM64")
+    output = args.output_dir or (
+        REPO / "dist/mediapipe-metal" if args.gpu else REPO / "vendor/mediapipe"
+    )
+    if args.gpu and output.expanduser().resolve() == REPO / "vendor/mediapipe":
+        parser.error("Use a separate output directory for experimental GPU wheels")
     cache = args.cache_dir.expanduser().resolve()
     cache.mkdir(parents=True, exist_ok=True)
     env = dict(os.environ) | {"HERMETIC_PYTHON_VERSION": "3.11"}
     source = cache / "source"
     bazel = prepare_bazel(cache)
     prepare_source(source, env)
-    build_native(bazel, cache, source, env)
-    package_wheel(bazel, cache, source, args.output_dir.expanduser().resolve(), env)
+    build_native(bazel, cache, source, env, gpu=args.gpu)
+    package_wheel(
+        bazel, cache, source, output.expanduser().resolve(), env, gpu=args.gpu
+    )
 
 
 if __name__ == "__main__":
