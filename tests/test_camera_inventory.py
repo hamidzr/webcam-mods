@@ -16,6 +16,40 @@ from webcam_mods.macos.capture import (
 
 
 class CameraInventoryTest(unittest.TestCase):
+    def test_auto_excludes_muxed_only_inputs_only_when_using_native_capture(
+        self,
+    ) -> None:
+        video, muxed = Mock(), Mock()
+        for device, identity in ((video, "b"), (muxed, "a")):
+            device.uniqueID.return_value = identity
+            device.manufacturer.return_value = "vendor"
+            device.modelID.return_value = "camera"
+            device.localizedName.return_value = identity
+            device.formats.return_value = []
+        av = SimpleNamespace(
+            AVCaptureDevice=SimpleNamespace(
+                devicesWithMediaType_=lambda media: (
+                    [video] if media == "video" else [muxed]
+                )
+            ),
+            AVMediaTypeVideo="video",
+            AVMediaTypeMuxed="muxed",
+        )
+        for resolved in ("avfoundation", "opencv"):
+            with (
+                self.subTest(resolved=resolved),
+                patch.dict(sys.modules, {"AVFoundation": av, "CoreMedia": Mock()}),
+                patch("webcam_mods.capture.resolve_backend", return_value=resolved),
+            ):
+                cameras = camera_inventory("auto")
+            self.assertEqual(cameras[1].input_index, 1)
+            if resolved == "avfoundation":
+                self.assertIsNone(cameras[0].input_index)
+                self.assertIn("not a native video input", cameras[0].excluded_reason)
+            else:
+                self.assertEqual(cameras[0].input_index, 0)
+                self.assertIsNone(cameras[0].excluded_reason)
+
     def test_opencv_indices_follow_unique_ids_and_include_muxed_devices(self) -> None:
         def device(name: str, unique_id: str, manufacturer: str) -> Mock:
             result = Mock()

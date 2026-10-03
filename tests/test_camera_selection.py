@@ -47,7 +47,7 @@ class CameraSelectionTests(unittest.TestCase):
         self.assertIn("--input-device 3", result.output)
         self.assertEqual(self.run.call_args.args[0].settings.video_in, 3)
         self.assertEqual(self.run.call_args.args[0].settings.in_width, 1280)
-        self.inventory.assert_called_once_with("opencv")
+        self.inventory.assert_called_once_with("auto")
 
     def test_enter_uses_first_eligible_camera_when_zero_is_excluded(self) -> None:
         result = CliRunner().invoke(entry.app, ["test-loop"], input="\n")
@@ -109,7 +109,7 @@ class CameraSelectionTests(unittest.TestCase):
         with patch("webcam_mods.input.selection.typer.prompt") as prompt:
             result = CliRunner().invoke(entry.app, ["list-cameras"])
         self.assertEqual(result.exit_code, 0, result.output)
-        self.inventory.assert_called_once_with()
+        self.inventory.assert_called_once_with("auto")
         prompt.assert_not_called()
 
     def test_cancellation_precedes_effect_initialization(self) -> None:

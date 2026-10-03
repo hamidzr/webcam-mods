@@ -98,16 +98,16 @@ just run --help
 
 Run `just check` for static checks and `just test` for headless regression tests.
 
-Optional macOS native capture and effects keep OBS output:
+macOS native capture and optional native effects keep OBS output:
 
 ```sh
 uv sync --extra macos
-uv run --extra macos webcam_mods list-cameras
+uv run --extra macos webcam_mods list-cameras --capture-backend avfoundation
 uv run --extra macos webcam_mods --no-controls --capture-backend avfoundation --segmentation-backend vision --vision-quality fast bg-blur
 just verify
 ```
 
-`list-cameras` shows native input indices, formats and excluded OBS output without
+With `--capture-backend avfoundation`, `list-cameras` shows native input indices, formats and excluded OBS output without
 opening a camera or requesting permission. Use its index with `--input-device`.
 
 Run from macOS Terminal and allow Camera access when prompted. Common options
@@ -116,6 +116,12 @@ work before or after commands; command-side values override root values.
 blur/compositing; portable OpenCV box blur remains default. Native options are
 experimental and do not guarantee better performance or segmentation quality.
 See [backend report](docs/macos-backends.md) for measured results and limitations.
+Camera capture defaults to `auto`: native AVFoundation on macOS when the optional
+bindings are installed, otherwise OpenCV. Auto retains OpenCV camera-index
+semantics and maps the selected camera by identity; explicit `avfoundation`
+uses native indices. Native capture selects an exact resolution/FPS and holds
+its configuration lock. Acquisition errors never silently switch cameras or
+backends. Use `--capture-backend opencv` to force the portable capture path.
 No own camera extension or paid Apple membership is required.
 
 Preview the exact final webcam frame in a bare window:

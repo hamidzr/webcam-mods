@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Callable, Literal, cast
 from webcam_mods.utils.video import Frame
 from webcam_mods.input.input import FrameInput
+from webcam_mods.capture import CaptureBackend as CaptureMode, create_camera
 from webcam_mods.cli import SharedOptionsCommand, SharedOptionsGroup
 from webcam_mods.macos.vision import Quality
 
@@ -49,6 +50,7 @@ class ProcessingBackend(str, Enum):
 
 
 class CaptureBackend(str, Enum):
+    auto = "auto"
     opencv = "opencv"
     avfoundation = "avfoundation"
 
@@ -65,7 +67,7 @@ class Common:
     controls: bool = True
     segmentation: Literal["mediapipe", "vision"] = "mediapipe"
     processing: Literal["opencv", "coreimage"] = "opencv"
-    capture: str = "opencv"
+    capture: CaptureMode = "auto"
     quality: Quality = "balanced"
     recording_limit_mb: int = 256
     output: str = "virtual-cam"
@@ -93,16 +95,8 @@ def _run(
             if common.controls and prepare
             else None
         )
-        if source is None and common.capture == "avfoundation":
-            from webcam_mods.macos.capture import AVFoundationCamera
-
-            source = AVFoundationCamera(
-                device_index=settings.video_in,
-                width=settings.in_width,
-                height=settings.in_height,
-                fps=settings.in_fps,
-                device=settings.video_out,
-            )
+        if source is None:
+            source = create_camera(settings, common.capture)
 
         def process(frame: Frame) -> Frame | None:
             if prepare:
@@ -282,7 +276,7 @@ def share_screen(
 
     common = _common(ctx)
     settings = common.settings or load_settings()
-    if common.capture != "opencv":
+    if common.capture not in ("auto", "opencv"):
         raise typer.BadParameter(
             "--capture-backend selects cameras, not screen capture"
         )
@@ -304,14 +298,14 @@ def test_loop(ctx: typer.Context) -> None:
 
 
 @app.command(cls=SharedOptionsCommand, rich_help_panel="Utilities")
-def list_cameras() -> None:
-    """List macOS native input indices and formats without opening cameras."""
+def list_cameras(ctx: typer.Context) -> None:
+    """List camera indices/formats for the selected backend without opening capture."""
     if sys.platform != "darwin":
         raise typer.BadParameter("list-cameras requires macOS")
     try:
         from webcam_mods.macos.capture import camera_inventory
 
-        cameras = camera_inventory()
+        cameras = camera_inventory(_common(ctx).capture)
     except ImportError as error:
         raise typer.BadParameter(
             "list-cameras requires uv sync --extra macos"
@@ -357,8 +351,8 @@ def common(
         help="opencv or coreimage.",
     ),
     capture_backend: CaptureBackend = typer.Option(
-        CaptureBackend.opencv,
-        help="Camera capture backend (screen uses MSS).",
+        CaptureBackend.auto,
+        help="auto prefers native macOS capture; opencv/avfoundation force a backend. Screen uses MSS.",
         rich_help_panel="Input",
         metavar="BACKEND",
     ),

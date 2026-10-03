@@ -17,7 +17,19 @@ this goal, update acceptance evidence and explain any priority change. New visua
 issues belong in the backlog unless promoted deliberately. Keep each validated
 implementation section independently committed.
 
-Latest review (2026-10-03): user prioritized independent capture/delivery
+Latest review (2026-10-03): OpenCV accepted 1280x720 at startup, then returned
+864x480 after delegate calibration in the user's session. Default `auto` capture
+now prefers native AVFoundation with the existing retained format lock, preserving
+the selected OpenCV camera identity. Explicit backend choices remain available.
+Midstream drift errors distinguish format loss from unsupported startup requests.
+Added a capture-only pause/restart check with partial JSON evidence and safe
+permission preflight. All 258 local tests and static checks pass. The installed
+CLI was refreshed with `just install`; its source and default backend were verified.
+This headless
+context lacks Camera authorization, so sustained hardware validation remains
+outstanding; the exact external trigger for the OpenCV format change is unverified.
+
+Previous review (2026-10-03): user prioritized independent capture/delivery
 resolution and FPS at launch. Existing controls remain; OpenCV negotiation now
 checks actual frames and reported FPS instead of accepting unsupported requests.
 Launch examples and limits are documented in [quality settings](quality-settings.md).

@@ -126,7 +126,7 @@ class Webcam(FrameInput):
             ret, frame = cap.read()
             if not ret or frame is None:
                 raise RuntimeError("camera produced no frame during startup")
-            self._validate_frame(cast(Frame, frame))
+            self._validate_frame(cast(Frame, frame), startup=True)
             fps = cap.get(cv2.CAP_PROP_FPS)
             if not math.isfinite(fps) or fps <= 0:
                 raise ValueError(
@@ -149,11 +149,19 @@ class Webcam(FrameInput):
                 error.add_note(f"capture cleanup failed: {cleanup_error}")
             raise
 
-    def _validate_frame(self, frame: Frame) -> None:
+    def _validate_frame(self, frame: Frame, *, startup: bool = False) -> None:
         if frame.ndim != 3 or frame.shape[2] != 3:
             raise ValueError("camera must return HxWx3 BGR frames")
         height, width = frame.shape[:2]
         if (width, height) != (self.width, self.height):
+            if not startup:
+                raise RuntimeError(
+                    f"OpenCV camera #{self.device_index} changed resolution during "
+                    f"capture: {self.width}x{self.height} -> {width}x{height}. "
+                    "The requested mode passed startup validation, but capture "
+                    "did not retain it. On macOS use --capture-backend avfoundation "
+                    "to select and retain an exact camera format."
+                )
             raise ValueError(
                 f"camera #{self.device_index} returned {width}x{height}; "
                 f"requested {self.width}x{self.height}. Choose supported "

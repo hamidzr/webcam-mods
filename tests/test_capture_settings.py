@@ -32,7 +32,7 @@ class CaptureSettingsTests(unittest.TestCase):
         self.settings = StartupSettings(in_width=32, in_height=24)
         self.capture = capture_mock()
         self.camera = Webcam(settings=self.settings)
-        self.addCleanup(self.camera.teardown)
+        self.addCleanup(lambda: self.camera.teardown())
 
     def setup_camera(self):
         with patch(
@@ -119,8 +119,22 @@ class CaptureSettingsTests(unittest.TestCase):
         self.setup_camera()
         self.camera.frame()
         self.capture.read.return_value = (True, np.zeros((48, 64, 3), np.uint8))
-        with self.assertRaisesRegex(ValueError, "returned 64x48"):
+        with self.assertRaisesRegex(RuntimeError, "changed resolution during capture"):
             self.camera.frame()
+
+    def test_reported_user_drift_is_not_called_an_unsupported_mode(self) -> None:
+        self.camera = Webcam(
+            settings=StartupSettings(in_width=1280, in_height=720, in_fps=30)
+        )
+        self.capture.read.side_effect = [
+            (True, np.zeros((720, 1280, 3), np.uint8)),
+            (True, np.zeros((480, 864, 3), np.uint8)),
+        ]
+        self.setup_camera()
+        self.assertEqual(self.camera.frame().shape, (720, 1280, 3))
+        with self.assertRaisesRegex(RuntimeError, "1280x720 -> 864x480") as raised:
+            self.camera.frame()
+        self.assertNotIn("Choose supported", str(raised.exception))
 
     def test_constructor_fps_override_reaches_capture(self) -> None:
         self.camera = Webcam(settings=self.settings, fps=24)
@@ -184,6 +198,8 @@ class DeliverySettingsTests(unittest.TestCase):
 
                     options = [
                         "--no-controls",
+                        "--capture-backend",
+                        "opencv",
                         "--input-width",
                         "32",
                         "--input-height",

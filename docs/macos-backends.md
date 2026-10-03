@@ -13,9 +13,11 @@ uv run --extra macos webcam_mods --no-controls --capture-backend avfoundation --
 ```
 
 Common options work before or after commands. Add `--output preview` for a bare final-frame
-window instead of virtual-camera delivery; close or Escape stops the run. Portable defaults remain OpenCV capture,
-MediaPipe segmentation and OpenCV processing. Native options are explicit; there
-is no silent fallback. `--no-controls` disables keyboard and stdin together.
+window instead of virtual-camera delivery; close or Escape stops the run. Capture
+defaults to `auto`, preferring native macOS capture with installed bindings.
+MediaPipe segmentation and OpenCV processing remain defaults. Explicit backend
+choices are honored; native startup errors never fall back. `--no-controls`
+disables keyboard and stdin together.
 `PAN_CONTROL=False` and `PADDING_CONTROL=False` independently disable keyboard
 features. Vision segmentation requires macOS 12 or newer; Python bindings are
 optional in the `macos` extra and never imported by CLI help.
@@ -24,11 +26,13 @@ Native capture requests camera permission at setup. Authorize the launching app
 in System Settings > Privacy & Security > Camera. This includes the terminal or
 coding application, depending on how Python is launched. Capture selects a device
 index from AVFoundation inputs after excluding OBS output by manufacturer/model
-identity. Default index 0 selects the first remaining input; OBS moving between
+identity for explicit `avfoundation`. Index 0 selects the first remaining input; OBS moving between
 enumeration slots does not change a single physical camera selection. Other
 physical or virtual input devices remain available. `--input-device` and `VIDEO_IN`
-index this filtered list, which may differ from OpenCV. Inspect it with
-`uv run --extra macos webcam_mods list-cameras`; this prints formats and excluded
+index this filtered list for explicit native capture, which may differ from OpenCV.
+`auto` retains OpenCV indices and maps the same device identity into native capture.
+Inspect native indices with
+`uv run --extra macos webcam_mods list-cameras --capture-backend avfoundation`; this prints formats and excluded
 OBS output without opening devices or requesting permission. Unsupported formats
 report the selected device and available
 resolutions/FPS instead of silently switching cameras. Capture requires a format

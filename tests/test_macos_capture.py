@@ -12,10 +12,30 @@ from webcam_mods.macos.capture import (
     AVFoundationCamera,
     select_capture_format,
     select_capture_device,
+    select_capture_device_by_id,
 )
 
 
 class CameraMailboxTest(unittest.TestCase):
+    def test_selected_identity_survives_reordered_devices(self) -> None:
+        first, second = Mock(), Mock()
+        first.uniqueID.return_value = "first"
+        second.uniqueID.return_value = "second"
+        first.manufacturer.return_value = second.manufacturer.return_value = "Vendor"
+        first.modelID.return_value = second.modelID.return_value = "Camera"
+        self.assertIs(select_capture_device_by_id([first, second], "second")[1], second)
+        self.assertIs(select_capture_device_by_id([second, first], "second")[1], second)
+        with self.assertRaisesRegex(ValueError, "no longer available"):
+            select_capture_device_by_id([first], "second")
+
+    def test_native_midstream_size_change_is_rejected(self) -> None:
+        camera = AVFoundationCamera(width=1280, height=720)
+        camera._running = True
+        camera._publish(np.zeros((480, 864, 3), np.uint8), 0)
+        with self.assertRaisesRegex(RuntimeError, "1280x720 -> 864x480"):
+            camera.frame()
+        camera.teardown()
+
     def test_output_exclusion_survives_reordered_devices(self) -> None:
         physical = Mock()
         physical.manufacturer.return_value = "Camera Vendor"
@@ -77,7 +97,7 @@ class CameraMailboxTest(unittest.TestCase):
         self.assertIs(select_capture_format(device, cm, 1920, 1080, 60, 0), fmt)
 
     def test_newest_frame_replaces_older_frame(self) -> None:
-        camera = AVFoundationCamera(timeout=0.01)
+        camera = AVFoundationCamera(width=3, height=2, timeout=0.01)
         camera._running = True
         older = np.zeros((2, 3, 3), dtype=np.uint8)
         newer = np.ones((2, 3, 3), dtype=np.uint8)
@@ -149,7 +169,7 @@ class CameraMailboxTest(unittest.TestCase):
             rows[:, : width * 4].reshape(height, width, 4)[:] = [10, 50, 200, 255]
         finally:
             q.CVPixelBufferUnlockBaseAddress(pixel, 0)
-        camera = AVFoundationCamera()
+        camera = AVFoundationCamera(width=width, height=height)
         camera._running = True
         cm = SimpleNamespace(
             CMSampleBufferGetImageBuffer=lambda _: pixel,
@@ -178,8 +198,11 @@ class CameraMailboxTest(unittest.TestCase):
         import AVFoundation as av
         import CoreMedia as cm
 
-        camera = AVFoundationCamera(width=7, height=3, fps=30, timeout=0.2)
+        camera = AVFoundationCamera(
+            width=7, height=3, fps=30, timeout=0.2, device_id="target"
+        )
         device = Mock()
+        device.uniqueID.return_value = "target"
         fmt = Mock()
         rate = Mock()
         rate.minFrameRate.return_value = 1
@@ -255,9 +278,12 @@ class CameraMailboxTest(unittest.TestCase):
         ):
             obs = Mock()
             obs.manufacturer.return_value = "OBS Project"
+            obs.uniqueID.return_value = "obs"
+            other = Mock()
+            other.uniqueID.return_value = "other"
             for i in range(2):
                 devices.devicesWithMediaType_.return_value = (
-                    [device, obs] if i == 0 else [obs, device]
+                    [device, obs, other] if i == 0 else [other, obs, device]
                 )
                 metadata = camera.setup()
                 self.assertEqual(metadata, {"width": 7, "height": 3, "fps": 30.0})
@@ -279,6 +305,12 @@ class CameraMailboxTest(unittest.TestCase):
             self.assertIsNone(camera._output)
             self.assertFalse(camera.is_setup())
             device.setActiveFormat_.side_effect = configure_format
+            session.startRunning.side_effect = start_running
+            device.activeVideoMinFrameDuration.return_value = cm.CMTimeMake(1, 15)
+            with self.assertRaisesRegex(RuntimeError, "returned 15 FPS; requested 30"):
+                camera.setup()
+            self.assertIsNone(camera._locked_device)
+            device.activeVideoMinFrameDuration.return_value = cm.CMTimeMake(1, 30)
             session.startRunning.side_effect = lambda: camera._publish(
                 np.zeros((24, 32, 3), dtype=np.uint8), 0.0
             )
@@ -288,12 +320,12 @@ class CameraMailboxTest(unittest.TestCase):
                 camera.setup()
             self.assertFalse(lock_state["held"])
             self.assertIsNone(camera._locked_device)
-        self.assertEqual(session.stopRunning.call_count, 4)
-        self.assertEqual(device.unlockForConfiguration.call_count, 5)
+        self.assertEqual(session.stopRunning.call_count, 5)
+        self.assertEqual(device.unlockForConfiguration.call_count, 6)
         session.canSetSessionPreset_.assert_not_called()
         session.setSessionPreset_.assert_not_called()
-        self.assertEqual(session.beginConfiguration.call_count, 5)
-        self.assertEqual(session.commitConfiguration.call_count, 5)
+        self.assertEqual(session.beginConfiguration.call_count, 6)
+        self.assertEqual(session.commitConfiguration.call_count, 6)
 
 
 if __name__ == "__main__":

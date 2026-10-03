@@ -4,7 +4,7 @@ import cv2
 import platform
 import math
 from loguru import logger
-from webcam_mods.input.video_dev import Webcam
+from webcam_mods.capture import create_camera
 from webcam_mods.input.input import FrameInput, FrameOutput
 from webcam_mods.utils.video import Frame
 from webcam_mods.timing import FramePacer
@@ -97,7 +97,7 @@ def live_loop(
     settings = settings or load_settings()
     on_demand = settings.on_demand if on_demand is None else on_demand
     if fIn is None:
-        fIn = Webcam(settings=settings)
+        fIn = create_camera(settings)
 
     producer = None
     try:

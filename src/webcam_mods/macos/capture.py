@@ -37,6 +37,18 @@ def select_capture_device(devices: Sequence[Any], index: int) -> tuple[int, Any]
     return inputs[index]
 
 
+def select_capture_device_by_id(
+    devices: Sequence[Any], device_id: str
+) -> tuple[int, Any]:
+    """Retain the same selected input across backend/enumeration changes."""
+    for index, device in enumerate(devices):
+        if str(device.uniqueID()) == device_id:
+            if is_obs_output_device(device):
+                raise ValueError("selected camera is OBS output, not an input")
+            return index, device
+    raise ValueError("selected camera is no longer available; run list-cameras")
+
+
 def select_capture_format(
     device: Any, core_media: Any, width: int, height: int, fps: float, index: int
 ) -> Any:
@@ -82,20 +94,32 @@ def _format_ranges(
 
 def camera_inventory(backend: str = "avfoundation") -> list[CameraInfo]:
     """Enumerate formats without opening devices or requesting camera permission."""
-    if backend not in ("avfoundation", "opencv"):
+    if backend not in ("auto", "avfoundation", "opencv"):
         raise ValueError(f"unknown camera backend: {backend}")
     import AVFoundation as av
     import CoreMedia as cm
+    from webcam_mods.capture import resolve_backend
 
     devices = list(av.AVCaptureDevice.devicesWithMediaType_(av.AVMediaTypeVideo))
-    if backend == "opencv":
+    video_ids = {str(device.uniqueID()) for device in devices}
+    native_auto = backend == "auto" and resolve_backend("auto") == "avfoundation"
+    if backend in ("auto", "opencv"):
         # match OpenCV's video + muxed devices sorted by uniqueID, including OBS
         devices += list(av.AVCaptureDevice.devicesWithMediaType_(av.AVMediaTypeMuxed))
         devices.sort(key=lambda device: str(device.uniqueID()))
     cameras = []
     input_index = 0
     for device in devices:
-        excluded = is_obs_output_device(device)
+        excluded_reason = (
+            "OBS output"
+            if is_obs_output_device(device)
+            else (
+                "not a native video input; use --capture-backend opencv"
+                if native_auto and str(device.uniqueID()) not in video_ids
+                else None
+            )
+        )
+        excluded = excluded_reason is not None
         formats = sorted(
             {(w, h, low, high) for _, w, h, low, high in _format_ranges(device, cm)}
         )
@@ -106,10 +130,10 @@ def camera_inventory(backend: str = "avfoundation") -> list[CameraInfo]:
                 formats=tuple(
                     f"{w}x{h} at {low:g}-{high:g} fps" for w, h, low, high in formats
                 ),
-                excluded_reason="OBS output" if excluded else None,
+                excluded_reason=excluded_reason,
             )
         )
-        if not excluded or backend == "opencv":
+        if not excluded or backend in ("auto", "opencv"):
             input_index += 1
     return cameras
 
@@ -126,6 +150,7 @@ class AVFoundationCamera(FrameInput):
         device_index: int | None = None,
         *,
         timeout: float = 10.0,
+        device_id: str | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
@@ -142,6 +167,7 @@ class AVFoundationCamera(FrameInput):
             load_settings().video_in if device_index is None else device_index
         )
         self.timeout = timeout
+        self._device_id = device_id
         self.timestamp: float | None = None
         self._condition = Condition()
         self._pending: tuple[NDArray[np.uint8], float] | None = None
@@ -275,7 +301,11 @@ class AVFoundationCamera(FrameInput):
         self.timestamp = None
         try:
             devices = av.AVCaptureDevice.devicesWithMediaType_(av.AVMediaTypeVideo)
-            selected_index, device = select_capture_device(devices, self.device_index)
+            selected_index, device = (
+                select_capture_device_by_id(devices, self._device_id)
+                if self._device_id is not None
+                else select_capture_device(devices, self.device_index)
+            )
             selected_format = select_capture_format(
                 device, cm, self.width, self.height, self.fps, selected_index
             )
@@ -358,7 +388,13 @@ class AVFoundationCamera(FrameInput):
                         f"camera returned {width}x{height}; requested {self.width}x{self.height}"
                     )
             duration = device.activeVideoMinFrameDuration()
-            self.fps = 1.0 / cm.CMTimeGetSeconds(duration)
+            negotiated_fps = 1.0 / cm.CMTimeGetSeconds(duration)
+            if not np.isclose(negotiated_fps, self.fps, rtol=0.01, atol=0.1):
+                raise RuntimeError(
+                    f"AVFoundation returned {negotiated_fps:g} FPS; "
+                    f"requested {self.fps:g} FPS"
+                )
+            self.fps = negotiated_fps
             return {"width": self.width, "height": self.height, "fps": self.fps}
         except BaseException:
             try:
@@ -385,6 +421,12 @@ class AVFoundationCamera(FrameInput):
                 raise TimeoutError("camera frame timeout")
             frame, self.timestamp = self._pending
             self._pending = None
+            height, width = frame.shape[:2]
+            if (width, height) != (self.width, self.height):
+                raise RuntimeError(
+                    "AVFoundation changed resolution during capture: "
+                    f"{self.width}x{self.height} -> {width}x{height}"
+                )
             return frame
 
     def is_setup(self) -> bool:
