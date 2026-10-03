@@ -1,5 +1,14 @@
 # Current state
 
+2026-10-03 hardware acceptance: three physical-camera -> Vision fast/OpenCV blur
+-> OBS producer start/stop cycles passed at 640x480/30. Each delivered 100 measured
+frames after 10 warmup frames, at 29.88-29.95 FPS, with cleanup verified. Three
+capture-only cycles using default auto -> AVFoundation retained 1280x720/30 across
+five-second startup pauses, delivered 120 frames each at 30.01-30.06 FPS and
+closed every adapter. Local reports: `dist/benchmarks/lifecycle.json` and
+`dist/capture-check.json`. Conferencing reception and 720p effects/output remain
+unchecked. Earlier checkpoints below describe evidence available at their time.
+
 2026-10-03 CLI polish and screen sharing: grouped root help presents frequent
 options; command help includes the full common option set. Common options parse
 before or after commands, with explicit command-side values overriding root
@@ -82,7 +91,7 @@ accept true/false (case-insensitive) and 1/0. See README for CLI overrides.
 | --mask-smoothing | opt-in temporal stabilization with motion bypass |
 | --segmentation-backend | mediapipe default; optional vision |
 | --processing-backend | opencv default; optional coreimage for backgrounds |
-| --capture-backend | opencv default; optional avfoundation |
+| --capture-backend | auto default; AVFoundation on macOS with bindings, otherwise OpenCV; explicit choices available |
 | --vision-quality | balanced default; fast / accurate available |
 | --controls / --no-controls | enabled default for prepared camera commands |
 | --recording-limit-mb | 256 maximum retained recording MiB |
@@ -160,8 +169,8 @@ incorrect capture resolution. Corrected Terminal rerun is now confirmed: 300 mea
 640x480 input/output at 30 FPS target, delivery 29.955 FPS. Processing median/p95
 6.34/15.23 ms, capture-to-send 21.30/31.64 ms, capture wait 14.01/17.03 ms, and
 process peak RSS 315,473,920 bytes. This is the requested resolution, not a same-
-resolution comparison with the earlier 1080p run. Repeated hardware start/stop and
-conferencing reception remain unverified. User observed frequent mask-boundary
+resolution comparison with the earlier 1080p run. Repeated hardware start/stop is now confirmed by the latest checkpoint;
+conferencing reception remains unverified. User observed frequent mask-boundary
 jitter in Vision fast preview; visual refinement is explicitly deferred in the
 [improvement plan](improvement-plan.md).
 
@@ -181,6 +190,6 @@ Other remaining gaps:
   Face/geometry modules remain outside the strict scope. Legacy demos are repaired.
 - list-cameras reports native indices/formats and excluded OBS output without
   opening devices. Three fixture-to-OBS producer restarts passed with cleanup;
-  physical-camera restarts and consumer reception remain unverified.
+  physical-camera restarts now pass; consumer reception remains unverified.
 
 See [remaining improvement plan](improvement-plan.md).

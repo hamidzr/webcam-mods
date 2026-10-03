@@ -17,7 +17,20 @@ this goal, update acceptance evidence and explain any priority change. New visua
 issues belong in the backlog unless promoted deliberately. Keep each validated
 implementation section independently committed.
 
-Latest review (2026-10-03): OpenCV accepted 1280x720 at startup, then returned
+Latest review (2026-10-03): authorized Terminal hardware checks passed. Three
+physical-camera -> Vision fast/OpenCV blur -> OBS producer cycles delivered
+100 measured frames each at 640x480/30, with 29.88-29.95 FPS and cleanup verified
+in every cycle (`dist/benchmarks/lifecycle.json`). Three capture-only auto ->
+AVFoundation cycles retained 1280x720/30 after five-second startup pauses,
+delivered 120 frames each at 30.01-30.06 FPS and closed every adapter
+(`dist/capture-check.json`). These close the repeated producer lifecycle and
+capture-only format-retention gaps. Conferencing reception and 720p effects/output
+remain unverified. User requested moving on; hardware consumer acceptance stays
+open without blocking a new product decision. Power presets, visual polish,
+remote CI and an own camera extension remain deferred or excluded. No additional
+implementation section is activated.
+
+Previous review (2026-10-03): OpenCV accepted 1280x720 at startup, then returned
 864x480 after delegate calibration in the user's session. Default `auto` capture
 now prefers native AVFoundation with the existing retained format lock, preserving
 the selected OpenCV camera identity. Explicit backend choices remain available.
@@ -102,12 +115,13 @@ compile checks on Python 3.14. Hardware-dependent evidence remains separate.
 
 | Priority | Remaining work | Acceptance evidence |
 | --- | --- | --- |
-| 1 | Repeated physical-camera starts/stops and OBS/conferencing reception | Run benchmark_live.py --cycles 3 --output-backend virtual-cam from authorized Terminal; confirm actual reception in a conferencing client. Headless cycle orchestration passes; T3 camera permission remains unavailable |
+| Completed | Repeated physical-camera/OBS producer starts/stops; 720p capture retention | Three 640x480/30 effect/output cycles passed with cleanup; three 1280x720/30 capture-only pause/restart cycles passed |
+| Open acceptance | OBS/conferencing reception and 720p effects/output | Confirm moving video across restarts in receiving client; capture-only 720p evidence does not validate effects/output |
 | Completed | Face prediction, geometry and adapter metadata typing | Strict contracts and regression tests; integer pixel division corrected; compatibility helpers retained |
 | Implemented; visual acceptance outstanding | Quality/cost comparison and opt-in boundary stabilization | Four real backends/quality configurations compared on fixtures; 65% fast static variation reduction; recorded/live hair, hands and low-light noise still needed |
 | When hardware is available | Linux consumer detection and native output parity | Real V4L2 consumer smoke check; mocked ownership checks already pass |
 
-Ordering reflects work/value: close the hardware evidence gap when possible, then
+Ordering reflects work/value: retain remaining hardware acceptance checks, then
 make targeted changes supported by concrete defects. Broad rewrites, compatibility
 removal without caller evidence, and extra benchmarking stay below current user
 needs. Camera-selection diagnostics addressed repeated input-selection failures.
