@@ -34,7 +34,7 @@ def face_geometry_metadata_contracts(
     assert_type(Point(t=5, l=9).tuple, tuple[int, int])
     assert_type((Point(t=5, l=9) / 2.5).t, int)
     assert_type(Rect().center, Point)
-    assert_type(tracker.generate_crop(Rect(), None), Rect)
+    assert_type(tracker.generate_crop(Rect(), None, frame_size=(640, 480)), Rect)
     assert_type(source.setup(), AdapterMetadata)
     assert_type(output.setup()["width"], int)
     assert_type(output.setup()["fps"], float)

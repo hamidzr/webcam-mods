@@ -4,6 +4,7 @@ from enum import Enum
 import importlib.util
 import os
 import sys
+import time
 from pathlib import Path
 from typing import Callable, Literal, cast
 from webcam_mods.utils.video import Frame
@@ -237,19 +238,54 @@ def brighten(ctx: typer.Context, level: int = typer.Option(30, min=0, max=255)) 
 @app.command(cls=SharedOptionsCommand, rich_help_panel="Camera")
 def track_face(
     ctx: typer.Context,
-    x_padding: float = typer.Option(2, min=0.01),
-    y_padding: float = typer.Option(2.5, min=0.01),
+    x_padding: float | None = typer.Option(
+        None,
+        min=0.01,
+        help="Legacy minimum width context ratio; overrides face-height with y-padding.",
+    ),
+    y_padding: float | None = typer.Option(
+        None,
+        min=0.01,
+        help="Legacy minimum height context ratio; overrides face-height with x-padding.",
+    ),
+    face_height: float = typer.Option(
+        0.4, min=0.01, max=1, help="Target face height as fraction of output."
+    ),
+    max_zoom: float = typer.Option(
+        2.0, min=1, help="Maximum digital zoom relative to widest fitted view."
+    ),
+    target_x: float = typer.Option(
+        0.5, min=0, max=1, help="Horizontal face position in output."
+    ),
+    target_y: float = typer.Option(
+        0.42, min=0, max=1, help="Vertical face position in output."
+    ),
+    pan_deadzone: float = typer.Option(
+        0.08, min=0, max=0.99, help="Allowed drift per axis as fraction of crop size."
+    ),
+    zoom_deadzone: float = typer.Option(
+        0.08, min=0, max=0.99, help="Ignored relative crop size change."
+    ),
+    pan_seconds: float = typer.Option(
+        0.25, min=0.01, help="Pan response time constant in seconds."
+    ),
+    zoom_seconds: float = typer.Option(
+        0.6, min=0.01, help="Zoom response time constant in seconds."
+    ),
+    lost_after: float = typer.Option(
+        1.0, min=0, help="Hold framing before widening/reselecting after face loss."
+    ),
     blur: bool = False,
     blur_kernel_size: int = typer.Option(31, min=1),
 ) -> None:
-    """Smooth crop around the first detected face; optionally blur background."""
+    """Follow one face with bounded zoom and stable output proportions."""
     from webcam_mods.mods.camera_motion import CropTracker
     from webcam_mods.mods.mp_face import FaceDetector
 
     if blur_kernel_size % 2 == 0:
         raise typer.BadParameter("blur kernel size must be odd")
     with ExitStack() as resources:
-        detector = FaceDetector()
+        detector = FaceDetector(lost_after=lost_after)
         resources.callback(detector.close)
         settings = _common(ctx).settings or load_settings()
         tracker = CropTracker(
@@ -257,7 +293,17 @@ def track_face(
                 min(settings.in_fps, settings.processing_fps, settings.max_out_fps)
                 if settings.repeat_frames
                 else min(settings.in_fps, settings.max_out_fps)
-            )
+            ),
+            aspect_ratio=settings.out_width / settings.out_height,
+            face_height=face_height,
+            max_zoom=max_zoom,
+            target_x=target_x,
+            target_y=target_y,
+            pan_deadzone=pan_deadzone,
+            zoom_deadzone=zoom_deadzone,
+            pan_seconds=pan_seconds,
+            zoom_seconds=zoom_seconds,
+            lost_after=lost_after,
         )
         resources.callback(tracker.close)
         background = (
@@ -267,17 +313,24 @@ def track_face(
         )
         if background is not None:
             resources.callback(background.close)
-        last_prediction = None
+        padding = (
+            (
+                x_padding if x_padding is not None else 2.0,
+                y_padding if y_padding is not None else 2.5,
+            )
+            if x_padding is not None or y_padding is not None
+            else None
+        )
 
         def process(frame: Frame) -> Frame | None:
-            nonlocal last_prediction
-            prediction = detector.predict(frame)
-            if prediction is not None:
-                last_prediction = prediction
-            elif last_prediction is None:
-                return frame
+            now = time.monotonic()
+            prediction = detector.predict(frame, now=now)
+            height, width = frame.shape[:2]
             result = crop_rect(
-                frame, tracker.generate_crop(last_prediction, (x_padding, y_padding))
+                frame,
+                tracker.generate_crop(
+                    prediction, padding, frame_size=(width, height), now=now
+                ),
             )
             return background(result) if result is not None and background else result
 

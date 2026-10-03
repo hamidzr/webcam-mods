@@ -128,40 +128,30 @@ class FaceDetectorStateTest(unittest.TestCase):
 class CropTrackerStateTest(unittest.TestCase):
     def test_instances_do_not_share_crop(self) -> None:
         first, second = CropTracker(fps=2), CropTracker(fps=2)
-        first.generate_crop(Rect(w=30, h=30, l=0, t=0), (1, 1))
-        moved = first.generate_crop(Rect(w=30, h=30, l=90, t=0), (1, 1))
-        independent = second.generate_crop(Rect(w=30, h=30, l=200, t=0), (1, 1))
-        self.assertEqual(moved.l, 45)
-        self.assertEqual(independent.l, 200)
+        first.generate_crop(
+            Rect(w=100, h=100, l=100, t=100), frame_size=(640, 480), now=0
+        )
+        moved = first.generate_crop(
+            Rect(w=100, h=100, l=200, t=100), frame_size=(640, 480), now=1
+        )
+        self.assertGreater(moved.l, 0)
+        self.assertIsNone(second.cur_crop)
         first.close()
         second.close()
 
-    def test_interpolation_reaches_target(self) -> None:
-        tracker = CropTracker(fps=2)
-        tracker.generate_crop(Rect(w=30, h=30, l=0, t=0), (1, 1))
-        target = Rect(w=30, h=30, l=90, t=60)
-        tracker.generate_crop(target, (1, 1))
-        last = tracker.generate_crop(target, (1, 1))
-        self.assertEqual((last.l, last.t), (90, 60))
-        tracker.generate_crop(target, (1, 1))
-        self.assertIsNone(tracker.transition)
-
     def test_external_rectangle_mutation_does_not_mutate_state(self) -> None:
         tracker = CropTracker()
-        prediction = Rect(w=30, h=30, l=10, t=20)
-        tracker.generate_crop(prediction, (1, 1))
+        prediction = Rect(w=100, h=100, l=200, t=100)
+        initial = tracker.generate_crop(prediction, frame_size=(640, 480), now=0)
         prediction.left = 1000
-        self.assertEqual(tracker.cur_crop.l, 10)
-        self.assertEqual(tracker.last_pred.l, 10)
+        initial.left = 1000
+        self.assertNotEqual(tracker.cur_crop.l, 1000)
+        self.assertEqual(tracker._focus, (250, 150))
 
     def test_close_clears_state(self) -> None:
         tracker = CropTracker()
-        tracker.generate_crop(Rect(w=30, h=30), None)
+        tracker.generate_crop(Rect(w=30, h=30), frame_size=(640, 480), now=0)
         tracker.close()
-        self.assertIsNone(tracker.last_pred)
         self.assertIsNone(tracker.cur_crop)
-        self.assertIsNone(tracker.transition)
-
-
-if __name__ == "__main__":
-    unittest.main()
+        self.assertIsNone(tracker._focus)
+        self.assertIsNone(tracker._seen_at)

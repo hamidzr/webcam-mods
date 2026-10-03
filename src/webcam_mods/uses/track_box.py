@@ -53,7 +53,9 @@ class Simulation:
         try:
             while True:
                 pred = self.generate_prediction()
-                crop = self.tracker.generate_crop(pred, padding=None)
+                crop = self.tracker.generate_crop(
+                    pred, padding=None, frame_size=(400, 400)
+                )
                 self.visualize(pred=pred, crop=crop)
                 if (cv2.waitKey(1) & 0xFF) == ord("q"):
                     break

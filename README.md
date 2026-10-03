@@ -18,6 +18,44 @@ Find installation and a work-in-progress demos here:
 Setup your webcam to focus and follow your face by cropping and resizing the frames it receives from
 your main webcam.
 
+Run `webcam_mods track-face`. Tracking selects the largest face initially, then
+follows the nearest compatible face rather than switching when detection order
+changes. This is geometric continuity, not identity recognition; crossing or
+occluded faces can still confuse selection.
+
+Default framing targets face height at 40% of output, horizontal center, and
+vertical position at 42% of output height. Crops match output aspect ratio and
+stay inside the camera image. Zoom is limited to 2x relative to the widest crop
+that fits that aspect ratio. With different input/output aspect ratios, even the
+widest fitted view crops part of the source. Face size and centering yield to
+source boundaries and zoom limits, so distant faces stay smaller and very close
+faces stay larger. Digital zoom cannot recover detail missing from the source.
+
+Tune framing at startup:
+
+```sh
+webcam_mods track-face --face-height 0.35 --max-zoom 1.5 --target-y 0.4
+```
+
+- `--face-height`: target fraction of output height (default 0.4).
+- `--max-zoom`: maximum digital zoom, minimum 1 (default 2).
+- `--target-x`, `--target-y`: face-center position from 0 to 1 (defaults 0.5, 0.42).
+- `--pan-deadzone`: tolerated drift per axis as fraction of crop size (default 0.08).
+- `--zoom-deadzone`: ignored relative crop-size change (default 0.08).
+- `--pan-seconds`, `--zoom-seconds`: exponential response time constants
+  (defaults 0.25, 0.6). Lower values respond faster; one time constant covers
+  about 63% of the remaining change. Both distance directions use the same zoom
+  response, independently of lateral movement and actual processing FPS.
+- `--lost-after`: seconds to hold the previous target before gradually widening
+  and allowing selection of another face (default 1). Before the first face,
+  output uses the widest fitted view.
+
+Legacy `--x-padding` / `--y-padding` specify minimum crop-to-face width/height
+ratios. Supplying either replaces `--face-height` framing, with the omitted ratio
+using its old default (2 or 2.5). Output aspect ratio and zoom limits still apply.
+Tracking uses these startup controls; interactive crop/padding and recording
+controls belong to `crop-cam` and other modes, and are disabled in `track-face`.
+
 ### Person Segmentation
 
 Separate the people in the frame from the background using a fast real-time prediction model. The model

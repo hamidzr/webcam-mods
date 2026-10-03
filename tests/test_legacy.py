@@ -54,7 +54,7 @@ class LegacyDemoTests(unittest.TestCase):
         self.assertEqual(prediction.w, 100)
         self.assertEqual(second.generate_prediction().w, 150)
         self.assertEqual(second.clicked, Point())
-        first.tracker.generate_crop(prediction, padding=None)
+        first.tracker.generate_crop(prediction, padding=None, frame_size=(400, 400))
         self.assertIsNone(second.tracker.cur_crop)
 
     def test_simulation_uses_tracker_and_cleans_up_on_quit(self):
@@ -69,7 +69,7 @@ class LegacyDemoTests(unittest.TestCase):
         ):
             simulation.run()
         crop = visualize.call_args.kwargs["crop"]
-        self.assertEqual((crop.w, crop.h), (300, 375))
+        self.assertEqual((crop.w, crop.h), (400, 300))
         close.assert_called_once()
         destroy.assert_called_once()
         self.assertIsNone(simulation.tracker.cur_crop)

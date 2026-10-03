@@ -111,15 +111,17 @@ class SettingsTests(unittest.TestCase):
             self.assertEqual(settings.max_out_fps, 24)
             self.assertFalse(settings.on_demand)
 
-    def test_fractional_fps_face_transition_uses_whole_frame_count(self) -> None:
+    def test_fractional_fps_face_tracker_preserves_rate(self) -> None:
         from webcam_mods.mods.camera_motion import CropTracker
         from webcam_mods.geometry import Rect
 
         tracker = CropTracker(fps=29.97)
-        tracker.generate_crop(Rect(l=0, t=0, w=20, h=20), None)
+        tracker.generate_crop(Rect(l=0, t=0, w=20, h=20), None, frame_size=(640, 480))
         for _ in range(35):
-            tracker.generate_crop(Rect(l=100, t=100, w=20, h=20), None)
-        self.assertIsInstance(tracker.fps, int)
+            tracker.generate_crop(
+                Rect(l=100, t=100, w=20, h=20), None, frame_size=(640, 480)
+            )
+        self.assertEqual(tracker.fps, 29.97)
         tracker.close()
 
     def test_linux_missing_extra_has_actionable_error(self) -> None:

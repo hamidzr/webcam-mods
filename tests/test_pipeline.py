@@ -162,7 +162,12 @@ class PipelineTest(unittest.TestCase):
             box = mp_face.predict(frame)
             self.assertIsNotNone(box, "known face not detected")
             self.assertTrue(150 < box.l < 230 and 40 < box.t < 100)
-            cropped = crop_rect(frame, generate_crop(box, (2, 2.5)))
+            cropped = crop_rect(
+                frame,
+                generate_crop(
+                    box, (2, 2.5), frame_size=(frame.shape[1], frame.shape[0])
+                ),
+            )
             self.assertIsNotNone(cropped, "face crop outside frame")
             self.assertLess(cropped.shape[0], frame.shape[0])
             return cropped
