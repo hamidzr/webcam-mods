@@ -99,3 +99,10 @@ hair/hand/low-light evidence. Avoid extra dilation/feathering until fine-detail
 comparisons support it. Tests cover binary edge jitter, synthetic noise, sharp
 detail, local/global motion, immediate large departures, dimension changes,
 input ownership, CLI propagation and close cleanup.
+
+## User visual acceptance (2026-10-03)
+
+User reported quality was good and requested moving on. This accepts observed
+blur-edge quality. Exact viewing configuration and dedicated hair/hand/low-light
+coverage were not reported; live cadence, whole-pipeline cost and power remain
+unmeasured. Smoothing remains opt-in.

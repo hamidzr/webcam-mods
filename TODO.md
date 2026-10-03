@@ -11,13 +11,14 @@ Active improvement roadmap: [docs/improvement-plan.md](docs/improvement-plan.md)
 - Measure whole-pipeline power and quality before choosing preset defaults;
   faster CPU/Metal inference alone does not establish battery savings.
 
-## Active visual stabilization
+## Visual stabilization checkpoint
 
 - Stabilize jittering background-blur boundary in Vision fast preview. Evaluate
   segmentation quality, spatial edge feathering and motion-aware temporal smoothing.
   Preserve fine detail, avoid motion trails, and measure the cost at 640x480/30.
   Reactivated by user on 2026-10-03. Local motion reset implemented; live
-  hair/hand/low-light acceptance remains. See
+  quality accepted by user on 2026-10-03. Dedicated hair/hand/low-light
+  coverage and whole-pipeline cost remain unmeasured. See
   [comparison report](docs/segmentation-comparison.md).
 
 ## Historical feature ideas

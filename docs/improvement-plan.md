@@ -17,7 +17,13 @@ this goal, update acceptance evidence and explain any priority change. New visua
 issues belong in the backlog unless promoted deliberately. Keep each validated
 implementation section independently committed.
 
-Latest review (2026-10-03): user reactivated our blur-edge stabilization and
+Latest review (2026-10-03): user accepted observed blur-edge quality and requested
+moving on. Visual quality checkpoint is accepted based on user observation; no
+claim of dedicated hair/hand/low-light coverage or live cost measurement is added.
+Smoothing remains opt-in. Next existing acceptance gap is OBS/conferencing
+reception and 720p effects/output; power presets remain deferred.
+
+Previous review (2026-10-03): user reactivated our blur-edge stabilization and
 excluded reliance on macOS Portrait. Removed the global 2% image-motion bypass:
 local motion now resets only changed pixels and their one-pixel neighborhood,
 keeping stationary edges stabilized during hand movement. Synthetic regression
@@ -130,7 +136,7 @@ compile checks on Python 3.14. Hardware-dependent evidence remains separate.
 | Completed | Repeated physical-camera/OBS producer starts/stops; 720p capture retention | Three 640x480/30 effect/output cycles passed with cleanup; three 1280x720/30 capture-only pause/restart cycles passed |
 | Open acceptance | OBS/conferencing reception and 720p effects/output | Confirm moving video across restarts in receiving client; capture-only 720p evidence does not validate effects/output |
 | Completed | Face prediction, geometry and adapter metadata typing | Strict contracts and regression tests; integer pixel division corrected; compatibility helpers retained |
-| Active; local motion refinement implemented | Quality/cost comparison and opt-in boundary stabilization | Four real backends/quality configurations compared on fixtures; 65% fast static variation reduction; recorded/live hair, hands and low-light noise still needed |
+| User quality accepted; measurement remains | Quality/cost comparison and opt-in boundary stabilization | Four real backends/quality configurations compared on fixtures; 65% fast static variation reduction; user accepted observed quality; dedicated stress coverage and live cost remain unmeasured |
 | When hardware is available | Linux consumer detection and native output parity | Real V4L2 consumer smoke check; mocked ownership checks already pass |
 
 Ordering reflects work/value: retain remaining hardware acceptance checks, then
