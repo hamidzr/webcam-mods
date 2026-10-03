@@ -69,7 +69,7 @@ class CameraSelectionTests(unittest.TestCase):
 
     def test_explicit_cli_indices_skip_picker_in_either_position(self) -> None:
         for args, expected in (
-            (["--input-device", "0", "test-loop"], 0),
+            (["--input-device", "1", "test-loop"], 1),
             (["test-loop", "--input-device", "3"], 3),
             (["--input-device", "1", "test-loop", "--input-device", "3"], 3),
         ):
@@ -77,21 +77,66 @@ class CameraSelectionTests(unittest.TestCase):
                 result = CliRunner().invoke(entry.app, args)
                 self.assertEqual(result.exit_code, 0, result.output)
                 self.assertEqual(self.run.call_args.args[0].settings.video_in, expected)
-        self.inventory.assert_not_called()
+        self.assertEqual(self.inventory.call_count, 3)
 
     def test_environment_index_skips_picker(self) -> None:
-        with patch.dict(os.environ, {"VIDEO_IN": "0"}):
+        with patch.dict(os.environ, {"VIDEO_IN": "1"}):
             result = CliRunner().invoke(entry.app, ["test-loop"])
         self.assertEqual(result.exit_code, 0, result.output)
-        self.inventory.assert_not_called()
-        self.assertEqual(self.run.call_args.args[0].settings.video_in, 0)
+        self.inventory.assert_called_once_with("auto")
+        self.assertEqual(self.run.call_args.args[0].settings.video_in, 1)
 
-    def test_no_terminal_does_not_enumerate_or_prompt(self) -> None:
+    def test_no_terminal_checks_availability_without_prompt(self) -> None:
         self.terminal.return_value = False
+        self.inventory.return_value = [CameraInfo(0, "USB camera", ())]
         result = CliRunner().invoke(entry.app, ["test-loop"])
         self.assertEqual(result.exit_code, 0, result.output)
-        self.inventory.assert_not_called()
+        self.inventory.assert_called_once_with("auto")
         self.assertEqual(self.run.call_args.args[0].settings.video_in, 0)
+
+    def test_closed_lid_leaves_single_usb_camera_without_prompt(self) -> None:
+        self.inventory.return_value = [
+            CameraInfo(0, "USB camera", ()),
+            CameraInfo(1, "MacBook camera", (), "laptop lid closed"),
+        ]
+        with patch("webcam_mods.input.selection.typer.prompt") as prompt:
+            result = CliRunner().invoke(entry.app, ["test-loop"])
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("Warning: excluding MacBook camera", result.output)
+        self.assertIn("lid closed", result.output)
+        self.assertIn("Using USB camera", result.output)
+        self.assertEqual(self.run.call_args.args[0].settings.video_in, 0)
+        prompt.assert_not_called()
+
+    def test_unavailable_explicit_env_and_unattended_fail_before_effects(self) -> None:
+        self.inventory.return_value = [
+            CameraInfo(0, "MacBook camera", (), "laptop lid closed")
+        ]
+        for args, env, terminal in (
+            (["bg-blur", "--input-device", "0"], {}, True),
+            (["bg-blur"], {"VIDEO_IN": "0"}, True),
+            (["bg-blur"], {}, False),
+        ):
+            with (
+                self.subTest(args=args, env=env, terminal=terminal),
+                patch.dict(os.environ, env),
+                patch.object(entry, "BackgroundEffect") as effect,
+            ):
+                self.terminal.return_value = terminal
+                result = CliRunner().invoke(entry.app, args)
+                self.assertNotEqual(result.exit_code, 0, result.output)
+                self.assertIn("lid closed", result.output)
+                effect.assert_not_called()
+        self.run.assert_not_called()
+
+    def test_closed_lid_only_camera_fails_with_actionable_message(self) -> None:
+        self.inventory.return_value = [
+            CameraInfo(1, "MacBook camera", (), "laptop lid closed")
+        ]
+        result = CliRunner().invoke(entry.app, ["test-loop"])
+        self.assertNotEqual(result.exit_code, 0, result.output)
+        self.assertIn("open laptop lid", result.output)
+        self.run.assert_not_called()
 
     def test_non_macos_does_not_enumerate(self) -> None:
         with patch("webcam_mods.input.selection.sys.platform", "linux"):

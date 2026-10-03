@@ -143,6 +143,11 @@ On macOS, camera commands show a numbered camera picker when stdin and stdout
 are terminals and neither `--input-device` nor `VIDEO_IN` is set. Press Enter
 for the suggested camera, or Ctrl-C to cancel. A single input camera is selected
 automatically. OBS output is excluded; indices match the selected capture backend.
+Closed-lid built-in cameras and suspended/disconnected inputs are excluded with a
+warning. External cameras remain selectable, and input indices do not shift when
+the lid closes. Explicit `--input-device` or `VIDEO_IN` selections of an unavailable
+camera fail before effects or capture start. Lid state is checked at startup;
+missing lid information does not by itself exclude a camera.
 Use `--input-device N` (before or after the command) or `VIDEO_IN=N` to skip
 the picker. Non-interactive launches, help, and screen sharing never prompt. The picker
 requires the macOS extras included by `just install`; other platforms keep the

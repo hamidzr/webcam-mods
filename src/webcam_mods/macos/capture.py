@@ -10,6 +10,7 @@ from numpy.typing import NDArray
 
 from webcam_mods.settings import load_settings
 from webcam_mods.input.input import AdapterMetadata, FrameInput
+from webcam_mods.macos.availability import camera_unavailable_reason, lid_closed
 
 _delegate_class: Any = None
 
@@ -34,7 +35,13 @@ def select_capture_device(devices: Sequence[Any], index: int) -> tuple[int, Any]
         raise ValueError(
             f"camera index {index} unavailable ({len(inputs)} inputs after excluding OBS output); use --input-device 0 or VIDEO_IN=0 for the first input"
         )
-    return inputs[index]
+    selected_index, device = inputs[index]
+    reason = camera_unavailable_reason(device, lid_closed())
+    if reason:
+        raise ValueError(
+            f"camera index {index} ({device.localizedName()}) unavailable: {reason}"
+        )
+    return selected_index, device
 
 
 def select_capture_device_by_id(
@@ -45,6 +52,11 @@ def select_capture_device_by_id(
         if str(device.uniqueID()) == device_id:
             if is_obs_output_device(device):
                 raise ValueError("selected camera is OBS output, not an input")
+            reason = camera_unavailable_reason(device, lid_closed())
+            if reason:
+                raise ValueError(
+                    f"selected camera ({device.localizedName()}) unavailable: {reason}"
+                )
             return index, device
     raise ValueError("selected camera is no longer available; run list-cameras")
 
@@ -107,6 +119,7 @@ def camera_inventory(backend: str = "avfoundation") -> list[CameraInfo]:
         # match OpenCV's video + muxed devices sorted by uniqueID, including OBS
         devices += list(av.AVCaptureDevice.devicesWithMediaType_(av.AVMediaTypeMuxed))
         devices.sort(key=lambda device: str(device.uniqueID()))
+    closed = lid_closed()
     cameras = []
     input_index = 0
     for device in devices:
@@ -130,7 +143,9 @@ def camera_inventory(backend: str = "avfoundation") -> list[CameraInfo]:
                 formats=tuple(
                     f"{w}x{h} at {low:g}-{high:g} fps" for w, h, low, high in formats
                 ),
-                excluded_reason=excluded_reason,
+                excluded_reason=(
+                    excluded_reason or camera_unavailable_reason(device, closed)
+                ),
             )
         )
         if not excluded or backend in ("auto", "opencv"):

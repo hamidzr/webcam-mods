@@ -50,6 +50,43 @@ class CameraInventoryTest(unittest.TestCase):
                 self.assertEqual(cameras[0].input_index, 0)
                 self.assertIsNone(cameras[0].excluded_reason)
 
+    def test_lid_filter_preserves_indices_and_native_selection(self) -> None:
+        from webcam_mods.macos.availability import BUILT_IN_TRANSPORT
+        from webcam_mods.macos.capture import select_capture_device_by_id
+
+        builtin, usb = Mock(), Mock()
+        for device, name, transport in (
+            (builtin, "MacBook camera", BUILT_IN_TRANSPORT),
+            (usb, "USB camera", int.from_bytes(b"usb ", "big")),
+        ):
+            device.localizedName.return_value = name
+            device.transportType.return_value = transport
+            device.isConnected.return_value = True
+            device.isSuspended.return_value = False
+            device.formats.return_value = []
+        av = SimpleNamespace(
+            AVCaptureDevice=SimpleNamespace(
+                devicesWithMediaType_=lambda _: [builtin, usb]
+            ),
+            AVMediaTypeVideo="video",
+        )
+        with (
+            patch.dict(sys.modules, {"AVFoundation": av, "CoreMedia": Mock()}),
+            patch("webcam_mods.macos.capture.lid_closed", return_value=True),
+        ):
+            cameras = camera_inventory()
+            self.assertEqual([camera.input_index for camera in cameras], [0, 1])
+            self.assertIn("lid closed", cameras[0].excluded_reason or "")
+            self.assertIsNone(cameras[1].excluded_reason)
+            with self.assertRaisesRegex(ValueError, "lid closed"):
+                select_capture_device([builtin, usb], 0)
+            self.assertIs(select_capture_device([builtin, usb], 1)[1], usb)
+            builtin.uniqueID.return_value = "builtin"
+            usb.uniqueID.return_value = "usb"
+            with self.assertRaisesRegex(ValueError, "lid closed"):
+                select_capture_device_by_id([builtin, usb], "builtin")
+            self.assertIs(select_capture_device_by_id([builtin, usb], "usb")[1], usb)
+
     def test_opencv_indices_follow_unique_ids_and_include_muxed_devices(self) -> None:
         def device(name: str, unique_id: str, manufacturer: str) -> Mock:
             result = Mock()

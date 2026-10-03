@@ -23,13 +23,7 @@ def _interactive_terminal() -> bool:
 
 
 def prepare_camera_selection(ctx: Context, *, explicit: bool) -> None:
-    if (
-        ctx.info_name not in CAMERA_COMMANDS
-        or explicit
-        or "VIDEO_IN" in os.environ
-        or not _interactive_terminal()
-        or sys.platform != "darwin"
-    ):
+    if ctx.info_name not in CAMERA_COMMANDS or sys.platform != "darwin":
         return
 
     from webcam_mods.entry import Common
@@ -52,9 +46,42 @@ def prepare_camera_selection(ctx: Context, *, explicit: bool) -> None:
         for camera in cameras
         if camera.input_index is not None and camera.excluded_reason is None
     }
+    for camera in cameras:
+        if camera.excluded_reason and camera.excluded_reason != "OBS output":
+            index_hint = (
+                f" (--input-device {camera.input_index})"
+                if camera.input_index is not None
+                else ""
+            )
+            typer.echo(
+                f"Warning: excluding {camera.name}{index_hint}: "
+                f"{camera.excluded_reason}.",
+                err=True,
+            )
+    if explicit or "VIDEO_IN" in os.environ or not _interactive_terminal():
+        selected_camera = next(
+            (
+                camera
+                for camera in cameras
+                if camera.input_index == common.settings.video_in
+            ),
+            None,
+        )
+        if selected_camera is None:
+            raise typer.BadParameter(
+                f"camera index {common.settings.video_in} unavailable; "
+                "run list-cameras and choose an input with --input-device"
+            )
+        if selected_camera.excluded_reason:
+            raise typer.BadParameter(
+                f"selected camera {selected_camera.name} (--input-device {common.settings.video_in}) "
+                f"unavailable: {selected_camera.excluded_reason}"
+            )
+        return
     if not choices:
         raise typer.BadParameter(
-            "no input cameras available after excluding OBS output"
+            "no input cameras available; open laptop lid/privacy shutter, "
+            "connect an external camera, or run list-cameras"
         )
 
     default = common.settings.video_in
