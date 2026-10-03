@@ -1,42 +1,59 @@
-from mss import mss
-import numpy as np
-from mss.base import MSSBase
-from typing import cast
+import math
+from typing import Any
 
-# from PIL import Image
-from webcam_mods.input.input import FrameInput
+from mss import mss
+from mss.base import MSSBase
+import numpy as np
+
 from webcam_mods.geometry import Rect
+from webcam_mods.input.input import AdapterMetadata, FrameInput
+from webcam_mods.utils.video import Frame
 
 
 class Screen(FrameInput):
-    sct: MSSBase
-
-    def __init__(self, top: int = 0, left: int = 0, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(
+        self,
+        top: int = 0,
+        left: int = 0,
+        width: int | None = None,
+        height: int | None = None,
+        *,
+        fps: float | None = None,
+        device: str | None = None,
+    ) -> None:
+        super().__init__(width=width, height=height, fps=fps, device=device)
         self.top = top
         self.left = left
         self.bounding_box = Rect(t=top, l=left, w=self.width, h=self.height)
-        self._is_setup = False  # is there a better way?
+        self.sct: MSSBase | None = None
 
-    def setup(self):
-        self.sct = mss()
-        self._is_setup = True
-        return {"fps": 15}
+    def setup(self) -> AdapterMetadata:
+        for name in ("width", "height"):
+            value = getattr(self, name)
+            if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+                raise ValueError(f"screen {name} must be a positive integer")
+        if not math.isfinite(self.fps) or self.fps <= 0:
+            raise ValueError("screen fps must be positive and finite")
+        if self.sct is None:
+            self.sct = mss()
+        return {"width": self.width, "height": self.height, "fps": self.fps}
 
-    def frame(self):
-        frame = self.sct.grab(self.bounding_box.__dict__())
-        return np.array(frame)[:, :, :3]  # drop the alpha channel from BGRA
+    def frame(self) -> Frame | None:
+        if self.sct is None:
+            return None
+        frame = self.sct.grab(dict(self.bounding_box.__dict__()))
+        # mss pixels are BGRA; removing alpha requires a contiguous copy
+        return np.ascontiguousarray(np.asarray(frame)[:, :, :3], dtype=np.uint8)
 
-    def teardown(self):
-        if not self.is_setup():
-            return
-        self._is_setup = False
-        cast(MSSBase, self.sct).close()
+    def teardown(self, *args: Any, **kwargs: Any) -> None:
+        sct = self.sct
+        if sct is not None:
+            self.sct = None
+            sct.close()
 
-    def is_setup(self):
-        return self._is_setup
+    def is_setup(self) -> bool:
+        return self.sct is not None
 
 
 if __name__ == "__main__":
-    s = Screen()
-    s.demo()
+    Screen().demo()
