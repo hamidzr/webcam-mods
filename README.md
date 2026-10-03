@@ -56,7 +56,7 @@ _For entertainment purposes only_
 
 System dependencies:
 
-- Python 3.14 and [uv](https://docs.astral.sh/uv/)
+- [uv](https://docs.astral.sh/uv/) and [just](https://just.systems/) (uv provisions Python 3.14)
 - [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
 - A virtual camera device: [Linux] v4l2loopback [Windows or MacOS] [OBS](https://obsproject.com/).
 Follow [pyvirtualcam's instructions](https://github.com/letmaik/pyvirtualcam#supported-virtual-cameras) to set this up.
@@ -76,15 +76,27 @@ The OBS device remains installed when `webcam_mods` stops; start and stop
 `webcam_mods` to control the video feed.
 
 
-Install dependencies from the locked project environment:
+Install a user-level CLI snapshot, matching Mao's wheel-based install process:
 
 ```sh
-uv sync --python 3.14
-uv run python -m webcam_mods.models
-uv run webcam_mods --help
+just install
+webcam_mods --help
 ```
 
-Run `make check` for static checks and `make test` for headless regression tests.
+The installed command works outside the checkout. Rerun `just install` after
+source changes. Platform extras and the patched macOS ARM64 MediaPipe wheel are
+included automatically. See [installation details](docs/installation.md) for
+PATH setup, overrides, and uninstalling.
+
+For development, install dependencies from the locked project environment:
+
+```sh
+just deps
+just models
+just run --help
+```
+
+Run `just check` for static checks and `just test` for headless regression tests.
 
 Optional macOS native capture and effects keep OBS output:
 
@@ -92,7 +104,7 @@ Optional macOS native capture and effects keep OBS output:
 uv sync --extra macos
 uv run --extra macos webcam_mods list-cameras
 uv run --extra macos webcam_mods --no-controls --capture-backend avfoundation --segmentation-backend vision --vision-quality fast bg-blur
-make verify UV_FLAGS='--extra macos'
+just verify
 ```
 
 `list-cameras` shows native input indices, formats and excluded OBS output without
@@ -146,7 +158,7 @@ Face tracking and background effects use MediaPipe Tasks 1.0.1. On macOS ARM64,
 [upstream issue #6356](https://github.com/google-ai-edge/mediapipe/issues/6356).
 The wheel and its native dependencies are included in this repository; see
 [build provenance and rebuild instructions](vendor/mediapipe/README.md).
-Use the `uv` project installation on macOS: standalone `pip` installs do not
+Use `just install` or the `uv` project installation on macOS: standalone `pip` installs do not
 apply this dependency override. Other platforms use the official release.
 On macOS ARM64, each MediaPipe model automatically compares CPU and Metal
 on its first input frame at each resolution. Three isolated, warmed comparisons
@@ -160,11 +172,11 @@ and verified with SHA-256; later runs use the cached copies.
 ## Repeatable end-to-end checks
 
 ```sh
-make e2e     # headless pipeline with saved output
-make verify  # static checks + full test suite (includes E2E)
+just e2e     # headless pipeline with saved output
+just verify  # static checks + full test suite (includes E2E)
 ```
 
-`make e2e` writes deterministic PNG inputs, runs them through the production
+`just e2e` writes deterministic PNG inputs, runs them through the production
 `live_loop` and real MediaPipe effects, writes lossless PNG output, and
 reopens it to assert frame count, dimensions, ordering, crop/brightness,
 background blur/color/replacement, positive and negative face detection,
@@ -176,7 +188,7 @@ No webcam, OBS, display, keyboard hooks, or external API is needed.
 Outputs live under `dist/e2e/<test>/`: input PNGs, output PNGs,
 `preview.png` (input left, output right), and `metrics.json`.
 `dist/e2e/report.json` records overall success and elapsed time. A failed
-assertion exits nonzero. `make test` uses temporary output directories.
+assertion exits nonzero. `just test` uses temporary output directories.
 Timings include disk I/O and model startup, not live-camera FPS.
 
 These checks cover the processing loop and effects. They do not validate CLI
