@@ -229,7 +229,13 @@ def track_face(
         detector = FaceDetector()
         resources.callback(detector.close)
         settings = _common(ctx).settings or load_settings()
-        tracker = CropTracker(fps=min(settings.in_fps, settings.max_out_fps))
+        tracker = CropTracker(
+            fps=(
+                min(settings.in_fps, settings.processing_fps, settings.max_out_fps)
+                if settings.repeat_frames
+                else min(settings.in_fps, settings.max_out_fps)
+            )
+        )
         resources.callback(tracker.close)
         background = (
             BackgroundEffect(_common(ctx), "blur_bg", blur_kernel_size)
@@ -419,7 +425,21 @@ def common(
     output_fps: float | None = typer.Option(
         None,
         min=0.01,
-        help="Delivery FPS cap; limited by negotiated input FPS and processing speed.",
+        help="Delivery FPS cap; --repeat-frames keeps cadence independent of processing.",
+        rich_help_panel="Output",
+        hidden=True,
+    ),
+    repeat_frames: bool | None = typer.Option(
+        None,
+        "--repeat-frames/--no-repeat-frames",
+        help="Repeat latest completed frame at output FPS while effects run separately.",
+        rich_help_panel="Output",
+        hidden=True,
+    ),
+    processing_fps: float | None = typer.Option(
+        None,
+        min=0.01,
+        help="Fresh-frame processing cap in repeat mode; defaults to 30 FPS.",
         rich_help_panel="Output",
         hidden=True,
     ),
@@ -454,6 +474,8 @@ def common(
             out_width=output_width,
             out_height=output_height,
             max_out_fps=output_fps,
+            repeat_frames=repeat_frames,
+            processing_fps=processing_fps,
             video_out=output_device,
             on_demand=on_demand,
             pan_control=pan_control,

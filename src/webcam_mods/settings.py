@@ -18,6 +18,8 @@ class StartupSettings:
     out_width: int = 640
     out_height: int = 480
     max_out_fps: float = 30
+    processing_fps: float = 30
+    repeat_frames: bool = False
     on_demand: bool = False
     pan_control: bool = True
     padding_control: bool = True
@@ -29,7 +31,7 @@ class StartupSettings:
                 raise ValueError(f"{name.upper()} must be a positive integer")
         if type(self.video_in) is not int or self.video_in < 0:
             raise ValueError("VIDEO_IN must be a nonnegative integer")
-        for name in ("in_fps", "max_out_fps"):
+        for name in ("in_fps", "max_out_fps", "processing_fps"):
             value = getattr(self, name)
             if (
                 isinstance(value, bool)
@@ -42,7 +44,7 @@ class StartupSettings:
             raise ValueError("IN_FORMAT must contain exactly four characters")
         if not isinstance(self.video_out, str) or not self.video_out:
             raise ValueError("VIDEO_OUT must not be empty")
-        for name in ("on_demand", "pan_control", "padding_control"):
+        for name in ("on_demand", "pan_control", "padding_control", "repeat_frames"):
             if type(getattr(self, name)) is not bool:
                 raise ValueError(f"{name.upper()} must be a boolean")
 
@@ -72,7 +74,7 @@ def load_settings(
                         if raw.lower() not in ("true", "false", "1", "0"):
                             raise ValueError("expected true/false or 1/0")
                         value = raw.lower() in ("true", "1")
-                    elif name in ("in_fps", "max_out_fps"):
+                    elif name in ("in_fps", "max_out_fps", "processing_fps"):
                         value = float(raw)
                     else:
                         value = type(default)(raw)

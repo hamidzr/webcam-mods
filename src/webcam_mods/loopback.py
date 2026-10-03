@@ -31,7 +31,11 @@ def default_frame_output(
     settings: StartupSettings | None = None,
 ) -> FrameOutput:
     settings = settings or load_settings()
-    out_fps = min(settings.max_out_fps, in_fps)
+    out_fps = (
+        settings.max_out_fps
+        if settings.repeat_frames
+        else min(settings.max_out_fps, in_fps)
+    )
     options: OutputOptions = dict(
         width=settings.out_width,
         height=settings.out_height,
@@ -95,6 +99,7 @@ def live_loop(
     if fIn is None:
         fIn = Webcam(settings=settings)
 
+    producer = None
     try:
         if interactive_listener is _DEFAULT_LISTENER:
             from webcam_mods.uses.interactive_controls import create_default_listener
@@ -106,7 +111,13 @@ def live_loop(
             interactive_listener.start()
         paused = False if not on_demand else True
 
-        inp_props = fIn.setup()
+        if settings.repeat_frames:
+            from webcam_mods.frame_producer import FrameProducer
+
+            producer = FrameProducer(fIn)
+            inp_props = producer.setup()
+        else:
+            inp_props = fIn.setup()
         _validate_metadata(inp_props, "input")
         if fOut is None:
             fOut = default_frame_output(
@@ -140,6 +151,53 @@ def live_loop(
             def process_output_events() -> bool:
                 cam.process_events()
                 return not cam.should_stop()
+
+            if producer is not None:
+
+                def produce(frame: Frame) -> Frame:
+                    nonlocal last_frame
+                    try:
+                        result = mod(frame) if mod else frame
+                        if result is None:
+                            if strict_errors:
+                                raise RuntimeError("mod returned no frame")
+                            return handle_empty_frame()
+                        last_frame = resize_and_pad(
+                            result, sw=fOut.width, sh=fOut.height
+                        ).copy()
+                        return last_frame
+                    except Exception as error:
+                        if strict_errors:
+                            raise
+                        logger.error(f"failed to process frame. {error}")
+                        return handle_empty_frame()
+
+                producer.configure(
+                    produce,
+                    min(settings.processing_fps, inp_props["fps"], outp_props["fps"]),
+                    before_frame=before_frame,
+                    strict=strict_errors or max_frames is not None,
+                )
+                try:
+                    sent_frames = 0
+                    while max_frames is None or sent_frames < max_frames:
+                        paused = on_demand and not cam.is_in_use()
+                        producer.enable(not paused)
+                        completed = producer.latest()
+                        cam.send(
+                            paused_frame if paused or completed is None else completed
+                        )
+                        sent_frames += 1
+                        if pace:
+                            if not pacer.wait(process_events=process_output_events):
+                                break
+                        elif not process_output_events():
+                            break
+                finally:
+                    producer.close()
+                # surface worker failures, including cleanup, before normal return
+                producer.latest()
+                return
 
             sent_frames = 0
             while max_frames is None or sent_frames < max_frames:
@@ -198,7 +256,10 @@ def live_loop(
                     break
     finally:
         try:
-            fIn.teardown()
+            if producer is not None:
+                producer.close()
+            else:
+                fIn.teardown()
         finally:
             if (
                 interactive_listener is not None
