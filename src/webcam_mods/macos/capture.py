@@ -80,14 +80,21 @@ def _format_ranges(
             yield fmt, dims.width, dims.height, rate.minFrameRate(), rate.maxFrameRate()
 
 
-def camera_inventory() -> list[CameraInfo]:
+def camera_inventory(backend: str = "avfoundation") -> list[CameraInfo]:
     """Enumerate formats without opening devices or requesting camera permission."""
+    if backend not in ("avfoundation", "opencv"):
+        raise ValueError(f"unknown camera backend: {backend}")
     import AVFoundation as av
     import CoreMedia as cm
 
+    devices = list(av.AVCaptureDevice.devicesWithMediaType_(av.AVMediaTypeVideo))
+    if backend == "opencv":
+        # match OpenCV's video + muxed devices sorted by uniqueID, including OBS
+        devices += list(av.AVCaptureDevice.devicesWithMediaType_(av.AVMediaTypeMuxed))
+        devices.sort(key=lambda device: str(device.uniqueID()))
     cameras = []
     input_index = 0
-    for device in av.AVCaptureDevice.devicesWithMediaType_(av.AVMediaTypeVideo):
+    for device in devices:
         excluded = is_obs_output_device(device)
         formats = sorted(
             {(w, h, low, high) for _, w, h, low, high in _format_ranges(device, cm)}
@@ -102,7 +109,7 @@ def camera_inventory() -> list[CameraInfo]:
                 excluded_reason="OBS output" if excluded else None,
             )
         )
-        if not excluded:
+        if not excluded or backend == "opencv":
             input_index += 1
     return cameras
 

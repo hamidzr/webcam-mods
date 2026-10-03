@@ -31,6 +31,9 @@ class SharedOptionsCommand(TyperCommand):
         # resolve once, after both positions have been parsed and before acquisition
         parent.invoke(parent.command.resolve_settings, **options)
         ctx.obj = parent.obj
+        from webcam_mods.input.selection import prepare_camera_selection
+
+        prepare_camera_selection(ctx, explicit=options.get("input_device") is not None)
         return super().invoke(ctx)
 
 

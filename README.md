@@ -133,6 +133,15 @@ setup; webcam input still needs Camera permission. The output option applies to
 camera and screen-sharing commands. Root help groups frequent options;
 `webcam_mods <command> --help` shows all common and command-specific options.
 
+On macOS, camera commands show a numbered camera picker when stdin and stdout
+are terminals and neither `--input-device` nor `VIDEO_IN` is set. Press Enter
+for the suggested camera, or Ctrl-C to cancel. A single input camera is selected
+automatically. OBS output is excluded; indices match the selected capture backend.
+Use `--input-device N` (before or after the command) or `VIDEO_IN=N` to skip
+the picker. Non-interactive launches, help, and screen sharing never prompt. The picker
+requires the macOS extras included by `just install`; other platforms keep the
+configured camera index.
+
 Share a screen region through the same preview or virtual-camera output:
 
 ```sh

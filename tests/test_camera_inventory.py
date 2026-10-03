@@ -16,6 +16,42 @@ from webcam_mods.macos.capture import (
 
 
 class CameraInventoryTest(unittest.TestCase):
+    def test_opencv_indices_follow_unique_ids_and_include_muxed_devices(self) -> None:
+        def device(name: str, unique_id: str, manufacturer: str) -> Mock:
+            result = Mock()
+            result.localizedName.return_value = name
+            result.uniqueID.return_value = unique_id
+            result.manufacturer.return_value = manufacturer
+            result.modelID.return_value = "camera"
+            result.formats.return_value = []
+            return result
+
+        usb = device("USB camera", "c", "vendor")
+        obs = device("OBS", "b", "OBS Project")
+        muxed = device("Muxed camera", "a", "vendor")
+        enumerate_devices = Mock(side_effect=[[usb, obs], [muxed]])
+        av = SimpleNamespace(
+            AVCaptureDevice=SimpleNamespace(devicesWithMediaType_=enumerate_devices),
+            AVMediaTypeVideo="video",
+            AVMediaTypeMuxed="muxed",
+        )
+        with patch.dict(sys.modules, {"AVFoundation": av, "CoreMedia": Mock()}):
+            cameras = camera_inventory("opencv")
+        self.assertEqual(
+            cameras,
+            [
+                CameraInfo(0, "Muxed camera", ()),
+                CameraInfo(None, "OBS", (), "OBS output"),
+                CameraInfo(2, "USB camera", ()),
+            ],
+        )
+        self.assertEqual(
+            [call.args for call in enumerate_devices.call_args_list],
+            [("video",), ("muxed",)],
+        )
+        for camera in (usb, obs, muxed):
+            camera.lockForConfiguration_.assert_not_called()
+
     def test_inventory_matches_filtered_capture_indices(self) -> None:
         rate = SimpleNamespace(minFrameRate=lambda: 15.0, maxFrameRate=lambda: 30.0)
         fmt = SimpleNamespace(

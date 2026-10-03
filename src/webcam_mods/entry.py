@@ -383,7 +383,7 @@ def common(
     input_device: int | None = typer.Option(
         None,
         min=0,
-        help="Camera index; AVFoundation excludes OBS output devices.",
+        help="Camera index; omit for terminal picker on macOS. AVFoundation excludes OBS output.",
         rich_help_panel="Input",
     ),
     input_width: int | None = typer.Option(
