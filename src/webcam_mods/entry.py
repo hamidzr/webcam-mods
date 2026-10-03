@@ -268,6 +268,32 @@ def test_loop(ctx: typer.Context) -> None:
     _run(_common(ctx), prepare=False)
 
 
+@app.command()
+def list_cameras() -> None:
+    """List macOS native input indices and formats without opening cameras."""
+    if sys.platform != "darwin":
+        raise typer.BadParameter("list-cameras requires macOS")
+    try:
+        from webcam_mods.macos.capture import camera_inventory
+
+        cameras = camera_inventory()
+    except ImportError as error:
+        raise typer.BadParameter(
+            "list-cameras requires uv sync --extra macos"
+        ) from error
+    if not cameras:
+        typer.echo("No cameras found.")
+    for camera in cameras:
+        label = (
+            f"excluded ({camera.excluded_reason})"
+            if camera.excluded_reason
+            else f"--input-device {camera.input_index}"
+        )
+        typer.echo(f"{label}: {camera.name}")
+        for capture_format in camera.formats:
+            typer.echo(f"  {capture_format}")
+
+
 @app.callback()
 def common(
     ctx: typer.Context,

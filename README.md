@@ -90,9 +90,13 @@ Optional macOS native capture and effects keep OBS output:
 
 ```sh
 uv sync --extra macos
+uv run --extra macos webcam_mods list-cameras
 uv run --extra macos webcam_mods --no-controls --capture-backend avfoundation --segmentation-backend vision --vision-quality fast bg-blur
 make verify UV_FLAGS='--extra macos'
 ```
+
+`list-cameras` shows native input indices, formats and excluded OBS output without
+opening a camera or requesting permission. Use its index with `--input-device`.
 
 Run from macOS Terminal and allow Camera access when prompted. Global options
 precede the command. `--processing-backend coreimage` selects Gaussian background

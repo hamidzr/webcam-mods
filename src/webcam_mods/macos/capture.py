@@ -2,7 +2,8 @@
 
 from threading import Condition, Event, Thread
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, Iterator
+from dataclasses import dataclass
 
 import numpy as np
 from numpy.typing import NDArray
@@ -42,17 +43,10 @@ def select_capture_format(
     """Require an exact format; never silently switch to another input device."""
     available: set[tuple[int, int, float, float]] = set()
     selected = None
-    for fmt in device.formats():
-        dims = core_media.CMVideoFormatDescriptionGetDimensions(fmt.formatDescription())
-        for rate in fmt.videoSupportedFrameRateRanges():
-            minimum, maximum = rate.minFrameRate(), rate.maxFrameRate()
-            available.add((dims.width, dims.height, minimum, maximum))
-            if (
-                selected is None
-                and (dims.width, dims.height) == (width, height)
-                and minimum <= fps <= maximum
-            ):
-                selected = fmt
+    for fmt, w, h, minimum, maximum in _format_ranges(device, core_media):
+        available.add((w, h, minimum, maximum))
+        if selected is None and (w, h) == (width, height) and minimum <= fps <= maximum:
+            selected = fmt
     if selected is not None:
         return selected
     choices = (
@@ -65,8 +59,52 @@ def select_capture_format(
         f"AVFoundation camera {index} ({device.localizedName()}) cannot deliver "
         f"{width}x{height} at {fps:g} fps. Supported formats: {choices}. "
         "Choose another camera with --input-device or VIDEO_IN; "
-        "AVFoundation device indices may differ from OpenCV."
+        "AVFoundation device indices may differ from OpenCV. Run list-cameras to inspect inputs."
     )
+
+
+@dataclass(frozen=True)
+class CameraInfo:
+    input_index: int | None
+    name: str
+    formats: tuple[str, ...]
+    excluded_reason: str | None = None
+
+
+def _format_ranges(
+    device: Any, core_media: Any
+) -> Iterator[tuple[Any, int, int, float, float]]:
+    for fmt in device.formats():
+        dims = core_media.CMVideoFormatDescriptionGetDimensions(fmt.formatDescription())
+        for rate in fmt.videoSupportedFrameRateRanges():
+            yield fmt, dims.width, dims.height, rate.minFrameRate(), rate.maxFrameRate()
+
+
+def camera_inventory() -> list[CameraInfo]:
+    """Enumerate formats without opening devices or requesting camera permission."""
+    import AVFoundation as av
+    import CoreMedia as cm
+
+    cameras = []
+    input_index = 0
+    for device in av.AVCaptureDevice.devicesWithMediaType_(av.AVMediaTypeVideo):
+        excluded = is_obs_output_device(device)
+        formats = sorted(
+            {(w, h, low, high) for _, w, h, low, high in _format_ranges(device, cm)}
+        )
+        cameras.append(
+            CameraInfo(
+                input_index=None if excluded else input_index,
+                name=str(device.localizedName()),
+                formats=tuple(
+                    f"{w}x{h} at {low:g}-{high:g} fps" for w, h, low, high in formats
+                ),
+                excluded_reason="OBS output" if excluded else None,
+            )
+        )
+        if not excluded:
+            input_index += 1
+    return cameras
 
 
 class AVFoundationCamera(FrameInput):

@@ -27,7 +27,10 @@ index from AVFoundation inputs after excluding OBS output by manufacturer/model
 identity. Default index 0 selects the first remaining input; OBS moving between
 enumeration slots does not change a single physical camera selection. Other
 physical or virtual input devices remain available. `--input-device` and `VIDEO_IN`
-index this filtered list, which may differ from OpenCV. Unsupported formats report the selected device and available
+index this filtered list, which may differ from OpenCV. Inspect it with
+`uv run --extra macos webcam_mods list-cameras`; this prints formats and excluded
+OBS output without opening devices or requesting permission. Unsupported formats
+report the selected device and available
 resolutions/FPS instead of silently switching cameras. Capture requires a format
 matching requested dimensions/FPS, retains only the
 latest frame, copies callback BGRA buffers into owned BGR arrays and reports sample
