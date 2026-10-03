@@ -1,5 +1,15 @@
 # Current state
 
+2026-10-03 lifecycle acceptance tooling: `scripts/benchmark_live.py --cycles N`
+recreates capture, effects and output each run, rejects adapters still open after
+teardown and closes effects before the next acquisition. Multi-cycle reports keep
+individual metrics and completed-run evidence on failure/interruption; successful
+single-cycle report shape remains compatible. Headless checks exercise ownership,
+cleanup failure, restart ordering and reporting. Local `make verify
+UV_FLAGS='--extra macos'` passes 174 tests and all static checks on Python 3.14.
+Physical-camera restart and
+conferencing reception evidence remain outstanding.
+
 Updated 2026-10-02 after session/control and optional native-backend implementation.
 
 ## Implemented behavior

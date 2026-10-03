@@ -5,10 +5,12 @@ import argparse
 from collections.abc import Callable
 from contextlib import ExitStack
 import json
+import os
 from pathlib import Path
 import platform
 import resource
 import sys
+import tempfile
 import time
 from typing import Any
 
@@ -151,6 +153,8 @@ def run_benchmark(
         settings=settings,
         pace=pace,
     )
+    if measured_input.is_setup() or measured_output.is_setup():
+        raise RuntimeError("benchmark adapters remain open after teardown")
     delivered = measured_output.sent_at[warmup:]
     if len(delivered) != frames:
         raise RuntimeError("output closed before benchmark completed")
@@ -171,6 +175,7 @@ def run_benchmark(
         "frames": frames,
         "warmup": warmup,
         "paced": pace,
+        "cleanup_verified": True,
         "capture_wait": summarize(measured_input.capture_ms[warmup:]),
         "processing": summarize(processing_ms[warmup:]),
         "output_send": summarize(measured_output.send_ms[warmup:]),
@@ -182,6 +187,61 @@ def run_benchmark(
         "process_peak_rss_bytes": rss if sys.platform == "darwin" else rss * 1024,
         "limits": "capture wait is not exposure latency; send completion is not conferencing reception; RSS is process lifetime high-water and includes warmup; power unmeasured",
     }
+
+
+def run_cycles(
+    run: Callable[[int], dict[str, Any]],
+    cycles: int,
+    checkpoint: Callable[[dict[str, Any]], None],
+) -> dict[str, Any]:
+    """Keep per-cycle evidence, stopping on the first failure or interruption."""
+    if cycles < 1:
+        raise ValueError("cycles must be positive")
+    report: dict[str, Any] = {
+        "status": "running",
+        "cycles_requested": cycles,
+        "cycles_completed": 0,
+        "runs": [],
+    }
+    checkpoint(report)
+    for cycle in range(1, cycles + 1):
+        try:
+            result = run(cycle)
+        except BaseException as error:
+            report.update(
+                status=(
+                    "interrupted" if isinstance(error, KeyboardInterrupt) else "failed"
+                ),
+                failed_cycle=cycle,
+                error_type=type(error).__name__,
+            )
+            try:
+                checkpoint(report)
+            except Exception as checkpoint_error:
+                error.add_note(f"cannot save failure report: {checkpoint_error}")
+            raise
+        report["runs"].append(result)
+        report["cycles_completed"] = cycle
+        if cycle == cycles:
+            report["status"] = "passed"
+        checkpoint(report)
+    return report
+
+
+def write_report(path: Path, report: dict[str, Any]) -> None:
+    """Replace checkpoints atomically so failed writes retain previous evidence."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", dir=path.parent, delete=False
+        ) as handle:
+            temporary = Path(handle.name)
+            handle.write(json.dumps(report, indent=2) + "\n")
+        os.replace(temporary, path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 
 def main() -> None:
@@ -207,71 +267,97 @@ def main() -> None:
     parser.add_argument("--frames", type=int, default=100)
     parser.add_argument("--warmup", type=int, default=10)
     parser.add_argument(
+        "--cycles", type=int, default=1, help="Fresh capture/effect/output runs."
+    )
+    parser.add_argument(
         "--report", type=Path, default=Path("dist/benchmarks/live.json")
     )
     parser.add_argument(
         "--save-frame",
         type=Path,
-        help="Explicitly save the final camera image for quality review.",
+        help="Save final image; multiple cycles add a -cycle-N suffix.",
     )
     args = parser.parse_args()
-    if args.frames < 2 or args.warmup < 0:
-        parser.error("frames must be at least two; warmup must be nonnegative")
+    if args.frames < 2 or args.warmup < 0 or args.cycles < 1:
+        parser.error("frames >= 2, warmup >= 0 and cycles >= 1 are required")
     settings = load_settings(video_in=args.input_device)
-    if args.capture == "avfoundation":
-        from webcam_mods.macos.capture import AVFoundationCamera
-
-        source = AVFoundationCamera(
-            device_index=settings.video_in,
-            width=settings.in_width,
-            height=settings.in_height,
-            fps=settings.in_fps,
-            device=settings.video_out,
-        )
-    else:
-        from webcam_mods.input.video_dev import Webcam
-
-        source = Webcam(settings=settings)
-    with ExitStack() as resources:
-        effects = PersonEffects(
-            backend=args.backend, processing=args.processing, quality=args.quality
-        )
-        resources.callback(effects.close)
-        report = run_benchmark(
-            source,
-            lambda frame: effects.blur_bg(frame, 31),
-            lambda fps: default_frame_output(
-                fps, backend=args.output_backend, settings=settings
-            ),
-            settings,
-            frames=args.frames,
-            warmup=args.warmup,
-            save_frame=args.save_frame,
-        )
-    report["workload"] = {
+    workload = {
         "capture": args.capture,
         "backend": args.backend,
         "processing": args.processing,
         "quality": args.quality,
         "output_backend": args.output_backend,
         "kernel_size": 31,
+        "input_device": settings.video_in,
+        "requested_input": {
+            "width": settings.in_width,
+            "height": settings.in_height,
+            "fps": settings.in_fps,
+        },
     }
-    args.report.parent.mkdir(parents=True, exist_ok=True)
-    args.report.write_text(json.dumps(report, indent=2) + "\n")
-    print(
-        json.dumps(
-            {
-                key: report[key]
-                for key in (
-                    "processing",
-                    "capture_to_send",
-                    "delivered_fps",
-                    "process_peak_rss_bytes",
-                )
-            },
-            indent=2,
+
+    def run(cycle: int) -> dict[str, Any]:
+        if args.capture == "avfoundation":
+            from webcam_mods.macos.capture import AVFoundationCamera
+
+            source: FrameInput = AVFoundationCamera(
+                device_index=settings.video_in,
+                width=settings.in_width,
+                height=settings.in_height,
+                fps=settings.in_fps,
+                device=settings.video_out,
+            )
+        else:
+            from webcam_mods.input.video_dev import Webcam
+
+            source = Webcam(settings=settings)
+        save_frame = args.save_frame
+        if save_frame is not None and args.cycles > 1:
+            save_frame = save_frame.with_name(
+                f"{save_frame.stem}-cycle-{cycle}{save_frame.suffix}"
+            )
+        with ExitStack() as resources:
+            effects = PersonEffects(
+                backend=args.backend, processing=args.processing, quality=args.quality
+            )
+            resources.callback(effects.close)
+            result = run_benchmark(
+                source,
+                lambda frame: effects.blur_bg(frame, 31),
+                lambda fps: default_frame_output(
+                    fps, backend=args.output_backend, settings=settings
+                ),
+                settings,
+                frames=args.frames,
+                warmup=args.warmup,
+                save_frame=save_frame,
+            )
+        result["workload"] = workload
+        print(
+            json.dumps(
+                {
+                    "cycle": cycle,
+                    **{
+                        key: result[key]
+                        for key in (
+                            "processing",
+                            "capture_to_send",
+                            "delivered_fps",
+                            "process_peak_rss_bytes",
+                        )
+                    },
+                },
+                indent=2,
+            )
         )
-    )
+        return result
+
+    def checkpoint(report: dict[str, Any]) -> None:
+        write_report(args.report, {"workload": workload, **report})
+
+    report = run_cycles(run, args.cycles, checkpoint)
+    if args.cycles == 1:
+        checkpoint(report["runs"][0])
     print(f"saved {args.report}")
 
 

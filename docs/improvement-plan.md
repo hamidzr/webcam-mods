@@ -17,7 +17,13 @@ this goal, update acceptance evidence and explain any priority change. New visua
 issues belong in the backlog unless promoted deliberately. Keep each validated
 implementation section independently committed.
 
-Latest review: corrected native capture/cadence is confirmed. User activated typing
+Latest review (2026-10-03): repeated hardware lifecycle acceptance remains highest
+priority. Added `benchmark_live.py --cycles` so an authorized Terminal can exercise
+fresh capture/effect/output ownership and retain per-cycle evidence, including
+partial failure progress. Headless orchestration checks do not close the hardware
+or consumer-reception evidence gap. No priority change.
+
+Previous review: corrected native capture/cadence is confirmed. User activated typing
 and boundary work; fixture comparison and opt-in smoothing are complete. Repeated lifecycle and actual OBS/conferencing delivery are
 the next acceptance checks; remote CI, screen sharing and an own camera extension
 remain excluded.
@@ -47,6 +53,9 @@ remain excluded.
 - Typed face pixel bounds, geometry, crop transitions and adapter metadata; preserved compatibility helpers.
 - Added opt-in motion-aware temporal mask smoothing and repeatable image/video quality comparisons; fixture evidence recorded in [segmentation comparison](segmentation-comparison.md).
 - Confirmed corrected native camera -> Vision fast -> preview at 640x480/30 from Terminal: 300 measured frames, 29.96 FPS.
+- Added repeatable live benchmark cycles with cleanup checks, fresh resources,
+  per-cycle metrics and failure/interruption progress reports. Successful
+  single-cycle reports retain their existing shape.
 
 ## Current checkpoint and next checks
 
@@ -59,7 +68,7 @@ compile checks on Python 3.14. Hardware-dependent evidence remains separate.
 
 | Priority | Remaining work | Acceptance evidence |
 | --- | --- | --- |
-| 1 | Repeated physical-camera starts/stops and OBS/conferencing reception | Authorized Terminal runs with cleanup; actual reception in a conferencing client. Fixture producer restarts passed; T3 camera permission remains unavailable |
+| 1 | Repeated physical-camera starts/stops and OBS/conferencing reception | Run benchmark_live.py --cycles 3 --output-backend virtual-cam from authorized Terminal; confirm actual reception in a conferencing client. Headless cycle orchestration passes; T3 camera permission remains unavailable |
 | Completed | Face prediction, geometry and adapter metadata typing | Strict contracts and regression tests; integer pixel division corrected; compatibility helpers retained |
 | Implemented; visual acceptance outstanding | Quality/cost comparison and opt-in boundary stabilization | Four real backends/quality configurations compared on fixtures; 65% fast static variation reduction; recorded/live hair, hands and low-light noise still needed |
 | When hardware is available | Linux consumer detection and native output parity | Real V4L2 consumer smoke check; mocked ownership checks already pass |

@@ -293,3 +293,21 @@ uv run --extra macos python scripts/benchmark_live.py --frames 300 --warmup 30
 Defaults to AVFoundation, Vision fast and preview. Use `--output-backend virtual-cam`
 for OBS. Saves timing/cadence/memory metrics, with optional `--save-frame` for quality
 review. See [measurement details](docs/macos-backends.md#live-camera-measurements).
+
+Check repeated physical-camera and OBS producer startup/shutdown from a
+camera-authorized Terminal:
+
+```sh
+uv run --extra macos python scripts/benchmark_live.py --cycles 3 --frames 100 --warmup 10 --output-backend virtual-cam --report dist/benchmarks/lifecycle.json
+```
+
+Each cycle creates fresh capture, effect and output resources, delivers the full
+frame count, checks adapters are closed and closes effects before starting again.
+Multi-cycle JSON contains `status`, requested/completed counts and individual
+`runs`. Progress is saved after each cycle; failures or interruptions retain
+completed runs, identify the failed cycle and exit nonzero. Only `status: passed`
+means all cycles completed. Single-cycle success keeps the existing report shape.
+Metrics stay separate per cycle; peak RSS remains a process-lifetime measurement.
+Images are saved only with `--save-frame`; multiple cycles add `-cycle-N` to its
+filename. Select OBS Virtual Camera in a receiving app to check moving video
+through each restart; producer send completion alone does not establish reception.
