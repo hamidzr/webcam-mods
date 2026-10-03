@@ -4,12 +4,12 @@ from webcam_mods.utils.file_monitor import MonitorFile
 import os
 from webcam_mods.input.input import FrameOutput
 from webcam_mods.utils.video import Frame
-from typing import Dict, Any
+from typing import Any, BinaryIO
 import cv2
 import v4l2
 
 
-def prep_v4l2_descriptor(width, height, channels):
+def prep_v4l2_descriptor(width: int, height: int, channels: int) -> tuple[int, Any]:
     # Set up the formatting of our loopback device
     format = v4l2.v4l2_format()
     format.type = v4l2.V4L2_BUF_TYPE_VIDEO_OUTPUT
@@ -25,11 +25,18 @@ def prep_v4l2_descriptor(width, height, channels):
 class V4l2Cam(FrameOutput):
     id = "v4l2-cam"
 
-    def __init__(self, *args, **kwargs):
-        super(V4l2Cam, self).__init__(*args, **kwargs)
+    def __init__(
+        self,
+        width: int | None = None,
+        height: int | None = None,
+        fps: float | None = None,
+        device: str | None = None,
+    ) -> None:
+        super().__init__(width=width, height=height, fps=fps, device=device)
+        self.dev: BinaryIO | None = None
         self.on_demand = MonitorFile(Path(self.device))
 
-    def setup(self) -> Dict[str, Any]:
+    def setup(self) -> dict[str, Any]:
         if not os.path.exists(self.device):
             raise FileNotFoundError(
                 "error: v4l2loopback device does not exist at", self.device
@@ -52,15 +59,20 @@ class V4l2Cam(FrameOutput):
                 self.on_demand.teardown()
                 self.on_demand.inotify = None
         finally:
-            dev = getattr(self, "dev", None)
+            dev = self.dev
             if dev is not None:
                 self.dev = None
                 dev.close()
 
-    def send(self, frame: Frame):
+    def is_setup(self) -> bool:
+        return self.dev is not None
+
+    def send(self, frame: Frame) -> None:
+        if self.dev is None:
+            raise RuntimeError("V4L2 camera is not open")
         self.dev.write(cv2.cvtColor(frame, cv2.COLOR_BGR2YUV_I420))
 
-    def wait_until_next_frame(self):
+    def wait_until_next_frame(self) -> None:
         pass
 
     def is_in_use(self) -> bool:

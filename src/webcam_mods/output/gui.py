@@ -4,16 +4,23 @@ from typing import Any
 
 import cv2
 
-from webcam_mods.input.input import FrameOutput, Frame
+from webcam_mods.input.input import FrameOutput
 from webcam_mods.timing import FramePacer
+from webcam_mods.utils.video import Frame
 
 
 class GUI(FrameOutput):
     id = "gui"
     window_name = "Webcam Mods"
 
-    def __init__(self, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
+    def __init__(
+        self,
+        width: int | None = None,
+        height: int | None = None,
+        fps: float | None = None,
+        device: str | None = None,
+    ) -> None:
+        super().__init__(width=width, height=height, fps=fps, device=device)
         self._active = False
         self._closed = False
         self._pacer: FramePacer | None = None

@@ -8,11 +8,11 @@ class MonitorFile:
     track how many processes are using a file/device
     """
 
-    def __init__(self, path: Path):
+    def __init__(self, path: Path) -> None:
         self.path = Path(path)
         self.consumers = 0
 
-    def setup(self):
+    def setup(self) -> None:
         self.consumers = 0
         inotify = INotify(nonblocking=True)
         self.inotify = inotify
@@ -21,7 +21,7 @@ class MonitorFile:
         )
         inotify.add_watch(self.path.absolute(), watch_flags)
 
-    def _check_inotify(self):
+    def _check_inotify(self) -> None:
         for event in self.inotify.read(0):
             cur_flags = flags.from_mask(event.mask)
             # FIXME: these get trigerred w/o active webcam use. `inotifywait -m -e open,close /dev/video10`
@@ -32,7 +32,7 @@ class MonitorFile:
                     self.consumers += 1
                 # logger.debug(f"Consumers: {self.consumers}")
 
-    def teardown(self):
+    def teardown(self) -> None:
         self.consumers = 0
         self.inotify.close()
 
