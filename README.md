@@ -221,6 +221,9 @@ Environment variables are used to configure different parameters. Read more abou
 persist them [here](https://lmgtfy.app/?q=how+to+set+environment+variables+in+linux)
 Startup settings resolve once at command execution: CLI options override environment variables,
 then defaults from `settings.py`. Invalid values fail before devices open; `--help` remains available.
+Capture and delivery resolution/FPS are independent. See
+[quality settings](docs/quality-settings.md) for launch examples, negotiation
+checks and frame-rate limits.
 Use `--input-device`, `--input-width`, `--input-height`, `--input-fps`, `--input-format`,
 `--output-width`, `--output-height`, `--output-fps`, `--output-device`,
 `--on-demand/--no-on-demand`, `--pan-control/--no-pan-control`, and

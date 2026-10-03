@@ -2,6 +2,15 @@
 
 Active improvement roadmap: [docs/improvement-plan.md](docs/improvement-plan.md).
 
+## Deferred power presets
+
+- Add manual battery/performance presets and optional automatic selection from
+  battery/AC state or macOS Low Power Mode. First establish reliable independent
+  capture/output resolution and FPS at launch. Runtime format switching remains
+  separate work. Deferred by user on 2026-10-03.
+- Measure whole-pipeline power and quality before choosing preset defaults;
+  faster CPU/Metal inference alone does not establish battery savings.
+
 ## Deferred visual polish
 
 - Stabilize jittering background-blur boundary in Vision fast preview. Evaluate

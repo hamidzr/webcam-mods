@@ -17,7 +17,16 @@ this goal, update acceptance evidence and explain any priority change. New visua
 issues belong in the backlog unless promoted deliberately. Keep each validated
 implementation section independently committed.
 
-Latest review (2026-10-03): user activated CLI help/option-placement polish and
+Latest review (2026-10-03): user prioritized independent capture/delivery
+resolution and FPS at launch. Existing controls remain; OpenCV negotiation now
+checks actual frames and reported FPS instead of accepting unsupported requests.
+Launch examples and limits are documented in [quality settings](quality-settings.md).
+Automatic battery/AC/Low Power Mode presets are deferred in [TODO](../TODO.md);
+runtime format switching remains separate. Hardware format/cadence acceptance
+remains outstanding. All 204 local tests and static checks pass; the local
+editable CLI was reinstalled and its input/output help verified.
+
+Previous review (2026-10-03): user activated CLI help/option-placement polish and
 screen sharing modernization. Grouped help and shared options now cover both
 command positions, and MSS screen capture uses shared session/output ownership.
 193 local tests and all static checks pass. Headless screen/CLI regression checks

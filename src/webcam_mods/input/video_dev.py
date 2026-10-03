@@ -4,6 +4,7 @@ from webcam_mods.input.input import AdapterMetadata, FrameInput
 from webcam_mods.utils.video import Frame
 from loguru import logger
 from typing import cast, Any, Iterator, Optional
+import math
 import time
 
 
@@ -44,12 +45,13 @@ def open_video_capture(
     videoIn = cv2.VideoCapture(input_dev)
 
     try:
-        videoIn.set(cv2.CAP_PROP_FPS, fps)
         videoIn.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter.fourcc(*pixel_format.upper()))
 
         if width is not None and height is not None:
             videoIn.set(cv2.CAP_PROP_FRAME_WIDTH, width)
             videoIn.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+        # changing format or resolution may reset the device's frame rate
+        videoIn.set(cv2.CAP_PROP_FPS, fps)
 
         if not videoIn.isOpened():
             logger.error(f"failed to open video input device #{input_dev}")
@@ -92,6 +94,7 @@ class Webcam(FrameInput):
         super().__init__(**kwargs)
         device_index = self.settings.video_in if device_index is None else device_index
         self.cap: cv2.VideoCapture | None = None
+        self._pending: Frame | None = None
         self.device_index = (
             device_index
             if device_index is not None
@@ -105,7 +108,7 @@ class Webcam(FrameInput):
                 width=self.width,
                 height=self.height,
                 input_dev=self.device_index,
-                fps=self.settings.in_fps,
+                fps=self.fps,
                 pixel_format=self.settings.in_format,
             )
             if open_rv is not None:
@@ -116,14 +119,51 @@ class Webcam(FrameInput):
             time.sleep(2)
         if open_rv is None:
             raise FileNotFoundError("failed to open video input device")
-        cap, width, height, fps = open_rv
+        cap, _, _, _ = open_rv
         self.cap = cap
-        self.width = width
-        self.height = height
-        self.fps = fps
-        return {"width": width, "height": height, "fps": fps}
+        try:
+            # some drivers finalize negotiation only after the first frame
+            ret, frame = cap.read()
+            if not ret or frame is None:
+                raise RuntimeError("camera produced no frame during startup")
+            self._validate_frame(cast(Frame, frame))
+            fps = cap.get(cv2.CAP_PROP_FPS)
+            if not math.isfinite(fps) or fps <= 0:
+                raise ValueError(
+                    "camera did not report a valid input FPS; cannot verify --input-fps"
+                )
+            if not math.isclose(fps, self.fps, rel_tol=0.01, abs_tol=0.1):
+                raise ValueError(
+                    f"camera #{self.device_index} returned {fps:g} FPS; "
+                    f"requested {self.fps:g}. Choose a supported --input-fps. "
+                    "On macOS, list-cameras shows native formats; use "
+                    "--capture-backend avfoundation for those formats."
+                )
+            self._pending = cast(Frame, frame)
+            self.fps = fps
+            return {"width": self.width, "height": self.height, "fps": fps}
+        except BaseException as error:
+            try:
+                self.teardown()
+            except Exception as cleanup_error:
+                error.add_note(f"capture cleanup failed: {cleanup_error}")
+            raise
+
+    def _validate_frame(self, frame: Frame) -> None:
+        if frame.ndim != 3 or frame.shape[2] != 3:
+            raise ValueError("camera must return HxWx3 BGR frames")
+        height, width = frame.shape[:2]
+        if (width, height) != (self.width, self.height):
+            raise ValueError(
+                f"camera #{self.device_index} returned {width}x{height}; "
+                f"requested {self.width}x{self.height}. Choose supported "
+                "--input-width and --input-height. On macOS, list-cameras "
+                "shows native formats; use --capture-backend avfoundation "
+                "for those formats."
+            )
 
     def teardown(self, *args: Any) -> None:
+        self._pending = None
         if self.cap is not None:
             self.cap.release()
             self.cap = None
@@ -136,7 +176,11 @@ class Webcam(FrameInput):
     def frame(self) -> Optional[Frame]:
         if self.cap is None:
             return None
+        if self._pending is not None:
+            pending, self._pending = self._pending, None
+            return pending
         ret, frame = self.cap.read()
         if not ret or frame is None:
             return None
+        self._validate_frame(cast(Frame, frame))
         return cast(Frame, frame)

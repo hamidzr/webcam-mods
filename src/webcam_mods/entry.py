@@ -381,23 +381,47 @@ def common(
         rich_help_panel="Input",
     ),
     input_width: int | None = typer.Option(
-        None, min=1, rich_help_panel="Input", hidden=True
+        None,
+        min=1,
+        help="Requested capture width; camera must support this resolution/FPS.",
+        rich_help_panel="Input",
+        hidden=True,
     ),
     input_height: int | None = typer.Option(
-        None, min=1, rich_help_panel="Input", hidden=True
+        None,
+        min=1,
+        help="Requested capture height; independent of output height.",
+        rich_help_panel="Input",
+        hidden=True,
     ),
     input_fps: float | None = typer.Option(
-        None, min=0.01, rich_help_panel="Input", hidden=True
+        None,
+        min=0.01,
+        help="Requested camera FPS; not an output-only processing cap.",
+        rich_help_panel="Input",
+        hidden=True,
     ),
     input_format: str | None = typer.Option(None, rich_help_panel="Input", hidden=True),
     output_width: int | None = typer.Option(
-        None, min=1, rich_help_panel="Output", hidden=True
+        None,
+        min=1,
+        help="Delivered frame width; resize and pad to preserve aspect ratio.",
+        rich_help_panel="Output",
+        hidden=True,
     ),
     output_height: int | None = typer.Option(
-        None, min=1, rich_help_panel="Output", hidden=True
+        None,
+        min=1,
+        help="Delivered frame height; independent of capture height.",
+        rich_help_panel="Output",
+        hidden=True,
     ),
     output_fps: float | None = typer.Option(
-        None, min=0.01, rich_help_panel="Output", hidden=True
+        None,
+        min=0.01,
+        help="Delivery FPS cap; limited by negotiated input FPS and processing speed.",
+        rich_help_panel="Output",
+        hidden=True,
     ),
     output_device: str | None = typer.Option(
         None, rich_help_panel="Output", hidden=True
