@@ -3,7 +3,7 @@ from typing import Any
 import pyvirtualcam
 from pyvirtualcam import PixelFormat
 
-from webcam_mods.input.input import FrameOutput
+from webcam_mods.input.input import AdapterMetadata, FrameOutput
 from webcam_mods.utils.video import Frame
 
 
@@ -20,7 +20,7 @@ class PyVirtualCam(FrameOutput):
         super().__init__(width=width, height=height, fps=fps, device=device)
         self.cam: pyvirtualcam.Camera | None = None
 
-    def setup(self) -> dict[str, Any]:
+    def setup(self) -> AdapterMetadata:
         self.cam = pyvirtualcam.Camera(
             width=self.width,
             height=self.height,

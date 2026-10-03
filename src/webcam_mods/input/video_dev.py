@@ -1,6 +1,6 @@
 from webcam_mods.settings import StartupSettings, load_settings
 import cv2
-from webcam_mods.input.input import FrameInput
+from webcam_mods.input.input import AdapterMetadata, FrameInput
 from webcam_mods.utils.video import Frame
 from loguru import logger
 from typing import cast, Any, Iterator, Optional
@@ -98,7 +98,7 @@ class Webcam(FrameInput):
             else next(available_camera_indices(end=5))
         )
 
-    def setup(self) -> dict[str, int | float]:
+    def setup(self) -> AdapterMetadata:
         open_rv = None
         for c in range(5):
             open_rv = open_video_capture(

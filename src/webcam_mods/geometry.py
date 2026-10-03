@@ -1,23 +1,30 @@
-from typing import Literal, Optional, Union, Type
+from typing import TypedDict
 
-Number = Union[int, float]
+Number = int | float
+
+
+class RectBounds(TypedDict):
+    top: int
+    left: int
+    width: int
+    height: int
 
 
 class Point:
-    def __init__(self, t: int = 0, l: int = 0):
+    def __init__(self, t: int = 0, l: int = 0) -> None:
         self.top = t
         self.left = l
 
     @property
-    def t(self):
+    def t(self) -> int:
         return self.top
 
     @property
-    def l(self):
+    def l(self) -> int:
         return self.left
 
     @property
-    def tuple(self):
+    def tuple(self) -> tuple[int, int]:
         return (self.l, self.t)
 
     def __repr__(self) -> str:
@@ -38,13 +45,15 @@ class Point:
         new_p.left -= other.l
         return new_p
 
-    def __eq__(self, other: "Point") -> bool:
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Point):
+            return NotImplemented
         return self.t == other.t and self.l == other.l
 
     def __truediv__(self, num: Number) -> "Point":
         pt = self.copy()
-        pt.left = pt.left // num
-        pt.top = pt.top // num
+        pt.left = int(pt.left // num)
+        pt.top = int(pt.top // num)
         return pt
 
     def __mul__(self, num: Number) -> "Point":
@@ -58,7 +67,7 @@ Distance = Point
 
 
 class Rect:
-    def __init__(self, w: int = 100, h: int = 100, t: int = 0, l: int = 0):
+    def __init__(self, w: int = 100, h: int = 100, t: int = 0, l: int = 0) -> None:
         self.width = w
         self.height = h
         self.top = t
@@ -68,24 +77,24 @@ class Rect:
     def from_rect(cls, rect: "Rect") -> "Rect":
         return cls(w=rect.w, h=rect.h, t=rect.t, l=rect.l)
 
-    def move_to(self, top_left: Point):
+    def move_to(self, top_left: Point) -> None:
         self.left = top_left.left
         self.top = top_left.top
 
     @property
-    def h(self):
+    def h(self) -> int:
         return self.height
 
     @property
-    def w(self):
+    def w(self) -> int:
         return self.width
 
     @property
-    def t(self):
+    def t(self) -> int:
         return self.top
 
     @property
-    def l(self):
+    def l(self) -> int:
         return self.left
 
     @property
@@ -104,7 +113,8 @@ class Rect:
     def __repr__(self) -> str:
         return f"{self.start_point} => {self.end_point}"
 
-    def __dict__(self):
+    # preserve the legacy callable bounds helper used by screen capture
+    def __dict__(self) -> RectBounds:  # type: ignore[override]
         return {
             "top": self.top,
             "left": self.left,
@@ -112,7 +122,7 @@ class Rect:
             "height": self.height,
         }
 
-    def center_on(self, pt: Point):
+    def center_on(self, pt: Point) -> None:
         """
         center the rectangle on a point
         """
@@ -123,7 +133,7 @@ class Rect:
     @property
     def center(self) -> Point:
         """
-        Compute center poitn of the rectangle
+        Compute center point of the rectangle
         """
         return (self.start_point + self.end_point) / 2
 

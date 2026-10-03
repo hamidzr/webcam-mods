@@ -1,9 +1,18 @@
 from abc import abstractmethod
 from webcam_mods.settings import StartupSettings, load_settings
-from typing import Any, Optional, Dict, Generator, Self
+from typing import Any, Optional, Generator, Self, TypedDict, NotRequired
 import cv2
 from webcam_mods.utils.video import Frame
 import datetime as dt
+
+
+class AdapterMetadata(TypedDict):
+    """Negotiated adapter dimensions and cadence, plus optional device identity."""
+
+    width: int
+    height: int
+    fps: float
+    device: NotRequired[str]
 
 
 class InNOut:
@@ -27,10 +36,10 @@ class InNOut:
         self.device = device if device is not None else settings.video_out
 
     @abstractmethod
-    def setup(self) -> Dict[str, Any]:
+    def setup(self) -> AdapterMetadata:
         raise NotImplementedError()
 
-    def __enter__(self) -> tuple[Self, Dict[str, Any]]:
+    def __enter__(self) -> tuple[Self, AdapterMetadata]:
         try:
             return (self, self.setup())
         except BaseException as error:

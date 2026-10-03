@@ -1,11 +1,13 @@
-from typing import Callable, Generator, Optional, List, Any, Tuple
+from typing import Callable, Generator, Optional, List, Tuple
 import math
 from webcam_mods.settings import load_settings
 from webcam_mods.geometry import Number, Rect, Point
 from loguru import logger
 
 
-def linear_transition(a: Number, b: Number, steps: int) -> Generator[Number, Any, Any]:
+def linear_transition(
+    a: Number, b: Number, steps: int
+) -> Generator[Number, None, None]:
     """
     linear transition
     """
@@ -15,7 +17,7 @@ def linear_transition(a: Number, b: Number, steps: int) -> Generator[Number, Any
         a += d
 
 
-Transition = Callable[[Number, Number, int], Generator[Number, Any, Any]]
+Transition = Callable[[Number, Number, int], Generator[Number, None, None]]
 
 
 def transition_nd(
@@ -23,7 +25,7 @@ def transition_nd(
     start: List[Number],
     end: List[Number],
     steps: int,
-) -> Generator[List[Number], Any, Any]:
+) -> Generator[List[Number], None, None]:
     assert len(start) == len(end)
     # g1 = transition(a1, a2, steps)
     # g2 = transition(b1, b2, steps)

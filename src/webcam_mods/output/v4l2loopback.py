@@ -2,7 +2,7 @@ import fcntl
 from pathlib import Path
 from webcam_mods.utils.file_monitor import MonitorFile
 import os
-from webcam_mods.input.input import FrameOutput
+from webcam_mods.input.input import AdapterMetadata, FrameOutput
 from webcam_mods.utils.video import Frame
 from typing import Any, BinaryIO
 import cv2
@@ -36,7 +36,7 @@ class V4l2Cam(FrameOutput):
         self.dev: BinaryIO | None = None
         self.on_demand = MonitorFile(Path(self.device))
 
-    def setup(self) -> dict[str, Any]:
+    def setup(self) -> AdapterMetadata:
         if not os.path.exists(self.device):
             raise FileNotFoundError(
                 "error: v4l2loopback device does not exist at", self.device

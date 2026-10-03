@@ -9,7 +9,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from webcam_mods.settings import load_settings
-from webcam_mods.input.input import FrameInput
+from webcam_mods.input.input import AdapterMetadata, FrameInput
 
 _delegate_class: Any = None
 
@@ -188,7 +188,7 @@ class AVFoundationCamera(FrameInput):
             quartz.CVPixelBufferUnlockBaseAddress(pixel, flags)
         self._publish(bgr, timestamp)
 
-    def setup(self) -> dict[str, Any]:
+    def setup(self) -> AdapterMetadata:
         global _delegate_class
         if self._running:
             return {"width": self.width, "height": self.height, "fps": self.fps}

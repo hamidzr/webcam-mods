@@ -4,7 +4,7 @@ from typing import Any
 
 import cv2
 
-from webcam_mods.input.input import FrameOutput
+from webcam_mods.input.input import AdapterMetadata, FrameOutput
 from webcam_mods.timing import FramePacer
 from webcam_mods.utils.video import Frame
 
@@ -25,7 +25,7 @@ class GUI(FrameOutput):
         self._closed = False
         self._pacer: FramePacer | None = None
 
-    def setup(self) -> dict[str, Any]:
+    def setup(self) -> AdapterMetadata:
         self._closed = False
         self._active = True
         cv2.namedWindow(self.window_name, cv2.WINDOW_AUTOSIZE | cv2.WINDOW_GUI_NORMAL)

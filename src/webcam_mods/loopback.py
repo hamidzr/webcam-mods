@@ -9,6 +9,7 @@ from webcam_mods.input.input import FrameInput, FrameOutput
 from webcam_mods.utils.video import Frame
 from webcam_mods.timing import FramePacer
 from typing import Any, Callable, Optional, TypedDict, cast
+from collections.abc import Mapping
 
 from webcam_mods.mods.video_mods import resize_and_pad
 
@@ -60,7 +61,7 @@ def default_frame_output(
         return PyVirtualCam(**options)
 
 
-def _validate_metadata(properties: dict[str, Any], adapter: str) -> None:
+def _validate_metadata(properties: Mapping[str, object], adapter: str) -> None:
     for name in ("width", "height", "fps"):
         value = properties.get(name)
         if (
