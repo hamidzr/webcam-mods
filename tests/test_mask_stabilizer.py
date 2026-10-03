@@ -57,11 +57,33 @@ class MaskStabilizerTests(unittest.TestCase):
         np.testing.assert_array_equal(result[2:6, 2:6], mask[2:6, 2:6])
         self.assertAlmostEqual(float(result[0, 0]), 0.535)
 
-    def test_widespread_motion_bypasses_history_for_entire_mask(self) -> None:
+    def test_hand_motion_keeps_stationary_boundary_stable(self) -> None:
+        frame = np.zeros((100, 100, 3), np.uint8)
+        mask = np.zeros((100, 100), np.float32)
+        mask[:, 70:] = 1
+        stabilizer = MaskStabilizer()
+        stabilizer.apply(frame, mask)
+        # moving hand covers more than 2% of image, away from static shoulder
+        frame[20:40, 20:40] = 255
+        mask[20:40, 20:40] = 1
+        mask[:, 69] = 1
+        result = stabilizer.apply(frame, mask)
+        np.testing.assert_array_equal(result[20:40, 20:40], mask[20:40, 20:40])
+        np.testing.assert_allclose(result[:, 69], 0.35)
+        np.testing.assert_array_equal(result[:, 70:], mask[:, 70:])
+        # departing hand must clear immediately without destabilizing shoulder
+        frame[20:40, 20:40] = 0
+        mask[20:40, 20:40] = 0
+        mask[:, 69] = 0
+        result = stabilizer.apply(frame, mask)
+        np.testing.assert_array_equal(result[20:40, 20:40], mask[20:40, 20:40])
+        np.testing.assert_allclose(result[:, 69], 0.2275)
+
+    def test_widespread_motion_resets_changed_pixels(self) -> None:
         frame = np.zeros((32, 32, 3), np.uint8)
         stabilizer = MaskStabilizer()
         stabilizer.apply(frame, np.full((32, 32), 0.5, np.float32))
-        frame[:, 10:20] = 255
+        frame[:] = 255
         mask = np.full((32, 32), 0.6, np.float32)
         np.testing.assert_array_equal(stabilizer.apply(frame, mask), mask)
 

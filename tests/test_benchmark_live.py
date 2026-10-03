@@ -258,6 +258,7 @@ class LiveBenchmarkTests(unittest.TestCase):
             return sink
 
         def effect_factory(**kwargs):
+            self.assertTrue(kwargs["smoothing"])
             effect = Mock()
             effect.blur_bg.side_effect = lambda frame, kernel: frame
             effect.close.side_effect = lambda: events.append("close")
@@ -290,12 +291,14 @@ class LiveBenchmarkTests(unittest.TestCase):
                     str(report_path),
                     "--save-frame",
                     str(frame_path),
+                    "--mask-smoothing",
                 ],
             ):
                 main()
             report = json.loads(report_path.read_text())
             self.assertEqual(report["status"], "passed")
             self.assertEqual(report["cycles_completed"], 3)
+            self.assertTrue(report["workload"]["mask_smoothing"])
             self.assertTrue(all(run["cleanup_verified"] for run in report["runs"]))
             for cycle in range(1, 4):
                 self.assertTrue((Path(directory) / f"frame-cycle-{cycle}.png").exists())

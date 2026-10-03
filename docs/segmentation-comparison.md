@@ -1,5 +1,34 @@
 # Segmentation comparison and boundary smoothing
 
+## Local motion refinement (2026-10-03)
+
+User reactivated our stabilization; macOS Portrait reliance is excluded for this
+work. Previously, visible motion covering more than 2% of the image bypassed all
+history. That made unrelated stationary edges jitter whenever a hand moved.
+History now resets only at visibly changed pixels and their one-pixel neighborhood.
+Large mean confidence jumps still reset the whole mask. Regression reproduces the
+old failure with a moving/departing hand over 4% of the image and a separate static
+boundary; changed pixels respond immediately while the boundary stays smoothed.
+Full-image visible motion still takes effect immediately.
+
+Before/after Vision fast comparison used the same 640x480 fixture, 10 warmup frames
+and 60 frames per phase, in fresh processes. Static mask variation reduction
+remained 65%. Translation-phase smoothing mean/p95 was 0.40/0.49 ms before and
+0.57/0.66 ms after; static smoothing was 0.56/0.60 ms before and 0.40/0.44 ms after.
+These short runs establish measured cost, not a general speed improvement or
+battery saving. Translation mean absolute raw/stabilized mask deviation changed
+from zero to 0.00168 because unchanged pixels now retain history. Comparison
+sheets were inspected; they do not establish trail-free live hair/hand motion.
+Vision fast's existing torso loss and black-input misclassification remain.
+Reports and sheets: `dist/segmentation/stabilization-before/` and
+`dist/segmentation/stabilization-after/`.
+
+Smoothing stays opt-in. Live hair, hands, low-light movement and subject departure
+remain acceptance checks. Measure complete live cost with
+`benchmark_live.py --mask-smoothing`; JSON workload records `mask_smoothing`.
+
+## Original fixture checkpoint (2026-10-02)
+
 Measured 2026-10-02 on Apple M4 Max, Python 3.14, 640x480 BGR disk fixture.
 Each configuration ran in a fresh process, with 10 warmup frames and 60 frames
 per phase: static astronaut, horizontal translation, 30% brightness, black input
@@ -59,8 +88,8 @@ uses OpenCV composition and the same inferred mask for raw/smoothed output.
 processing backends. Defaults and legacy helper behavior remain unchanged.
 The filter uses 35% current confidence and 65% previous confidence at static
 pixels, without spatial blur. Luma changes greater than 12/255 reset affected
-pixels and a one-pixel neighborhood. More than 2% visibly changed pixels bypass
-history for the entire mask. Mean confidence change greater than 0.12 also resets
+pixels and a one-pixel neighborhood. Motion elsewhere does not bypass history for stationary pixels.
+Mean confidence change greater than 0.12 resets
 history. Shape changes and run close discard history.
 
 At 30 FPS, static confidence converges 90% within six frames, about 200 ms.

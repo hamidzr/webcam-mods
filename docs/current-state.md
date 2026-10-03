@@ -1,5 +1,13 @@
 # Current state
 
+2026-10-03 stabilization refinement: opt-in temporal mask smoothing now resets
+history locally on visible motion rather than bypassing the whole image above 2%
+motion. Moving hands no longer disable smoothing of stationary boundaries;
+large confidence jumps and shape changes still reset all history. Live benchmark
+supports `--mask-smoothing` and records its workload selection. Fixture comparisons
+and a moving/departing-hand regression pass; live motion quality and power remain
+unverified. See [comparison evidence](segmentation-comparison.md).
+
 2026-10-03 hardware acceptance: three physical-camera -> Vision fast/OpenCV blur
 -> OBS producer start/stop cycles passed at 640x480/30. Each delivered 100 measured
 frames after 10 warmup frames, at 29.88-29.95 FPS, with cleanup verified. Three
@@ -171,7 +179,7 @@ incorrect capture resolution. Corrected Terminal rerun is now confirmed: 300 mea
 process peak RSS 315,473,920 bytes. This is the requested resolution, not a same-
 resolution comparison with the earlier 1080p run. Repeated hardware start/stop is now confirmed by the latest checkpoint;
 conferencing reception remains unverified. User observed frequent mask-boundary
-jitter in Vision fast preview; visual refinement is explicitly deferred in the
+jitter in Vision fast preview; visual refinement is reactivated in the
 [improvement plan](improvement-plan.md).
 
 Other remaining gaps:

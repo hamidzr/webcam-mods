@@ -17,7 +17,19 @@ this goal, update acceptance evidence and explain any priority change. New visua
 issues belong in the backlog unless promoted deliberately. Keep each validated
 implementation section independently committed.
 
-Latest review (2026-10-03): authorized Terminal hardware checks passed. Three
+Latest review (2026-10-03): user reactivated our blur-edge stabilization and
+excluded reliance on macOS Portrait. Removed the global 2% image-motion bypass:
+local motion now resets only changed pixels and their one-pixel neighborhood,
+keeping stationary edges stabilized during hand movement. Synthetic regression
+reproduced the original failure and now verifies immediate hand arrival/departure.
+Vision fast fixture static variation reduction stays 65%; translation smoothing
+mean/p95 measured 0.57/0.66 ms at 640x480. Live benchmark now accepts
+`--mask-smoothing` and records it in workload metadata. All 263 tests and static
+checks pass via `just verify`. Smoothing stays opt-in;
+live hair/hand/low-light/trail acceptance and whole-pipeline power remain open.
+Power presets, remote CI and an own camera extension remain deferred or excluded.
+
+Previous review (2026-10-03): authorized Terminal hardware checks passed. Three
 physical-camera -> Vision fast/OpenCV blur -> OBS producer cycles delivered
 100 measured frames each at 640x480/30, with 29.88-29.95 FPS and cleanup verified
 in every cycle (`dist/benchmarks/lifecycle.json`). Three capture-only auto ->
@@ -118,7 +130,7 @@ compile checks on Python 3.14. Hardware-dependent evidence remains separate.
 | Completed | Repeated physical-camera/OBS producer starts/stops; 720p capture retention | Three 640x480/30 effect/output cycles passed with cleanup; three 1280x720/30 capture-only pause/restart cycles passed |
 | Open acceptance | OBS/conferencing reception and 720p effects/output | Confirm moving video across restarts in receiving client; capture-only 720p evidence does not validate effects/output |
 | Completed | Face prediction, geometry and adapter metadata typing | Strict contracts and regression tests; integer pixel division corrected; compatibility helpers retained |
-| Implemented; visual acceptance outstanding | Quality/cost comparison and opt-in boundary stabilization | Four real backends/quality configurations compared on fixtures; 65% fast static variation reduction; recorded/live hair, hands and low-light noise still needed |
+| Active; local motion refinement implemented | Quality/cost comparison and opt-in boundary stabilization | Four real backends/quality configurations compared on fixtures; 65% fast static variation reduction; recorded/live hair, hands and low-light noise still needed |
 | When hardware is available | Linux consumer detection and native output parity | Real V4L2 consumer smoke check; mocked ownership checks already pass |
 
 Ordering reflects work/value: retain remaining hardware acceptance checks, then
@@ -142,7 +154,8 @@ retain OBS output.
   cost and preserve the 640x480/30 target.
 - Activated by user request. Opt-in motion-aware mask refinement now exists; defaults stay unchanged.
 - Fixture comparison is complete: [results and commands](segmentation-comparison.md).
-  Moving hair/hands and realistic low-light/subject-departure acceptance remain
+  Local motion no longer disables stabilization elsewhere. Moving hair/hands
+  and realistic low-light/subject-departure acceptance remain
   unverified. Vision fast misclassifies black input even without smoothing.
 
 External runtime control/API, hot input switching and native-frame experiments

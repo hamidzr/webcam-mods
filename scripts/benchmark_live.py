@@ -264,6 +264,9 @@ def main() -> None:
         type=int,
         help="Input camera index; AVFoundation excludes OBS output. Overrides VIDEO_IN.",
     )
+    parser.add_argument(
+        "--mask-smoothing", action="store_true", help="Stabilize segmentation edges."
+    )
     parser.add_argument("--frames", type=int, default=100)
     parser.add_argument("--warmup", type=int, default=10)
     parser.add_argument(
@@ -288,6 +291,7 @@ def main() -> None:
         "quality": args.quality,
         "output_backend": args.output_backend,
         "kernel_size": 31,
+        "mask_smoothing": args.mask_smoothing,
         "input_device": settings.video_in,
         "requested_input": {
             "width": settings.in_width,
@@ -318,7 +322,10 @@ def main() -> None:
             )
         with ExitStack() as resources:
             effects = PersonEffects(
-                backend=args.backend, processing=args.processing, quality=args.quality
+                backend=args.backend,
+                processing=args.processing,
+                quality=args.quality,
+                smoothing=args.mask_smoothing,
             )
             resources.callback(effects.close)
             result = run_benchmark(

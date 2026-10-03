@@ -37,13 +37,9 @@ class MaskStabilizer:
             changed = (
                 cv2.dilate(motion.astype(np.uint8), np.ones((3, 3), np.uint8)) != 0
             )
-            if float(motion.mean()) > 0.02:
-                result = mask.copy()
-            else:
-                result = np.asarray(
-                    previous + 0.35 * (mask - previous), dtype=np.float32
-                )
-                np.copyto(result, mask, where=changed)
+            # local motion must not disable stabilization of stationary edges
+            result = np.asarray(previous + 0.35 * (mask - previous), dtype=np.float32)
+            np.copyto(result, mask, where=changed)
         self._mask = result.copy()
         self._gray = gray
         return result

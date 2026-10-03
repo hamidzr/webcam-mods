@@ -343,6 +343,10 @@ From a camera-authorized Terminal:
 uv run --extra macos python scripts/benchmark_live.py --frames 300 --warmup 30
 ```
 
+Add `--mask-smoothing` to measure opt-in edge stabilization. Moving regions reset
+history locally so stationary edges stay smoothed. Compare otherwise identical
+runs with and without the flag; inspect moving hair/hands for trails.
+
 Defaults to AVFoundation, Vision fast and preview. Use `--output-backend virtual-cam`
 for OBS. Saves timing/cadence/memory metrics, with optional `--save-frame` for quality
 review. See [measurement details](docs/macos-backends.md#live-camera-measurements).
