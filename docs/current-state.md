@@ -1,5 +1,19 @@
 # Current state
 
+2026-10-03 CLI polish and screen sharing: grouped root help presents frequent
+options; command help includes the full common option set. Common options parse
+before or after commands, with explicit command-side values overriding root
+values. Validation happens once after parsing, before resources open. Screen
+sharing uses the shared session/controls, startup settings and output path; MSS
+reports complete dimensions/FPS and materializes contiguous uint8 BGR frames.
+Region width/height default to input dimensions; screen cadence defaults to 30 FPS
+and final output size/cap remains independently configurable. Legacy output `gui`
+aliases preview. macOS screen-capture permission is available: a live smoke passed
+three 320x240 screen captures through real preview and three through OBS output,
+both resized to 640x480/30 with capture/output cleanup verified. No captured images
+were saved. Conferencing reception remains unchecked. This checkpoint passes 193
+local tests plus strict mypy (28 source files), Black, Flake8 and compile checks on Python 3.14.
+
 2026-10-03 lifecycle acceptance tooling: `scripts/benchmark_live.py --cycles N`
 recreates capture, effects and output each run, rejects adapters still open after
 teardown and closes effects before the next acquisition. Multi-cycle reports keep
@@ -10,15 +24,15 @@ UV_FLAGS='--extra macos'` passes 174 tests and all static checks on Python 3.14.
 Physical-camera restart and
 conferencing reception evidence remain outstanding.
 
-Updated 2026-10-02 after session/control and optional native-backend implementation.
+Earlier checkpoint (2026-10-02): session/control and optional native backends.
 
 ## Implemented behavior
 
 All existing command names remain: crop-cam, bg-color, bg-swap, bg-blur, brighten,
 track-face, share-screen and test-loop. Common freeze-on-error now propagates to
-all camera commands. Global options precede the command; --no-controls disables
+all camera and screen-sharing commands. Common options can precede or follow the command; --no-controls disables
 keyboard and stdin together. Track-face and test-loop omit crop/replay preparation.
-Screen sharing is excluded from this change and retains its legacy implementation.
+Screen sharing now uses the same session and adapter lifecycle.
 
 Each camera CLI run owns Config, ordered controls and Recorder, with effect models
 and native contexts scoped to the run and closed explicitly. CLI import/help starts
@@ -154,12 +168,12 @@ jitter in Vision fast preview; visual refinement is explicitly deferred in the
 Other remaining gaps:
 
 - No portable consumer/pause capability contract; unified pacing is implemented.
-- Screen.setup still lacks width/height metadata expected by default-output path;
-  screen sharing was explicitly excluded.
+- Screen conferencing reception and sustained real-desktop capture remain unverified;
+  live preview/OBS adapter smokes and headless CLI integration checks pass.
 - No hot input switching, user-facing file output, HTTP service or cross-process control.
 - Lazy legacy helper compatibility remains; CLI startup uses a validated immutable snapshot.
 - No live-camera latency, power or segmentation-quality benchmark on moving people.
-- Strict mypy checks cover 20 modules plus static frame/mask regressions: startup
+- Strict mypy checks cover core modules plus static frame/mask regressions: startup
   settings, pacing, cache, recording, session, core processing, background effects,
   CLI/loop composition, native capture/effects, output adapters and crop persistence.
   Frames are uint8 arrays; confidence masks are float32. Shape remains a runtime

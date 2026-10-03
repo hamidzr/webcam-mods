@@ -1,6 +1,6 @@
 # Improvement plan
 
-Updated 2026-10-02. Session/control and optional native-backend work is implemented;
+Updated 2026-10-03. Session/control and optional native-backend work is implemented;
 typing and opt-in boundary stabilization are also implemented; hardware acceptance
 remains outstanding. Preserve macOS and Linux behavior and existing
 CLI commands. Do not add a server or generic plugin framework without a concrete
@@ -17,7 +17,16 @@ this goal, update acceptance evidence and explain any priority change. New visua
 issues belong in the backlog unless promoted deliberately. Keep each validated
 implementation section independently committed.
 
-Latest review (2026-10-03): repeated hardware lifecycle acceptance remains highest
+Latest review (2026-10-03): user activated CLI help/option-placement polish and
+screen sharing modernization. Grouped help and shared options now cover both
+command positions, and MSS screen capture uses shared session/output ownership.
+193 local tests and all static checks pass. Headless screen/CLI regression checks
+cover these changes. Real macOS screen capture passed three frames through preview
+and three through OBS at 640x480/30 with cleanup; consumer reception and sustained
+capture acceptance remain. Camera hardware
+acceptance remains outstanding. Remote CI and an own camera extension stay excluded.
+
+Previous review (2026-10-03): repeated hardware lifecycle acceptance remains highest
 priority. Added `benchmark_live.py --cycles` so an authorized Terminal can exercise
 fresh capture/effect/output ownership and retain per-cycle evidence, including
 partial failure progress. Headless orchestration checks do not close the hardware
@@ -25,11 +34,15 @@ or consumer-reception evidence gap. No priority change.
 
 Previous review: corrected native capture/cadence is confirmed. User activated typing
 and boundary work; fixture comparison and opt-in smoothing are complete. Repeated lifecycle and actual OBS/conferencing delivery are
-the next acceptance checks; remote CI, screen sharing and an own camera extension
+the next acceptance checks; remote CI and an own camera extension
 remain excluded.
 
 ## Completed
 
+- Grouped CLI help with complete common options in command help; shared options
+  work before or after commands with command-side override precedence.
+- Modernized MSS screen sharing with complete metadata, typed contiguous BGR
+  frames and shared settings, session controls, pacing and output cleanup.
 - Added macOS/Linux Python 3.14 verification workflow; remote validation excluded by user.
 - Removed import-time listeners, stdin threads and config writes; explicit controls.
 - Added RunSession-owned settings, bounded ordered command queue, validated mutations,
@@ -79,7 +92,7 @@ removal without caller evidence, and extra benchmarking stay below current user
 needs. Camera-selection diagnostics addressed repeated input-selection failures.
 
 Remote CI validation is explicitly excluded. Python 3.14 is the only supported
-runtime. Screen sharing and an own signed virtual-camera extension are excluded;
+runtime. An own signed virtual-camera extension is excluded;
 retain OBS output.
 
 ## Boundary refinement checkpoint
@@ -132,8 +145,9 @@ that experiment. GStreamer, custom Metal kernels and ML frameworks remain unjust
 for current synchronous webcam effects. An own signed camera extension was excluded
 by user choice; OBS remains the output provider.
 
-Screen sharing was explicitly excluded. Its existing metadata gap and any
-ScreenCaptureKit migration remain separate future work.
+Screen sharing now uses MSS through the shared adapter/session/output lifecycle.
+Actual consumer reception and sustained capture acceptance remain; ScreenCaptureKit migration
+stays separate future work.
 
 ## Portability and verification
 

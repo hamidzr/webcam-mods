@@ -10,7 +10,7 @@ server, daemon or cross-process runtime control API exists.
 settings, queued commands and bounded recording/replay. Keyboard and stdin adapters
 start explicitly and submit immutable commands. The calling frame thread drains
 commands between frames, then crops, pads, records/replays and invokes the chosen
-effect. `live_loop` resizes/pads and sends to the output, which paces delivery. Camera commands select virtual-cam or preview with
+effect. `live_loop` resizes/pads and sends to the output, which paces delivery. Camera and screen commands select virtual-cam or preview with
 --output. Preview receives the same final array and ends the loop through the
 output should_stop hook when its window closes.
 
@@ -37,19 +37,26 @@ flowchart TD
     Output --> Linux[Native V4L2]
 ```
 
-Screen sharing retains its existing MSS implementation and is outside the native
-backend work. GUI output and test PNG adapters remain available as existing seams.
+Screen sharing uses typed MSS region capture through the same session, controls,
+output sizing and adapter cleanup. MSS supplies contiguous uint8 BGR frames and
+requested dimensions/FPS. GUI output and test PNG adapters remain available.
+
+`cli.py` shares Typer's option definitions with each command. Root settings
+resolution is deferred until command parsing completes; explicit command-side
+options override root values without command defaults erasing explicit root values.
+Root help lists frequent grouped options; command help exposes all common options.
 
 ## Module map
 
 | Source | Responsibility |
 | --- | --- |
 | `__main__.py`, `entry.py` | CLI selection, per-run effects, common options and cleanup |
+| `cli.py` | Shared option parsing, placement precedence and complete command help |
 | `session.py` | Validated frame preparation, ordered command application, recording ownership |
 | `loopback.py` | Adapter selection, metadata validation, synchronous loop and error behavior |
 | `input/input.py` | Adapter protocol and partial-setup context cleanup |
 | `input/video_dev.py` | OpenCV capture, configured FPS and retry logic |
-| `input/screen.py` | Existing MSS screen-region capture |
+| `input/screen.py` | Typed MSS screen-region capture and complete adapter metadata |
 | `macos/capture.py` | Optional AVFoundation callback capture and newest-frame mailbox |
 | `macos/vision.py` | Optional instance-owned Vision person masks |
 | `macos/core_image.py` | Optional Core Image background compositing/Gaussian blur |

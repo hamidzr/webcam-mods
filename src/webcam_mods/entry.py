@@ -2,10 +2,13 @@ from contextlib import ExitStack
 from dataclasses import dataclass
 from enum import Enum
 import importlib.util
+import os
 import sys
 from pathlib import Path
 from typing import Callable, Literal, cast
 from webcam_mods.utils.video import Frame
+from webcam_mods.input.input import FrameInput
+from webcam_mods.cli import SharedOptionsCommand, SharedOptionsGroup
 from webcam_mods.macos.vision import Quality
 
 import cv2
@@ -16,16 +19,23 @@ from webcam_mods.config import DEFAULT_BG_IMAGE
 from webcam_mods.settings import StartupSettings, load_settings
 from webcam_mods.loopback import live_loop
 from webcam_mods.mods.video_mods import brighten as brighten_mod, crop_rect
-from webcam_mods.output.gui import GUI
 from webcam_mods.session import RunSession
 from webcam_mods.uses.interactive_controls import ControlAdapters
 
-app = typer.Typer()
+app = typer.Typer(
+    cls=SharedOptionsGroup,
+    no_args_is_help=True,
+    help="Camera effects and screen sharing. Common options work before or after commands.",
+    epilog="Run COMMAND --help for all common and command-specific options.\n"
+    "Examples: webcam_mods bg-blur --output preview --no-controls\n"
+    "webcam_mods share-screen --width 1280 --height 720 --output preview",
+)
 
 
 class OutputBackend(str, Enum):
     virtual_cam = "virtual-cam"
     preview = "preview"
+    gui = "gui"
 
 
 class SegmentationBackend(str, Enum):
@@ -68,6 +78,7 @@ def _run(
     effect: Callable[[Frame], Frame | None] | None = None,
     *,
     prepare: bool = True,
+    source: FrameInput | None = None,
 ) -> None:
     settings = common.settings or load_settings()
     with ExitStack() as resources:
@@ -82,8 +93,7 @@ def _run(
             if common.controls and prepare
             else None
         )
-        source = None
-        if common.capture == "avfoundation":
+        if source is None and common.capture == "avfoundation":
             from webcam_mods.macos.capture import AVFoundationCamera
 
             source = AVFoundationCamera(
@@ -156,13 +166,13 @@ class BackgroundEffect:
         self.effects.close()
 
 
-@app.command()
+@app.command(cls=SharedOptionsCommand, rich_help_panel="Camera")
 def crop_cam(ctx: typer.Context) -> None:
     """Interactive crop, padding and bounded recording/replay."""
     _run(_common(ctx))
 
 
-@app.command()
+@app.command(cls=SharedOptionsCommand, rich_help_panel="Background")
 def bg_color(
     ctx: typer.Context, color: int = typer.Option(192, min=0, max=255)
 ) -> None:
@@ -170,7 +180,7 @@ def bg_color(
     _run(_common(ctx), BackgroundEffect(_common(ctx), "color_bg", color))
 
 
-@app.command()
+@app.command(cls=SharedOptionsCommand, rich_help_panel="Background")
 def bg_swap(ctx: typer.Context, img_path: str = str(DEFAULT_BG_IMAGE)) -> None:
     """Basic controls and image background replacement."""
     background = cv2.imread(str(Path(img_path)))
@@ -183,7 +193,7 @@ def bg_swap(ctx: typer.Context, img_path: str = str(DEFAULT_BG_IMAGE)) -> None:
     )
 
 
-@app.command()
+@app.command(cls=SharedOptionsCommand, rich_help_panel="Background")
 def bg_blur(
     ctx: typer.Context,
     kernel_size: int = typer.Option(31, min=1),
@@ -195,13 +205,13 @@ def bg_blur(
     _run(_common(ctx), BackgroundEffect(_common(ctx), "blur_bg", kernel_size, brighten))
 
 
-@app.command()
+@app.command(cls=SharedOptionsCommand, rich_help_panel="Camera")
 def brighten(ctx: typer.Context, level: int = typer.Option(30, min=0, max=255)) -> None:
     """Increase HSV brightness by LEVEL."""
     _run(_common(ctx), lambda frame: brighten_mod(frame, level))
 
 
-@app.command()
+@app.command(cls=SharedOptionsCommand, rich_help_panel="Camera")
 def track_face(
     ctx: typer.Context,
     x_padding: float = typer.Option(2, min=0.01),
@@ -245,32 +255,49 @@ def track_face(
         _run(_common(ctx), process, prepare=False)
 
 
-@app.command()
+@app.command(cls=SharedOptionsCommand, rich_help_panel="Screen")
 def share_screen(
-    top: int = 0,
-    left: int = 0,
-    width: int = 640,
-    height: int = 480,
-    output: str = "virtual-cam",
+    ctx: typer.Context,
+    top: int = typer.Option(
+        0, help="Capture region's top edge; negative values allowed."
+    ),
+    left: int = typer.Option(
+        0, help="Capture region's left edge; negative values allowed."
+    ),
+    width: int | None = typer.Option(
+        None, min=1, help="Region width; defaults to input width."
+    ),
+    height: int | None = typer.Option(
+        None, min=1, help="Region height; defaults to input height."
+    ),
 ) -> None:
-    """Share a portion of the screen."""
+    """Share a screen region with the same output and controls as camera commands."""
     from webcam_mods.input.screen import Screen
 
-    screen = Screen(top=top, left=left, width=width, height=height)
-    if output == GUI.id:
-        gui = GUI(width=width, height=height)
-        live_loop(fIn=screen, fOut=gui)
-    else:
-        live_loop(fIn=screen)
+    common = _common(ctx)
+    settings = common.settings or load_settings()
+    if common.capture != "opencv":
+        raise typer.BadParameter(
+            "--capture-backend selects cameras, not screen capture"
+        )
+    screen = Screen(
+        top=top,
+        left=left,
+        width=width if width is not None else settings.in_width,
+        height=height if height is not None else settings.in_height,
+        fps=settings.in_fps,
+        device=settings.video_out,
+    )
+    _run(common, source=screen)
 
 
-@app.command()
+@app.command(cls=SharedOptionsCommand, rich_help_panel="Utilities")
 def test_loop(ctx: typer.Context) -> None:
     """Camera pass-through for delivery checks."""
     _run(_common(ctx), prepare=False)
 
 
-@app.command()
+@app.command(cls=SharedOptionsCommand, rich_help_panel="Utilities")
 def list_cameras() -> None:
     """List macOS native input indices and formats without opening cameras."""
     if sys.platform != "darwin":
@@ -299,36 +326,100 @@ def list_cameras() -> None:
 @app.callback()
 def common(
     ctx: typer.Context,
-    freeze_on_error: bool = typer.Option(False, envvar="freeze_on_error"),
-    controls: bool = typer.Option(True, help="Enable keyboard and stdin controls."),
-    segmentation_backend: SegmentationBackend = SegmentationBackend.mediapipe,
-    processing_backend: ProcessingBackend = ProcessingBackend.opencv,
-    capture_backend: CaptureBackend = CaptureBackend.opencv,
-    vision_quality: VisionQuality = VisionQuality.balanced,
-    mask_smoothing: bool = typer.Option(
-        False, help="Stabilize static segmentation edges; reset moving pixels."
+    freeze_on_error: bool | None = typer.Option(
+        None,
+        "--freeze-on-error/--no-freeze-on-error",
+        rich_help_panel="Output",
+        hidden=True,
     ),
-    recording_limit_mb: int = typer.Option(256, min=1),
+    controls: bool = typer.Option(
+        True,
+        help="Enable keyboard and stdin controls.",
+        rich_help_panel="Controls",
+        show_default=False,
+    ),
+    segmentation_backend: SegmentationBackend = typer.Option(
+        SegmentationBackend.mediapipe,
+        rich_help_panel="Effects",
+        metavar="BACKEND",
+        help="mediapipe or vision.",
+    ),
+    processing_backend: ProcessingBackend = typer.Option(
+        ProcessingBackend.opencv,
+        rich_help_panel="Effects",
+        metavar="BACKEND",
+        help="opencv or coreimage.",
+    ),
+    capture_backend: CaptureBackend = typer.Option(
+        CaptureBackend.opencv,
+        help="Camera capture backend (screen uses MSS).",
+        rich_help_panel="Input",
+        metavar="BACKEND",
+    ),
+    vision_quality: VisionQuality = typer.Option(
+        VisionQuality.balanced, rich_help_panel="Effects", hidden=True
+    ),
+    mask_smoothing: bool = typer.Option(
+        False,
+        help="Stabilize static segmentation edges; reset moving pixels.",
+        rich_help_panel="Effects",
+        hidden=True,
+    ),
+    recording_limit_mb: int = typer.Option(
+        256, min=1, rich_help_panel="Controls", hidden=True
+    ),
     output: OutputBackend = typer.Option(
-        OutputBackend.virtual_cam, help="Final-frame output destination."
+        OutputBackend.virtual_cam,
+        help="Final-frame destination; gui is a legacy alias for preview.",
+        rich_help_panel="Output",
+        metavar="DESTINATION",
     ),
     input_device: int | None = typer.Option(
-        None, min=0, help="Camera index; AVFoundation excludes OBS output devices."
+        None,
+        min=0,
+        help="Camera index; AVFoundation excludes OBS output devices.",
+        rich_help_panel="Input",
     ),
-    input_width: int | None = typer.Option(None, min=1),
-    input_height: int | None = typer.Option(None, min=1),
-    input_fps: float | None = typer.Option(None, min=0.01),
-    input_format: str | None = None,
-    output_width: int | None = typer.Option(None, min=1),
-    output_height: int | None = typer.Option(None, min=1),
-    output_fps: float | None = typer.Option(None, min=0.01),
-    output_device: str | None = None,
-    on_demand: bool | None = typer.Option(None, "--on-demand/--no-on-demand"),
-    pan_control: bool | None = typer.Option(None, "--pan-control/--no-pan-control"),
+    input_width: int | None = typer.Option(
+        None, min=1, rich_help_panel="Input", hidden=True
+    ),
+    input_height: int | None = typer.Option(
+        None, min=1, rich_help_panel="Input", hidden=True
+    ),
+    input_fps: float | None = typer.Option(
+        None, min=0.01, rich_help_panel="Input", hidden=True
+    ),
+    input_format: str | None = typer.Option(None, rich_help_panel="Input", hidden=True),
+    output_width: int | None = typer.Option(
+        None, min=1, rich_help_panel="Output", hidden=True
+    ),
+    output_height: int | None = typer.Option(
+        None, min=1, rich_help_panel="Output", hidden=True
+    ),
+    output_fps: float | None = typer.Option(
+        None, min=0.01, rich_help_panel="Output", hidden=True
+    ),
+    output_device: str | None = typer.Option(
+        None, rich_help_panel="Output", hidden=True
+    ),
+    on_demand: bool | None = typer.Option(
+        None, "--on-demand/--no-on-demand", rich_help_panel="Output", hidden=True
+    ),
+    pan_control: bool | None = typer.Option(
+        None, "--pan-control/--no-pan-control", rich_help_panel="Controls", hidden=True
+    ),
     padding_control: bool | None = typer.Option(
-        None, "--padding-control/--no-padding-control"
+        None,
+        "--padding-control/--no-padding-control",
+        rich_help_panel="Controls",
+        hidden=True,
     ),
 ) -> None:
+    if freeze_on_error is None:
+        raw_freeze = os.environ.get("freeze_on_error", "false").lower()
+        if raw_freeze not in ("true", "false", "1", "0"):
+            raise typer.BadParameter("freeze_on_error must be true/false or 1/0")
+        freeze_on_error = raw_freeze in ("true", "1")
     try:
         settings = load_settings(
             video_in=input_device,
@@ -366,7 +457,7 @@ def common(
         capture_backend.value,
         vision_quality.value,
         recording_limit_mb,
-        output.value,
+        "preview" if output == OutputBackend.gui else output.value,
         settings,
         mask_smoothing,
     )

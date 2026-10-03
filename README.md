@@ -98,8 +98,9 @@ make verify UV_FLAGS='--extra macos'
 `list-cameras` shows native input indices, formats and excluded OBS output without
 opening a camera or requesting permission. Use its index with `--input-device`.
 
-Run from macOS Terminal and allow Camera access when prompted. Global options
-precede the command. `--processing-backend coreimage` selects Gaussian background
+Run from macOS Terminal and allow Camera access when prompted. Common options
+work before or after commands; command-side values override root values.
+`--processing-backend coreimage` selects Gaussian background
 blur/compositing; portable OpenCV box blur remains default. Native options are
 experimental and do not guarantee better performance or segmentation quality.
 See [backend report](docs/macos-backends.md) for measured results and limitations.
@@ -117,7 +118,24 @@ Close the window or press Escape to stop. Preview uses configured output dimensi
 and the output FPS cap, including negotiated input FPS. `--output virtual-cam`
 remains the default. Preview sends frames only to the window and requires no OBS
 setup; webcam input still needs Camera permission. The output option applies to
-camera commands; share-screen retains its separate legacy output option.
+camera and screen-sharing commands. Root help groups frequent options;
+`webcam_mods <command> --help` shows all common and command-specific options.
+
+Share a screen region through the same preview or virtual-camera output:
+
+```sh
+uv run webcam_mods share-screen --width 1280 --height 720 --output preview --no-controls
+uv run webcam_mods share-screen --left 0 --top 0 --width 1280 --height 720 --output virtual-cam
+```
+
+`--width`/`--height` set the capture region, defaulting to input dimensions.
+`--input-fps` sets requested screen cadence (30 by default); `--output-width`,
+`--output-height` and `--output-fps` independently set final output size and cap.
+Negative `--left`/`--top` support monitors above or left of the primary display.
+Screen sharing supports the same crop/padding, record/replay, `--no-controls`
+and `--freeze-on-error` behavior. `--output gui` remains a preview alias.
+Camera backend selection applies only to cameras; screen capture uses MSS.
+On macOS, grant Screen Recording permission to the application launching Python.
 
 Run modes with `uv run webcam_mods <command>`. For example,
 `uv run webcam_mods crop-cam`. On Linux, install the video device dependencies
@@ -256,8 +274,8 @@ features:
   - disable ionotify. quartz install
 - [x] Windows support? should be there with `pyvirtualcam`
 - [ ] hot swap inputs
-- [~] add screen as an input
-- [ ] convert/migrate env variables to cli arguments
+- [x] add screen as an input
+- [x] convert/migrate env variables to cli arguments
 - [ ] brightness control. (and hue, saturation?)
 - [~] smooth bounding box tracking (for facetracking and more)
   - camera/crop size change transition
