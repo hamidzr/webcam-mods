@@ -198,13 +198,16 @@ class AVFoundationCamera(FrameInput):
 
         if _delegate_class is None:
 
-            class WebcamModsCaptureDelegate(
-                NSObject,
+            # PyObjC registers this dynamic base and protocol outside Python's type model
+            class WebcamModsCaptureDelegate(  # type: ignore[call-arg]
+                NSObject,  # type: ignore[misc]
                 protocols=[
                     objc.protocolNamed("AVCaptureVideoDataOutputSampleBufferDelegate")
                 ],
             ):
-                @objc.python_method
+                owner: "AVFoundationCamera | None"
+
+                @objc.python_method  # type: ignore[untyped-decorator]
                 def receive(self, sample: Any) -> None:
                     owner = self.owner
                     if owner is None:
@@ -299,7 +302,7 @@ class AVFoundationCamera(FrameInput):
                 )
                 if self._error is not None:
                     raise RuntimeError("AVFoundation startup failed") from self._error
-                if not ready:
+                if not ready or self._pending is None:
                     raise TimeoutError(
                         "camera produced no frame before startup timeout"
                     )
@@ -333,7 +336,7 @@ class AVFoundationCamera(FrameInput):
                 raise RuntimeError("AVFoundation frame capture failed") from self._error
             if not self._running:
                 return None
-            if not ready:
+            if not ready or self._pending is None:
                 raise TimeoutError("camera frame timeout")
             frame, self.timestamp = self._pending
             self._pending = None

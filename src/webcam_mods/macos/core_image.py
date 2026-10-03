@@ -65,7 +65,7 @@ class CoreImageProcessor:
     def process(
         self,
         frame: NDArray[np.uint8],
-        mask: NDArray[np.floating],
+        mask: NDArray[np.float32],
         *,
         background: NDArray[np.uint8] | None = None,
         color: tuple[int, int, int] | None = None,
@@ -82,7 +82,7 @@ class CoreImageProcessor:
     def _process(
         self,
         frame: NDArray[np.uint8],
-        mask: NDArray[np.floating],
+        mask: NDArray[np.float32],
         *,
         background: NDArray[np.uint8] | None = None,
         color: tuple[int, int, int] | None = None,
@@ -138,6 +138,7 @@ class CoreImageProcessor:
                 )
             ).imageByCroppingToRect_(bounds)
         else:
+            assert blur_radius is not None
             backdrop = (
                 image.imageByClampingToExtent()
                 .imageByApplyingFilter_withInputParameters_(

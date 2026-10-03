@@ -136,7 +136,9 @@ class VisionSegmenter:
             mask = self._copy_mask(results[0].pixelBuffer())
         height, width = frame.shape[:2]
         if mask.shape != (height, width):
-            mask = cv2.resize(mask, (width, height), interpolation=cv2.INTER_LINEAR)
+            mask = cv2.resize(
+                mask, (width, height), interpolation=cv2.INTER_LINEAR
+            ).astype(np.float32, copy=False)
         return np.clip(mask, 0, 1, out=mask)
 
     def close(self) -> None:
