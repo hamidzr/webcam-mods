@@ -148,8 +148,14 @@ Other remaining gaps:
 - No hot input switching, user-facing file output, HTTP service or cross-process control.
 - Lazy legacy helper compatibility remains; CLI startup uses a validated immutable snapshot.
 - No live-camera latency, power or segmentation-quality benchmark on moving people.
-- Strict mypy checks cover startup settings, pacing, model cache, recording, adapter
-  interfaces, OpenCV capture, session and crop persistence. Legacy demos are repaired;
-  remaining effect/geometry modules are outside the current typing scope.
+- Strict mypy checks cover 20 modules plus static frame/mask regressions: startup
+  settings, pacing, cache, recording, session, core processing, background effects,
+  CLI/loop composition, native capture/effects, output adapters and crop persistence.
+  Frames are uint8 arrays; confidence masks are float32. Shape remains a runtime
+  contract; framework internals and adapter metadata still have dynamic boundaries.
+  Face/geometry modules remain outside the strict scope. Legacy demos are repaired.
+- list-cameras reports native indices/formats and excluded OBS output without
+  opening devices. Three fixture-to-OBS producer restarts passed with cleanup;
+  physical-camera restarts and consumer reception remain unverified.
 
 See [remaining improvement plan](improvement-plan.md).

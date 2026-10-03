@@ -33,11 +33,15 @@ remain excluded.
 - Declared OpenCV dependency and optional native PyObjC extra.
 - Added optional Vision masks, Core Image backgrounds and AVFoundation capture.
 - Excluded OBS output from native input selection using manufacturer/model identity.
-- Replaced obsolete mypy config with strict checks for eight owned/core modules in make check.
+- Replaced obsolete mypy config; strict checks now cover 20 modules plus static frame/mask regressions in make check.
+- Replaced Frame = Any with uint8 BGR arrays; float32 masks, effect composition, native adapters and output ownership now have checked contracts.
+- Replaced dynamic background-method dispatch with typed callables; validated CLI context and explicit closed-output guards.
+- Added list-cameras to inspect eligible native indices, formats and excluded OBS output without opening capture.
 - Repaired legacy face entrypoint and isolated box-demo tracker state.
 - Resolved startup settings once with CLI overrides, validation and actionable Linux-extra errors.
 - Centralized monotonic frame pacing across outputs; removed redundant deadline GUI polling and cumulative jitter drift.
 - Added live-camera measurement script; fixture-to-OBS smoke passed, Terminal live capture confirmed; native-format override found and fixed with retained device lock.
+- Passed three fixture -> Vision fast -> actual OBS producer start/stop cycles with input/effect/output cleanup assertions. This does not verify physical-camera restarts or consumer reception.
 - Added repeatable processing benchmark and measured portable float32 improvement.
 - Confirmed corrected native camera -> Vision fast -> preview at 640x480/30 from Terminal: 300 measured frames, 29.96 FPS.
 
@@ -45,14 +49,22 @@ remain excluded.
 
 Core session/control ownership, startup settings, native capture/processing adapters,
 preview output, pacing, typing and legacy cleanup are implemented. The 640x480
-native capture fix is now hardware-confirmed. Continue validation of these changes
-before adding new architecture or visual polish.
+native capture fix is now hardware-confirmed. Type-safety expansion, targeted
+effect/output modernization and camera-selection diagnostics are complete.
+The 2026-10-02 checkpoint passed 140 local tests, strict mypy, Black, Flake8 and
+compile checks on Python 3.14. Hardware-dependent evidence remains separate.
 
-| Priority | Remaining check | Acceptance evidence |
+| Priority | Remaining work | Acceptance evidence |
 | --- | --- | --- |
-| 1 | Repeated native start/stop and actual OBS/conferencing delivery | Several authorized Terminal runs with cleanup; camera reception in a conferencing client |
-| 2 | Broader native quality/cost comparison | Compare fast/balanced/accurate and portable masks on moving hair/hands/low light; record latency/memory and visual results |
-| 3 | Linux consumer detection and native output parity | Real V4L2 consumer smoke check when Linux hardware is available |
+| 1 | Repeated physical-camera starts/stops and OBS/conferencing reception | Authorized Terminal runs with cleanup; actual reception in a conferencing client. Fixture producer restarts passed; T3 camera permission remains unavailable |
+| 2 | Further targeted typing/modernization when touching face tracking or metadata | Concrete prediction/geometry and metadata contracts; preserve public compatibility helpers unless removal is justified by caller evidence |
+| Deferred | Broader native quality/cost comparison and boundary refinement | Compare moving hair/hands/low light; measure latency/memory and visual results before picking defaults or smoothing |
+| When hardware is available | Linux consumer detection and native output parity | Real V4L2 consumer smoke check; mocked ownership checks already pass |
+
+Ordering reflects work/value: close the hardware evidence gap when possible, then
+make targeted changes supported by concrete defects. Broad rewrites, compatibility
+removal without caller evidence, and extra benchmarking stay below current user
+needs. Camera-selection diagnostics addressed repeated input-selection failures.
 
 Remote CI validation is explicitly excluded. Python 3.14 is the only supported
 runtime. Screen sharing and an own signed virtual-camera extension are excluded;
