@@ -123,10 +123,13 @@ Run modes with `uv run webcam_mods <command>`. For example,
 `uv run webcam_mods crop-cam`. On Linux, install the video device dependencies
 with `uv sync --extra linux --python 3.14`.
 
-Face tracking and background effects use MediaPipe Tasks 0.10.35. Version
-1.0.1 aborts while initializing its face detector on macOS ARM64, even with
-the CPU delegate ([upstream issue](https://github.com/google-ai-edge/mediapipe/issues/6356),
-[source fix awaiting a release](https://github.com/google-ai-edge/mediapipe/commit/32d0e5b1317be070083c630240b274218ce9ed52)).
+Face tracking and background effects use MediaPipe Tasks 1.0.1. On macOS ARM64,
+`uv sync` installs our CPU-only source snapshot `1.0.1+git32d0e5b`, which fixes
+[upstream issue #6356](https://github.com/google-ai-edge/mediapipe/issues/6356).
+The wheel and its native dependencies are included in this repository; see
+[build provenance and rebuild instructions](vendor/mediapipe/README.md).
+Use the `uv` project installation on macOS: standalone `pip` installs do not
+apply this dependency override. Other platforms use the official release.
 The two MediaPipe models are downloaded once into `~/.cache/webcam-mods/models`
 and verified with SHA-256; later runs use the cached copies.
 

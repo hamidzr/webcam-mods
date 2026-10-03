@@ -1,0 +1,53 @@
+diff --git a/WORKSPACE b/WORKSPACE
+--- a/WORKSPACE
++++ b/WORKSPACE
+@@ -506,6 +506,8 @@
+ 
+ http_archive(
+     name = "opencv",
++    patches = ["@//third_party:opencv_zlib_macos.diff"],
++    patch_args = ["-p1"],
+     build_file_content = all_content,
+     strip_prefix = "opencv-3.4.11",
+     urls = ["https://github.com/opencv/opencv/archive/3.4.11.tar.gz"],
+diff --git a/third_party/opencv_zlib_macos.diff b/third_party/opencv_zlib_macos.diff
+new file mode 100644
+--- /dev/null
++++ b/third_party/opencv_zlib_macos.diff
+@@ -0,0 +1,36 @@
++diff --git a/3rdparty/zlib/zutil.h b/3rdparty/zlib/zutil.h
++--- a/3rdparty/zlib/zutil.h
+++++ b/3rdparty/zlib/zutil.h
++@@ -130,7 +130,7 @@
++ #  endif
++ #endif
++ 
++-#if defined(MACOS) || defined(TARGET_OS_MAC)
+++#if defined(MACOS) || (defined(TARGET_OS_MAC) && !defined(__APPLE__))
++ #  define OS_CODE  7
++ #  ifndef Z_SOLO
++ #    if defined(__MWERKS__) && __dest_os != __be_os && __dest_os != __win32_os
++diff --git a/3rdparty/libpng/pngpriv.h b/3rdparty/libpng/pngpriv.h
++--- a/3rdparty/libpng/pngpriv.h
+++++ b/3rdparty/libpng/pngpriv.h
++@@ -518,7 +518,7 @@
++ #  include <float.h>
++ 
++ #  if (defined(__MWERKS__) && defined(macintosh)) || defined(applec) || \
++-    defined(THINK_C) || defined(__SC__) || defined(TARGET_OS_MAC)
+++    defined(THINK_C) || defined(__SC__) || (defined(TARGET_OS_MAC) && !defined(__APPLE__))
++    /* We need to check that <math.h> hasn't already been included earlier
++     * as it seems it doesn't agree with <fp.h>, yet we should really use
++     * <fp.h> if possible.
++diff --git a/cmake/OpenCVFindLibsGUI.cmake b/cmake/OpenCVFindLibsGUI.cmake
++--- a/cmake/OpenCVFindLibsGUI.cmake
+++++ b/cmake/OpenCVFindLibsGUI.cmake
++@@ -90,7 +90,7 @@
++ if(APPLE)
++   if(WITH_CARBON)
++     set(HAVE_CARBON YES)
++-  elseif(NOT IOS AND CV_CLANG)
+++  elseif(NOT IOS AND CV_CLANG AND (NOT DEFINED WITH_COCOA OR WITH_COCOA))
++     set(HAVE_COCOA YES)
++   endif()
++ endif()

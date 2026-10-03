@@ -1,0 +1,28 @@
+diff --git a/third_party/BUILD b/third_party/BUILD
+index 78be9623..8866834d 100644
+--- a/third_party/BUILD
++++ b/third_party/BUILD
+@@ -169,10 +169,12 @@ OPENCV_SO_VERSION = "3.4"
+ 
+ cmake(
+     name = "opencv_cmake",
++    env = {"CMAKE_BUILD_PARALLEL_LEVEL": "8"},
+     # Values to be passed as -Dkey=value on the CMake command line;
+     # here are serving to provide some CMake script configuration options
+     cache_entries = {
+         "CMAKE_BUILD_TYPE": "Release",
++        "CMAKE_CXX_LINK_EXECUTABLE": "<CMAKE_CXX_COMPILER> <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>",
+         # The module list is always sorted alphabetically so that we do not
+         # cause a rebuild when changing the link order.
+         "BUILD_LIST": ",".join(sorted(OPENCV_MODULES)),
+@@ -181,6 +183,10 @@ cmake(
+         "BUILD_EXAMPLES": "OFF",
+         "BUILD_SHARED_LIBS": "ON" if OPENCV_SHARED_LIBS else "OFF",
+         "WITH_ITT": "OFF",
++        "WITH_FFMPEG": "OFF",
++        "WITH_AVFOUNDATION": "OFF",
++        "WITH_COCOA": "OFF",
++        "WITH_GSTREAMER": "OFF",
+         "WITH_JASPER": "OFF",
+         "WITH_JPEG": "ON",
+         "WITH_PNG": "ON",
