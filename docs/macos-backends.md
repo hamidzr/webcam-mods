@@ -23,9 +23,11 @@ optional in the `macos` extra and never imported by CLI help.
 Native capture requests camera permission at setup. Authorize the launching app
 in System Settings > Privacy & Security > Camera. This includes the terminal or
 coding application, depending on how Python is launched. Capture selects a device
-index from AVFoundation enumeration, which may differ from OpenCV. OBS can
-appear before a physical camera; choose the physical index with `--input-device`
-or `VIDEO_IN`. Unsupported formats report the selected device and available
+index from AVFoundation inputs after excluding OBS output by manufacturer/model
+identity. Default index 0 selects the first remaining input; OBS moving between
+enumeration slots does not change a single physical camera selection. Other
+physical or virtual input devices remain available. `--input-device` and `VIDEO_IN`
+index this filtered list, which may differ from OpenCV. Unsupported formats report the selected device and available
 resolutions/FPS instead of silently switching cameras. Capture requires a format
 matching requested dimensions/FPS, retains only the
 latest frame, copies callback BGRA buffers into owned BGR arrays and reports sample
@@ -130,7 +132,8 @@ uv run --extra macos python scripts/benchmark_live.py \
 ```
 
 Add `--input-device N` to override `VIDEO_IN` for the chosen capture backend.
-AVFoundation index 0 may be OBS Virtual Camera, so use the physical camera index.
+AVFoundation excludes OBS output before indexing; default 0 selects the first
+remaining input. Avoid an old raw AVFoundation index from previous runs.
 
 Repeat with `--quality balanced`, `--processing coreimage`, and
 `--backend mediapipe --processing opencv`. Use `--output-backend virtual-cam` to

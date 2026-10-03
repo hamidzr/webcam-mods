@@ -251,7 +251,9 @@ def common(
     output: OutputBackend = typer.Option(
         OutputBackend.virtual_cam, help="Final-frame output destination."
     ),
-    input_device: int | None = typer.Option(None, min=0),
+    input_device: int | None = typer.Option(
+        None, min=0, help="Camera index; AVFoundation excludes OBS output devices."
+    ),
     input_width: int | None = typer.Option(None, min=1),
     input_height: int | None = typer.Option(None, min=1),
     input_fps: float | None = typer.Option(None, min=0.01),

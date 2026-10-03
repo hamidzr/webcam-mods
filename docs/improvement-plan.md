@@ -16,6 +16,7 @@ product requirement.
 - Scoped CLI model/timestamp/motion/native-context state to each run with cleanup.
 - Declared OpenCV dependency and optional native PyObjC extra.
 - Added optional Vision masks, Core Image backgrounds and AVFoundation capture.
+- Excluded OBS output from native input selection using manufacturer/model identity.
 - Replaced obsolete mypy config with strict checks for eight owned/core modules in make check.
 - Repaired legacy face entrypoint and isolated box-demo tracker state.
 - Resolved startup settings once with CLI overrides, validation and actionable Linux-extra errors.

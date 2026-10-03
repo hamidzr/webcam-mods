@@ -202,7 +202,7 @@ def main() -> None:
     parser.add_argument(
         "--input-device",
         type=int,
-        help="Capture-backend camera index; overrides VIDEO_IN.",
+        help="Input camera index; AVFoundation excludes OBS output. Overrides VIDEO_IN.",
     )
     parser.add_argument("--frames", type=int, default=100)
     parser.add_argument("--warmup", type=int, default=10)

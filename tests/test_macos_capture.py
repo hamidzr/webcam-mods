@@ -8,10 +8,47 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 
-from webcam_mods.macos.capture import AVFoundationCamera, select_capture_format
+from webcam_mods.macos.capture import (
+    AVFoundationCamera,
+    select_capture_format,
+    select_capture_device,
+)
 
 
 class CameraMailboxTest(unittest.TestCase):
+    def test_output_exclusion_survives_reordered_devices(self) -> None:
+        physical = Mock()
+        physical.manufacturer.return_value = "Camera Vendor"
+        physical.modelID.return_value = "USB Camera"
+        virtual = Mock()
+        virtual.manufacturer.return_value = "OBS Project"
+        virtual.modelID.return_value = "OBS Camera Extension"
+        for devices, expected in (([physical, virtual], 0), ([virtual, physical], 1)):
+            index, selected = select_capture_device(devices, 0)
+            self.assertEqual(index, expected)
+            self.assertIs(selected, physical)
+        with self.assertRaisesRegex(
+            ValueError, "no input cameras available after excluding OBS"
+        ):
+            select_capture_device([virtual], 0)
+
+    def test_other_inputs_are_preserved_and_display_name_is_not_identity(self) -> None:
+        first = Mock()
+        first.manufacturer.return_value = "Other Camera Vendor"
+        first.modelID.return_value = "USB Camera"
+        first.localizedName.return_value = "OBS Virtual Camera"
+        other_virtual = Mock()
+        other_virtual.manufacturer.return_value = "Other Virtual Vendor"
+        other_virtual.modelID.return_value = "Other Virtual Model"
+        self.assertIs(select_capture_device([first, other_virtual], 0)[1], first)
+        self.assertIs(
+            select_capture_device([first, other_virtual], 1)[1], other_virtual
+        )
+        legacy_obs = Mock()
+        legacy_obs.manufacturer.return_value = ""
+        legacy_obs.modelID.return_value = "OBS Virtual Camera"
+        self.assertIs(select_capture_device([legacy_obs, first], 0)[1], first)
+
     def test_virtual_camera_format_mismatch_is_actionable(self) -> None:
         rate = Mock()
         rate.minFrameRate.return_value = 60.0
@@ -216,7 +253,12 @@ class CameraMailboxTest(unittest.TestCase):
                 return_value=SimpleNamespace(width=7, height=3),
             ),
         ):
-            for _ in range(2):
+            obs = Mock()
+            obs.manufacturer.return_value = "OBS Project"
+            for i in range(2):
+                devices.devicesWithMediaType_.return_value = (
+                    [device, obs] if i == 0 else [obs, device]
+                )
                 metadata = camera.setup()
                 self.assertEqual(metadata, {"width": 7, "height": 3, "fps": 30.0})
                 self.assertTrue(camera.is_setup())

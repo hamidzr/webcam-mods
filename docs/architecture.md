@@ -110,6 +110,10 @@ without catch-up bursts.
 | Last face prediction | Per-command closure |
 | Native capture mailbox/timestamps | AVFoundationCamera instance |
 
+Native macOS input candidates exclude OBS output by manufacturer/model before
+applying VIDEO_IN or --input-device. Default 0 selects the first remaining input;
+this avoids feedback and dependence on OBS enumeration position.
+
 CLI imports create no keyboard listener, config writes or stdin thread. Keyboard
 callbacks enqueue controls; persistence and mutations happen on the processing
 thread. Stdin uses a stoppable polling reader without closing caller-owned stdin.

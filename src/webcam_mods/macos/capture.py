@@ -1,6 +1,7 @@
 """Optional AVFoundation capture with a single newest-frame mailbox."""
 
 from threading import Condition, Event, Thread
+from collections.abc import Sequence
 from typing import Any
 
 import numpy as np
@@ -10,6 +11,29 @@ from webcam_mods.settings import load_settings
 from webcam_mods.input.input import FrameInput
 
 _delegate_class: Any = None
+
+
+def is_obs_output_device(device: Any) -> bool:
+    """Identify our OBS output by manufacturer/model, independent of display name."""
+    return str(device.manufacturer()).casefold() == "obs project" or str(
+        device.modelID()
+    ).casefold() in {"obs camera extension", "obs virtual camera"}
+
+
+def select_capture_device(devices: Sequence[Any], index: int) -> tuple[int, Any]:
+    """Index input candidates after excluding our OBS virtual-camera output."""
+    inputs = [
+        (i, device)
+        for i, device in enumerate(devices)
+        if not is_obs_output_device(device)
+    ]
+    if not inputs:
+        raise ValueError("no input cameras available after excluding OBS output")
+    if type(index) is not int or not 0 <= index < len(inputs):
+        raise ValueError(
+            f"camera index {index} unavailable ({len(inputs)} inputs after excluding OBS output); use --input-device 0 or VIDEO_IN=0 for the first input"
+        )
+    return inputs[index]
 
 
 def select_capture_format(
@@ -203,15 +227,9 @@ class AVFoundationCamera(FrameInput):
         self.timestamp = None
         try:
             devices = av.AVCaptureDevice.devicesWithMediaType_(av.AVMediaTypeVideo)
-            if not isinstance(
-                self.device_index, int
-            ) or not 0 <= self.device_index < len(devices):
-                raise ValueError(
-                    f"camera index {self.device_index} unavailable ({len(devices)} devices)"
-                )
-            device = devices[self.device_index]
+            selected_index, device = select_capture_device(devices, self.device_index)
             selected_format = select_capture_format(
-                device, cm, self.width, self.height, self.fps, self.device_index
+                device, cm, self.width, self.height, self.fps, selected_index
             )
             camera_input, error = av.AVCaptureDeviceInput.deviceInputWithDevice_error_(
                 device, None
