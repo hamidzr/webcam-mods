@@ -20,7 +20,12 @@ remain supported. Native macOS menu is optional; installed CLI works independent
   fixed output dimensions to avoid rebuilding models during zoom.
 - Local JSONL helper manages one session through explicit Start/Stop and status.
   Configuration changes require a stopped session. Native menu exposes profiles,
-  camera/effect selection, settings and errors. See [menu guide](macos-menu.md).
+  camera/effect selection, settings and errors. Standalone controls, bounded
+  scrolling and helper reconnection are available. Saved macOS camera identities
+  prevent substitution after enumeration changes; independent profile output
+  overrides inherit capture settings when absent. Local protocol accepts bounded
+  strict JSON and recovers after malformed/oversized requests.
+  See [menu guide](macos-menu.md).
 - Persistent exact-shape delegate calibration cache, with hardware/software
   fingerprint, 30-day expiry and 128-entry bound. Probe failures use CPU without
   persisting failure. Cold calibration remains necessary for uncached shapes.
@@ -48,10 +53,12 @@ pacing, native buffer handling and partial startup cleanup. `just verify` runs
 static checks and the full suite. `just e2e` writes deterministic real-model
 pipeline artifacts; it is not a camera or conferencing test.
 
-Latest local checkpoint: 360 tests, Black, configured Flake8 and strict mypy pass.
+Latest local checkpoint: 372 tests, Black, configured Flake8 and strict mypy pass.
 Native compilation, model/transport tests with a real Python helper, plist and
-signature checks pass. UI automation timed out selecting this menu-only app;
-visual layout and app Camera permission behavior remain unverified.
+signature checks pass. The standalone controls window was inspected through UI
+automation: Advanced scrolling, independent output controls, fixed Start/Quit
+buttons and clean Quit passed without starting capture. App Camera permission
+behavior remains unverified.
 
 2026-10-05 calibration measurement, local macOS ARM64: a materialized 640x480
 astronaut fixture selected the segmentation delegate in 4.407751 seconds with
@@ -82,6 +89,11 @@ not expose reliable receiver count to this output adapter; automatic activation
 is deferred. Linux real-device acceptance, current Windows behavior and remote
 CI validation remain unverified. Menu app is locally ad hoc signed and depends
 on an installed Python runtime; standalone distribution/notarization is future work.
+
+Native saved IDs reach AVFoundation directly and are revalidated at acquisition.
+Explicit OpenCV capture still opens a numeric index; a hotplug between identity
+lookup and acquisition can change that index. Prefer native capture for stable
+identity selection. Non-macOS profiles continue using numeric indices.
 
 No hot input switching, window-following screen capture, remote HTTP endpoint,
 custom camera extension or native-frame/zero-copy abstraction is implemented.

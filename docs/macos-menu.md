@@ -35,12 +35,20 @@ processing, brightness, final output sizing. Tracking uses standard framing
 controls; advanced CLI tracking options remain available through `track-face`.
 Brightness adds HSV value, 0..255. Advanced settings expose capture size/FPS,
 processing FPS, backend choices, repeat delivery and optional mask smoothing.
-Requested size/FPS must be supported together by the selected camera.
+Requested capture size/FPS must be supported together by the selected camera.
+Output inherits capture dimensions/FPS by default; disable "Use capture settings for output" in
+Advanced to set independent delivery dimensions and cadence. Repeat mode maintains
+output cadence using the latest processed frame.
 
-The menu defaults to explicit AVFoundation capture. Camera inventory uses the
-selected backend's indices, including auto's OpenCV-compatible index mapping.
-Unavailable cameras and OBS output are excluded. An index can identify a different
-physical camera after input enumeration changes; refresh and verify selection.
+The menu defaults to explicit AVFoundation capture. Camera selection and saved
+profiles retain a stable device identity; reordered indices do not select another
+camera. Missing or excluded saved devices block Start instead of falling back.
+Legacy index-only profiles still load and acquire an identity when selected in
+the menu. Inventory follows the chosen backend, including auto's OpenCV-compatible
+index mapping. Unavailable cameras and OBS output are excluded. Native capture forwards the saved
+identity to AVFoundation and revalidates it when opening. Explicit OpenCV still
+opens an index, so a hotplug between lookup and acquisition can change selection;
+prefer native capture for stable identity guarantees.
 
 Save named profiles to reuse settings. Saving an existing name replaces its
 configuration. Deletion asks for confirmation in the menu. Profiles are local,
@@ -73,8 +81,11 @@ Profile fields and defaults:
 | Field | Default | Meaning |
 | --- | --- | --- |
 | input_device | 0 | Selected backend's camera index |
-| width, height | 640, 480 | Requested capture and output dimensions |
-| fps | 30 | Capture request and output cap |
+| width, height | 640, 480 | Requested capture dimensions |
+| fps | 30 | Capture request |
+| camera_id | null | Stable macOS device identity; legacy index selection when absent |
+| output_width, output_height | null | Independent delivery dimensions; inherit capture when null |
+| output_fps | null | Independent delivery cap; inherit capture when null |
 | effect | plain | plain, blur, color, image, track |
 | track | false | Combine tracking with selected background |
 | brightness | 0 | Added HSV value, 0..255 |
@@ -105,12 +116,16 @@ or authentication endpoint exists; the caller owns the helper process and pipes.
 Responses use `result` or `error` with the same request ID. Events may arrive
 between responses; correlate by ID rather than position. A start response means
 accepted, not running. Status events reflect actual lifecycle progress.
-Malformed requests produce an error and leave the helper available.
+Requests are limited to 64 KiB UTF-8. Oversized lines are drained in bounded
+chunks; the next request remains usable. IDs must be safe-range integers or
+nonempty strings of at most 128 characters. Non-finite numbers, duplicate members
+and malformed objects are rejected without echoing payload contents. Errors leave
+the helper available.
 
 | Method | Parameters | Result |
 | --- | --- | --- |
 | hello | {} | protocol and package version |
-| cameras.list | capture backend, optional | Array of index/name objects; macOS only |
+| cameras.list | capture backend, optional | Array of id/index/name objects; macOS only |
 | profiles.list | {} | Array of name/config objects |
 | profiles.save | name, config | true |
 | profiles.delete | name | true |
@@ -126,7 +141,17 @@ following an unsafe shutdown timeout.
 ## Verification limits
 
 Native compilation, structured transport/model self-tests and Python protocol
-regressions do not establish Camera permission inheritance, physical camera
+regressions pass. A real standalone-window UI check verified Advanced scrolling,
+output overrides, persistent action buttons and clean Quit without opening capture.
+These checks do not establish Camera permission inheritance, physical camera
 capture, conferencing reception or power behavior. Items 2 and 6 remain deferred.
+Controls scroll within a bounded panel; Start/Stop and Quit remain outside the
+scrolling settings. A disconnected helper exposes Reconnect after its old process
+has exited. The same controls can open in a standalone window:
+
+```sh
+open -n "$HOME/Applications/Webcam Mods.app" --args --show-controls
+```
+
 The menu currently has no embedded video thumbnail; use CLI `--output preview`
 when reviewing final video. Standalone distribution/notarization is future work.

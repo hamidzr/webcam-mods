@@ -13,7 +13,6 @@ Current supported behavior: [current state](docs/current-state.md).
 ## Feature ideas
 
 - Camera/screen switching and window-following screen capture.
-- Stable physical-camera identity across device enumeration changes.
 - Orientation controls and video overlays.
 - Eye tracking, webcam stitching and animation, pending concrete demand.
 - Native-frame processing, pending measured end-to-end benefit.

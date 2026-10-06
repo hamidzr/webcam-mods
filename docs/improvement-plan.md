@@ -8,7 +8,7 @@ adapters and OBS output. Prefer bounded changes supported by concrete defects.
 | Priority | Implemented work | Evidence / remaining acceptance |
 | --- | --- | --- |
 | 1 | Tracking cleanup ownership | Direct CLI timeout regression confirms detector, tracker and background stay owned until worker cleanup |
-| 3 | Native macOS menu and local control | Native build, real-helper transport/model tests, plist and signature checks pass; visual layout and Camera permission remain unverified |
+| 3 | Native macOS menu and local control | Native build, real-helper transport/model tests, plist and signature checks pass; standalone controls layout inspected; Camera permission remains unverified |
 | 4 | Saved profiles and effect combinations | Validated SQLite persistence, CLI commands, composition-order and cleanup regressions pass |
 | 5 | Predictable startup calibration | Persistent-cache and shape regressions pass; 640x480 fixture selection 4.408 s cold vs 0.007 s fresh-process cache hit |
 | Documentation | Reconcile user/developer guidance | Current behavior, dated historical evidence and deferred items consolidated; installed commands checked |
@@ -17,6 +17,16 @@ The numbers retain the ordering from the project review. See [current state](cur
 for implemented behavior and verified limits. The native menu is an optional
 SwiftUI shell around the shared Python worker. It owns one explicit session;
 changing a running configuration requires Stop followed by Start.
+
+## Latest follow-up round
+
+- Saved macOS camera identities survive reordered enumeration; missing/excluded
+  devices fail instead of falling back. Index-only legacy profiles still load.
+- Profiles support independent output dimensions/FPS with capture inheritance.
+- Local requests are bounded to 64 KiB and require strict finite JSON, validated
+  IDs and unambiguous members; oversized/malformed input recovers safely.
+- Native settings scroll within a bounded panel, offer a standalone controls
+  window, and expose Reconnect only after the old helper exits.
 
 ## Deferred by user
 
@@ -32,7 +42,6 @@ changing a running configuration requires Stop followed by Start.
 ## Later product decisions
 
 - Camera/screen switching and window-following capture.
-- Stable camera identity across changes to physical input enumeration.
 - Visual overlays, orientation controls, eye tracking, webcam stitching and animation.
 - Native-frame/zero-copy experiments only after a measured workload justifies them.
 - Linux real-device consumer monitoring and output parity acceptance.

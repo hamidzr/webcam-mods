@@ -68,7 +68,8 @@ webcam_mods bg-blur --repeat-frames --processing-fps 15 --output-fps 30
 ## macOS menu and profiles
 
 See [native menu guide](docs/macos-menu.md) for building/installing the optional
-SwiftUI app, saved profiles and local session control. Explicit Start/Stop owns
+SwiftUI app, saved profiles and local session control. Profiles retain native camera
+identity and allow independent capture/output dimensions and FPS. Explicit Start/Stop owns
 one Python worker session. Existing CLI commands remain available.
 
 ## Effects and controls

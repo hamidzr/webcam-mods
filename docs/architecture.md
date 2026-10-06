@@ -163,11 +163,17 @@ and [remaining improvement plan](improvement-plan.md).
 ## Local control and profiles
 
 The native app communicates over its helper's stdin/stdout using JSON lines.
-Requests carry an ID; responses carry that ID and a result or error. Status events
+Requests carry an ID; responses carry that ID and a result or error. The bounded
+strict JSON reader rejects oversized lines, duplicate keys and non-finite numbers,
+and recovers at the next newline. Status events
 are asynchronous. Python logging stays on stderr. No socket, port, remote auth or
 interactive CLI scraping is involved. See [protocol](macos-menu.md).
 
 Profiles are validated before persistence and again before a session starts.
+Optional stable camera IDs and output overrides extend existing JSON settings
+without changing the SQLite schema. Native capture resolves identity before
+acquisition; missing/excluded devices fail before effects open. Legacy index-only
+profiles retain their existing behavior.
 SQLite uses parameterized statements and transactions. Schema version 1 is
 initialized locally; unknown schema versions are rejected. No migration chain
 exists yet. Introducing one requires append-only migration checks and normal
