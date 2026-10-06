@@ -19,6 +19,7 @@ from loguru import logger
 
 BG_COLOR = (192, 192, 192)
 Mask = NDArray[np.float32]
+_SEGMENTATION_KERNEL = np.ones((5, 5), np.uint8)
 
 
 class MediaPipeSegmenter:
@@ -122,9 +123,7 @@ class PersonEffects:
         image = cast(Frame, cv2.flip(frame, 1))
         result = self.segmenter.predict(image)
         if self.backend == "mediapipe":
-            result = cast(
-                Mask, cv2.dilate(result, np.ones((5, 5), np.uint8), iterations=1)
-            )
+            result = cast(Mask, cv2.dilate(result, _SEGMENTATION_KERNEL, iterations=1))
             result = cast(Mask, cv2.blur(result, (10, 10)))
             result = sigmoid(result)
         if self.stabilizer is not None:
@@ -199,10 +198,11 @@ def apply_alpha_mask(fg: Frame, bg: Frame | Mask, mask: Mask) -> Frame:
     alpha = np.asarray(mask, dtype=np.float32)
     if alpha.ndim == 2:
         alpha = alpha[:, :, None]
-    foreground = np.asarray(fg, dtype=np.float32)
     background = np.asarray(bg, dtype=np.float32)
-    result = background + (foreground - background) * alpha
-    return np.clip(result, 0, 255).astype(np.uint8)
+    result = cast(Mask, np.subtract(fg, background, dtype=np.float32))
+    np.multiply(result, alpha, out=result)
+    np.add(result, background, out=result)
+    return np.clip(result, 0, 255, out=result).astype(np.uint8)
 
 
 # compatibility helpers for existing Python callers; CLI uses owned instances

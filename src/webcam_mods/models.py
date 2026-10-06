@@ -24,11 +24,10 @@ def model_path(name: str) -> Path:
     cache_root = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
     cache_dir = cache_root / "webcam-mods" / "models"
     path = cache_dir / f"{name}{Path(url).suffix}"
-    if (
-        path.is_file()
-        and hashlib.sha256(path.read_bytes()).hexdigest() == expected_hash
-    ):
-        return path
+    if path.is_file():
+        with path.open("rb") as cached:
+            if hashlib.file_digest(cached, "sha256").hexdigest() == expected_hash:
+                return path
 
     cache_dir.mkdir(parents=True, exist_ok=True)
     temp_path = None
@@ -36,10 +35,12 @@ def model_path(name: str) -> Path:
         with urlopen(url, timeout=30) as response:
             with tempfile.NamedTemporaryFile(dir=cache_dir, delete=False) as temp:
                 temp_path = Path(temp.name)
-                content = response.read()
-                if hashlib.sha256(content).hexdigest() != expected_hash:
+                digest = hashlib.sha256()
+                while content := response.read(64 * 1024):
+                    digest.update(content)
+                    temp.write(content)
+                if digest.hexdigest() != expected_hash:
                     raise ValueError(f"Invalid checksum for MediaPipe model {name}")
-                temp.write(content)
         os.replace(temp_path, path)
     finally:
         if temp_path is not None:

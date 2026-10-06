@@ -213,12 +213,6 @@ def resize_and_pad(img: Frame, sw: int, sh: int, pad_color: Color = 0) -> Frame:
 
 def brighten(img: Frame, value: int) -> Frame:
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    h, s, v = cv2.split(hsv)
-
-    lim = 255 - value
-    v[v > lim] = 255
-    v[v <= lim] += value
-
-    final_hsv = cv2.merge((h, s, v))
-    img = cast(Frame, cv2.cvtColor(final_hsv, cv2.COLOR_HSV2BGR))
-    return img
+    # saturating channel addition avoids split/merge and boolean-index arrays
+    cv2.add(hsv, np.asarray((0, 0, value, 0), dtype=np.float64), dst=hsv)
+    return cast(Frame, cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR))

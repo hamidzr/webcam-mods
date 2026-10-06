@@ -9,6 +9,7 @@ from numpy.typing import NDArray
 from webcam_mods.utils.video import Frame
 
 Mask = NDArray[np.float32]
+_MOTION_KERNEL = np.ones((3, 3), np.uint8)
 
 
 class MaskStabilizer:
@@ -34,9 +35,7 @@ class MaskStabilizer:
         else:
             # expand visible motion by one pixel to protect moving boundaries
             motion = cv2.absdiff(gray, previous_gray) > 12
-            changed = (
-                cv2.dilate(motion.astype(np.uint8), np.ones((3, 3), np.uint8)) != 0
-            )
+            changed = cv2.dilate(motion.astype(np.uint8), _MOTION_KERNEL) != 0
             # local motion must not disable stabilization of stationary edges
             result = np.asarray(previous + 0.35 * (mask - previous), dtype=np.float32)
             np.copyto(result, mask, where=changed)

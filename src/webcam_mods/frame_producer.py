@@ -90,14 +90,27 @@ class FrameProducer:
             self._close_requested = True
             self._stop.set()
             self._condition.notify_all()
-        self.source.request_stop()
+        cancellation_error: BaseException | None = None
+        try:
+            self.source.request_stop()
+        except BaseException as error:
+            cancellation_error = error
         if self._thread.ident is not None:
-            self._thread.join(self._shutdown_timeout)
+            try:
+                self._thread.join(self._shutdown_timeout)
+            except BaseException as error:
+                if self._thread.is_alive():
+                    raise WorkerShutdownTimeout(
+                        "worker shutdown interrupted; processing cleanup deferred"
+                    ) from error
+                raise
             if self._thread.is_alive():
                 raise WorkerShutdownTimeout(
                     "capture/effect worker is still stopping; "
                     "processing cleanup deferred until it exits"
-                )
+                ) from cancellation_error
+        if cancellation_error is not None:
+            raise cancellation_error
 
     def _sleep(self, seconds: float) -> None:
         self._stop.wait(seconds)

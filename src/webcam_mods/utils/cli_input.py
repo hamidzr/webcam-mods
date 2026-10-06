@@ -19,6 +19,8 @@ class StdinControls:
         self._thread: Thread | None = None
 
     def start(self) -> None:
+        if self._thread is not None and self._thread.is_alive():
+            return
         try:
             fd = self.stream.fileno()
         except AttributeError, OSError, ValueError:
@@ -29,6 +31,7 @@ class StdinControls:
 
     def _read(self, fd: int) -> None:
         pending = b""
+        discarding = False
         while not self._stop.is_set():
             try:
                 ready, _, _ = select.select([fd], [], [], 0.1)
@@ -36,15 +39,21 @@ class StdinControls:
                     continue
                 data = os.read(fd, 4096)
                 if not data:
-                    if pending:
+                    if pending and not discarding:
                         self._submit_line(pending)
                     return
-                pending += data
-                while b"\n" in pending:
-                    line, pending = pending.split(b"\n", 1)
-                    self._submit_line(line)
-                if len(pending) > 4096:
-                    pending = b""
+                parts = data.split(b"\n")
+                for index, part in enumerate(parts):
+                    if not discarding:
+                        pending += part
+                        if len(pending) > 4096:
+                            pending = b""
+                            discarding = True
+                    if index < len(parts) - 1:
+                        if not discarding:
+                            self._submit_line(pending)
+                        pending = b""
+                        discarding = False
             except OSError, ValueError:
                 return
 

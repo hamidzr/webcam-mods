@@ -68,6 +68,16 @@ framework integrations; OBS continues supplying the signed camera extension.
 
 ## Benchmarks
 
+Measure portable brightness and alpha blending without camera access, inference,
+or output I/O:
+
+```sh
+uv run python scripts/benchmark_pixel_ops.py --iterations 50 --samples 5
+```
+
+The script uses seeded 640x480 and 1920x1080 arrays and reports median per-frame
+milliseconds after warmup. These operation timings do not represent live FPS.
+
 Repeatable processing-only benchmark:
 
 ```sh

@@ -31,6 +31,8 @@ class FramePacer:
         Event callbacks return False to stop and are polled at most 20 ms apart.
         """
         period = self.period if interval is None else interval
+        if not math.isfinite(period) or period <= 0:
+            raise ValueError("frame interval must be finite and positive")
         deadline = self._last_tick + period
         if process_events is not None and not process_events():
             return False
