@@ -646,7 +646,7 @@ struct ControlPanel: View {
                         }.padding(.top, 6)
                     }
                 }.disabled(model.active || !model.connected)
-            }.frame(maxHeight: 420)
+            }.frame(height: 420)
             if !model.connected && !model.hasWorker {
                 Button("Reconnect worker", action: model.reconnect)
             }
