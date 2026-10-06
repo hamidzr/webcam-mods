@@ -1,7 +1,11 @@
 """Delegate selection never lets a failing native probe take down the app."""
 
 from io import BytesIO
+import json
+from pathlib import Path
 import subprocess
+import tempfile
+import time
 import sys
 from types import SimpleNamespace
 import unittest
@@ -15,6 +19,17 @@ from webcam_mods import mediapipe_delegate as delegates
 class DelegateSelectionTests(unittest.TestCase):
     def setUp(self) -> None:
         delegates._CACHE.clear()
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.cache_path = Path(temporary.name) / "delegate.json"
+        cache_path = patch.object(
+            delegates, "_cache_path", return_value=self.cache_path
+        )
+        identity = patch.object(delegates, "_cache_identity", return_value="identity")
+        cache_path.start()
+        identity.start()
+        self.addCleanup(cache_path.stop)
+        self.addCleanup(identity.stop)
         self.frame = np.zeros((8, 12, 3), dtype=np.uint8)
         self.system = patch.object(delegates.platform, "system", return_value="Darwin")
         self.machine = patch.object(delegates.platform, "machine", return_value="arm64")
@@ -31,6 +46,7 @@ class DelegateSelectionTests(unittest.TestCase):
         ):
             with self.subTest(expected=expected):
                 delegates._CACHE.clear()
+                self.cache_path.unlink(missing_ok=True)
                 with patch.object(
                     delegates, "_probe", side_effect=measurements
                 ) as probe:
@@ -57,6 +73,69 @@ class DelegateSelectionTests(unittest.TestCase):
             delegates.select_delegate("face", self.frame[:4])
             self.assertEqual(probe.call_count, 18)
 
+    def test_persistent_cache_skips_probes_after_memory_cache_reset(self) -> None:
+        with patch.object(delegates, "_probe", side_effect=[10, 8, 8, 10, 10, 8]):
+            self.assertEqual(delegates.select_delegate("face", self.frame), "gpu")
+        delegates._CACHE.clear()
+        with patch.object(delegates, "_probe") as probe:
+            self.assertEqual(delegates.select_delegate("face", self.frame), "gpu")
+            probe.assert_not_called()
+
+    def test_identity_and_expired_entries_require_new_calibration(self) -> None:
+        for identity, timestamp in (("old-runtime", time.time()), ("identity", 0)):
+            with self.subTest(identity=identity):
+                delegates._CACHE.clear()
+                self.cache_path.write_text(
+                    json.dumps(
+                        {
+                            "identity": identity,
+                            "entries": {
+                                "face:8,12,3": {
+                                    "delegate": "gpu",
+                                    "timestamp": timestamp,
+                                }
+                            },
+                        }
+                    )
+                )
+                with patch.object(delegates, "_probe", return_value=1) as probe:
+                    self.assertEqual(
+                        delegates.select_delegate("face", self.frame), "cpu"
+                    )
+                    self.assertEqual(probe.call_count, 6)
+
+    def test_corrupt_or_oversized_cache_does_not_break_calibration(self) -> None:
+        for payload in ("broken", "[]", "x" * (delegates._CACHE_MAX_BYTES + 1)):
+            with self.subTest(size=len(payload)):
+                delegates._CACHE.clear()
+                self.cache_path.write_text(payload)
+                with patch.object(delegates, "_probe", return_value=1) as probe:
+                    self.assertEqual(
+                        delegates.select_delegate("face", self.frame), "cpu"
+                    )
+                    self.assertEqual(probe.call_count, 6)
+
+    def test_unwritable_cache_does_not_break_calibration(self) -> None:
+        with patch.object(delegates.os, "replace", side_effect=OSError("read only")):
+            with patch.object(delegates, "_probe", return_value=1):
+                self.assertEqual(delegates.select_delegate("face", self.frame), "cpu")
+        self.assertFalse(self.cache_path.exists())
+        self.assertEqual(list(self.cache_path.parent.iterdir()), [])
+
+    def test_cache_evicts_oldest_entries(self) -> None:
+        with patch.object(delegates, "_CACHE_LIMIT", 2):
+            for index in range(3):
+                delegates._write_cache("identity", f"face:{index},12,3", "cpu")
+                delegates._remember(("face", (index, 12, 3)), "cpu")
+            self.assertEqual(len(delegates._CACHE), 2)
+            entries = delegates._read_cache("identity")
+            self.assertEqual(set(entries), {"face:1,12,3", "face:2,12,3"})
+
+    def test_failed_probe_is_not_persisted(self) -> None:
+        with patch.object(delegates, "_probe", side_effect=OSError("failed")):
+            self.assertEqual(delegates.select_delegate("face", self.frame), "cpu")
+        self.assertFalse(self.cache_path.exists())
+
     def test_other_platforms_skip_probes(self) -> None:
         with patch.object(delegates.platform, "system", return_value="Linux"):
             with patch.object(delegates, "_probe") as probe:
@@ -77,6 +156,7 @@ class DelegateSelectionTests(unittest.TestCase):
         for failure in failures:
             with self.subTest(failure=type(failure).__name__):
                 delegates._CACHE.clear()
+                self.cache_path.unlink(missing_ok=True)
                 with patch.object(delegates, "_probe", side_effect=failure) as probe:
                     self.assertEqual(
                         delegates.select_delegate("face", self.frame), "cpu"
@@ -121,6 +201,37 @@ class DelegateSelectionTests(unittest.TestCase):
                 self.assertEqual(run.call_args.kwargs["timeout"], 15)
                 self.assertTrue(run.call_args.kwargs["check"])
                 self.assertEqual(run.call_args.kwargs["input"], b"input")
+
+
+class CacheIdentityTests(unittest.TestCase):
+    def test_patched_wheel_and_os_changes_invalidate_identity(self) -> None:
+        delegates._cache_identity.cache_clear()
+        self.addCleanup(delegates._cache_identity.cache_clear)
+        distribution = Mock(version="1.0")
+        distribution.read_text.return_value = "native-library-original-hash"
+        with patch.object(
+            delegates.metadata, "distribution", return_value=distribution
+        ):
+            with patch.object(
+                delegates.subprocess,
+                "run",
+                return_value=SimpleNamespace(stdout=b"Mac-model\nCPU"),
+            ):
+                with patch.object(
+                    delegates.platform, "version", return_value="OS-build-one"
+                ):
+                    first = delegates._cache_identity()
+                    distribution.read_text.return_value = "native-library-patched-hash"
+                    # identity is constant within a running installation
+                    self.assertEqual(delegates._cache_identity(), first)
+                    delegates._cache_identity.cache_clear()
+                    second = delegates._cache_identity()
+                    self.assertNotEqual(first, second)
+                delegates._cache_identity.cache_clear()
+                with patch.object(
+                    delegates.platform, "version", return_value="OS-build-two"
+                ):
+                    self.assertNotEqual(second, delegates._cache_identity())
 
 
 class WorkerMeasurementTests(unittest.TestCase):

@@ -1,18 +1,25 @@
 """Choose a MediaPipe delegate using isolated, bounded startup measurements."""
 
+from functools import lru_cache
+import hashlib
+from importlib import metadata
 from io import BytesIO
 import json
 import math
+import os
+from pathlib import Path
 import platform
 import statistics
 import subprocess
 import sys
+import tempfile
 import time
 from typing import Any, Literal
 
 from loguru import logger
 import numpy as np
 
+from webcam_mods import models
 from webcam_mods.models import model_path
 from webcam_mods.utils.video import Frame, validate_frame as _validate_frame
 
@@ -23,6 +30,108 @@ _WARMUP = 10
 _SAMPLES = 30
 _ROUNDS = 3
 _TIMEOUT = 15
+_CACHE_LIMIT = 128
+_CACHE_MAX_AGE = 30 * 24 * 60 * 60
+_CACHE_MAX_BYTES = 128 * 1024
+
+
+def _cache_path() -> Path:
+    root = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
+    return root / "webcam-mods" / "delegate-calibration.json"
+
+
+@lru_cache(maxsize=1)
+def _cache_identity() -> str:
+    """Invalidate measurements when hardware, OS, models, or native wheels change."""
+    identity = [platform.machine(), platform.version(), sys.version]
+    try:
+        hardware = (
+            subprocess.run(
+                ["/usr/sbin/sysctl", "-n", "hw.model", "machdep.cpu.brand_string"],
+                capture_output=True,
+                check=True,
+                timeout=2,
+            )
+            .stdout.decode()
+            .strip()
+        )
+        identity.append(hardware)
+    except OSError, subprocess.SubprocessError, UnicodeError:
+        identity.append(platform.processor())
+    for package in ("mediapipe", "numpy", "opencv-contrib-python"):
+        distribution = metadata.distribution(package)
+        identity.extend([package, distribution.version])
+        # RECORD fingerprints distinguish patched native wheels with equal versions
+        identity.append(distribution.read_text("RECORD") or "")
+    for source in (Path(__file__), Path(models.__file__)):
+        with source.open("rb") as stream:
+            identity.append(hashlib.file_digest(stream, "sha256").hexdigest())
+    return hashlib.sha256("\n".join(identity).encode()).hexdigest()
+
+
+def _disk_key(task: Task, shape: tuple[int, ...]) -> str:
+    return f"{task}:{','.join(map(str, shape))}"
+
+
+def _read_cache(identity: str) -> dict[str, dict[str, Any]]:
+    path = _cache_path()
+    try:
+        # bound parsing even if a cache file was damaged or replaced
+        with path.open("rb") as stream:
+            payload = stream.read(_CACHE_MAX_BYTES + 1)
+        if len(payload) > _CACHE_MAX_BYTES:
+            return {}
+        document = json.loads(payload)
+        if not isinstance(document, dict) or document.get("identity") != identity:
+            return {}
+        entries = document.get("entries")
+        if not isinstance(entries, dict) or len(entries) > _CACHE_LIMIT:
+            return {}
+        now = time.time()
+        valid: dict[str, dict[str, Any]] = {}
+        for key, entry in entries.items():
+            if not isinstance(key, str) or not isinstance(entry, dict):
+                continue
+            timestamp = entry.get("timestamp")
+            if (
+                entry.get("delegate") in ("cpu", "gpu")
+                and isinstance(timestamp, (int, float))
+                and not isinstance(timestamp, bool)
+                and math.isfinite(timestamp)
+                and 0 <= now - timestamp <= _CACHE_MAX_AGE
+            ):
+                valid[key] = entry
+        return valid
+    except OSError, ValueError, TypeError:
+        return {}
+
+
+def _write_cache(identity: str, key: str, delegate: Delegate) -> None:
+    path = _cache_path()
+    temporary: Path | None = None
+    try:
+        entries = _read_cache(identity)
+        entries[key] = {"delegate": delegate, "timestamp": time.time()}
+        entries = dict(
+            sorted(entries.items(), key=lambda item: item[1]["timestamp"])[
+                -_CACHE_LIMIT:
+            ]
+        )
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(
+            mode="w", dir=path.parent, delete=False, encoding="utf-8"
+        ) as stream:
+            temporary = Path(stream.name)
+            json.dump({"identity": identity, "entries": entries}, stream)
+        os.replace(temporary, path)
+    except OSError, ValueError, TypeError:
+        pass
+    finally:
+        if temporary is not None:
+            try:
+                temporary.unlink(missing_ok=True)
+            except OSError:
+                pass
 
 
 def _probe(task: Task, delegate: Delegate, payload: bytes) -> float:
@@ -52,12 +161,25 @@ def select_delegate(task: Task, frame: Frame) -> Delegate:
     key = (task, tuple(frame.shape))
     if key in _CACHE:
         return _CACHE[key]
+    identity: str | None = None
+    disk_key = _disk_key(task, key[1])
+    try:
+        identity = _cache_identity()
+        cached = _read_cache(identity).get(disk_key)
+        if cached is not None:
+            selected_cached: Delegate = "gpu" if cached["delegate"] == "gpu" else "cpu"
+            _remember(key, selected_cached)
+            return selected_cached
+    except OSError, ValueError, metadata.PackageNotFoundError:
+        # cache availability must never prevent inference or fresh calibration
+        pass
     stream = BytesIO()
     np.save(stream, frame, allow_pickle=False)
     payload = stream.getvalue()
     cpu: list[float] = []
     gpu: list[float] = []
     selected: Delegate = "cpu"
+    succeeded = False
     try:
         for round_index in range(_ROUNDS):
             order: tuple[Delegate, Delegate] = (
@@ -68,6 +190,7 @@ def select_delegate(task: Task, frame: Frame) -> Delegate:
             gpu.append(measured["gpu"])
         if all(g < c * 0.95 for c, g in zip(cpu, gpu)):
             selected = "gpu"
+        succeeded = True
         logger.info(
             "MediaPipe {} selected {}: CPU {:.2f} ms, GPU {:.2f} ms "
             "(three warmed median comparisons)",
@@ -83,8 +206,17 @@ def select_delegate(task: Task, frame: Frame) -> Delegate:
             task,
             type(error).__name__,
         )
-    _CACHE[key] = selected
+    _remember(key, selected)
+    # transient probe failure should not poison future launches
+    if succeeded and identity is not None:
+        _write_cache(identity, disk_key, selected)
     return selected
+
+
+def _remember(key: tuple[Task, tuple[int, ...]], delegate: Delegate) -> None:
+    _CACHE[key] = delegate
+    if len(_CACHE) > _CACHE_LIMIT:
+        del _CACHE[next(iter(_CACHE))]
 
 
 def _measure(task: Task, delegate: Delegate, frame: Frame) -> float:
