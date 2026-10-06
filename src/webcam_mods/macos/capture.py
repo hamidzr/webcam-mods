@@ -134,16 +134,22 @@ def camera_inventory(backend: str = "avfoundation") -> list[CameraInfo]:
             )
         )
         excluded = excluded_reason is not None
-        formats = sorted(
-            {(w, h, low, high) for _, w, h, low, high in _format_ranges(device, cm)}
-        )
+        formats: dict[tuple[int, int], set[tuple[float, float]]] = {}
+        for _, w, h, low, high in _format_ranges(device, cm):
+            formats.setdefault((w, h), set()).add((low, high))
         cameras.append(
             CameraInfo(
                 input_index=None if excluded else input_index,
                 name=str(device.localizedName()),
                 device_id=str(device.uniqueID()),
                 formats=tuple(
-                    f"{w}x{h} at {low:g}-{high:g} fps" for w, h, low, high in formats
+                    f"{w}x{h} at "
+                    + ", ".join(
+                        f"{low:g}" if low == high else f"{low:g}-{high:g}"
+                        for low, high in sorted(rates)
+                    )
+                    + " fps"
+                    for (w, h), rates in sorted(formats.items())
                 ),
                 excluded_reason=(
                     excluded_reason or camera_unavailable_reason(device, closed)

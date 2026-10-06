@@ -127,7 +127,12 @@ class CameraInventoryTest(unittest.TestCase):
         rate = SimpleNamespace(minFrameRate=lambda: 15.0, maxFrameRate=lambda: 30.0)
         fmt = SimpleNamespace(
             formatDescription=lambda: None,
-            videoSupportedFrameRateRanges=lambda: [rate, rate],
+            videoSupportedFrameRateRanges=lambda: [
+                rate,
+                rate,
+                SimpleNamespace(minFrameRate=lambda: 7.5, maxFrameRate=lambda: 7.5),
+                SimpleNamespace(minFrameRate=lambda: 5.0, maxFrameRate=lambda: 5.0),
+            ],
         )
         physical = Mock()
         physical.manufacturer.return_value = "Camera Vendor"
@@ -161,7 +166,7 @@ class CameraInventoryTest(unittest.TestCase):
                     CameraInfo(
                         0,
                         "Physical Camera",
-                        ("640x480 at 15-30 fps",),
+                        ("640x480 at 5, 7.5, 15-30 fps",),
                         device_id="physical",
                     )
                 ],
@@ -184,7 +189,7 @@ class CameraInventoryTest(unittest.TestCase):
             patch(
                 "webcam_mods.macos.capture.camera_inventory",
                 return_value=[
-                    CameraInfo(0, "Physical Camera", ("640x480 at 30-30 fps",)),
+                    CameraInfo(0, "Physical Camera", ("640x480 at 30 fps",)),
                     CameraInfo(None, "OBS", (), "OBS output", "b"),
                 ],
             ),
@@ -193,7 +198,7 @@ class CameraInventoryTest(unittest.TestCase):
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertIn("--input-device 0: Physical Camera", result.output)
         self.assertIn("excluded (OBS output): OBS", result.output)
-        self.assertIn("640x480 at 30-30 fps", result.output)
+        self.assertIn("640x480 at 30 fps", result.output)
 
     def test_missing_extra_is_actionable(self) -> None:
         with (
