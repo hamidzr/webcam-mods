@@ -5,11 +5,15 @@ import AppKit
 struct Camera: Decodable, Identifiable {
     let index: Int
     let name: String
-    var id: Int { index }
+    let id: String
 }
 
 struct Configuration: Codable {
     var input_device = 0
+    var camera_id: String?
+    var output_width: Int?
+    var output_height: Int?
+    var output_fps: Double?
     var width = 640
     var height = 480
     var fps = 30.0
@@ -56,9 +60,40 @@ final class SessionModel: ObservableObject {
     private var diagnosticBuffer = Data()
     private var quitting = false
     private var startGeneration = 0
+    private var workerGeneration = 0
 
     init() { Self.current = self }
     var hasWorker: Bool { process != nil }
+
+    var cameraUnavailable: Bool {
+        if let id = config.camera_id { return !cameras.contains(where: { $0.id == id }) }
+        return !cameras.contains(where: { $0.index == config.input_device })
+    }
+    var selectedCameraID: String {
+        config.camera_id ?? cameras.first(where: { $0.index == config.input_device })?.id ?? ""
+    }
+    func selectCamera(_ id: String) {
+        guard let camera = cameras.first(where: { $0.id == id }) else { return }
+        config.camera_id = camera.id
+        config.input_device = camera.index
+    }
+    func reconcileCamera() {
+        if let id = config.camera_id, let camera = cameras.first(where: { $0.id == id }) {
+            config.input_device = camera.index
+        } else if config.camera_id == nil, let camera = cameras.first(where: { $0.index == config.input_device }) {
+            config.camera_id = camera.id
+        }
+    }
+    func reconnect() {
+        guard process == nil, !quitting else { return }
+        startGeneration += 1
+        outputBuffer.removeAll()
+        diagnosticBuffer.removeAll()
+        pending.removeAll()
+        error = nil
+        state = "idle"
+        connect()
+    }
 
     var active: Bool { ["starting", "running", "stopping"].contains(state) }
     var build: String {
@@ -69,6 +104,8 @@ final class SessionModel: ObservableObject {
 
     func connect() {
         guard process == nil else { return }
+        workerGeneration += 1
+        let generation = workerGeneration
         do {
             guard let runtimeURL = Bundle.main.url(forResource: "backend-python", withExtension: "txt") else {
                 throw failure("Python runtime missing. Rebuild app with macos/build-menu-app.sh.")
@@ -87,26 +124,30 @@ final class SessionModel: ObservableObject {
             stdout.fileHandleForReading.readabilityHandler = { [weak self] handle in
                 let bytes = handle.availableData
                 if bytes.isEmpty { handle.readabilityHandler = nil; return }
-                Task { @MainActor in self?.consume(bytes) }
+                Task { @MainActor in
+                    guard let self, self.workerGeneration == generation else { return }
+                    self.consume(bytes)
+                }
             }
             stderr.fileHandleForReading.readabilityHandler = { [weak self] handle in
                 let bytes = handle.availableData
                 if bytes.isEmpty { handle.readabilityHandler = nil; return }
                 Task { @MainActor in
-                    guard let self else { return }
+                    guard let self, self.workerGeneration == generation else { return }
                     self.diagnosticBuffer.append(bytes)
                     if self.diagnosticBuffer.count > 8192 { self.diagnosticBuffer.removeFirst(self.diagnosticBuffer.count - 8192) }
                 }
             }
             helper.terminationHandler = { [weak self] helper in
                 Task { @MainActor in
-                    guard let self else { return }
+                    guard let self, self.workerGeneration == generation else { return }
                     self.connected = false
                     self.input = nil
                     self.process = nil
+                    self.outputBuffer.removeAll()
                     let callbacks = self.pending.values
                     self.pending.removeAll()
-                    for callback in callbacks { callback(.failure(self.failure("Worker exited. Check Python installation and restart app."))) }
+                    for callback in callbacks { callback(.failure(self.failure("Worker exited. Reconnect worker; run just install if this repeats."))) }
                     if self.quitting { NSApp.reply(toApplicationShouldTerminate: true); NSApp.terminate(nil) }
                     else if helper.terminationStatus != 0 {
                         self.state = "error"
@@ -231,9 +272,24 @@ final class SessionModel: ObservableObject {
         model.profiles = profiles
         model.selectProfile("Example")
         try check(model.selectedProfile == "Example" && model.profileName == "Example", "Profile selection")
-        let cameraBytes = Data("[{\"index\":2,\"name\":\"External Camera\"}]".utf8)
+        let cameraBytes = Data("[{\"index\":2,\"name\":\"External Camera\",\"id\":\"stable-camera\"}]".utf8)
         let cameras = try JSONDecoder().decode([Camera].self, from: cameraBytes)
-        try check(cameras[0].id == 2, "Camera identity decoding")
+        try check(cameras[0].id == "stable-camera", "Camera identity decoding")
+        model.cameras = cameras
+        model.selectCamera("stable-camera")
+        try check(model.config.camera_id == "stable-camera" && model.config.input_device == 2, "Camera selection preserves identity")
+        model.config.input_device = 0
+        model.reconcileCamera()
+        try check(model.config.input_device == 2 && !model.cameraUnavailable, "Camera enumeration changes resolve by identity")
+        model.config.camera_id = "removed-camera"
+        try check(model.cameraUnavailable, "Removed camera must not select another device")
+        var outputConfig = Configuration()
+        outputConfig.output_width = 1280
+        outputConfig.output_height = 720
+        outputConfig.output_fps = 24
+        let outputDecoded = try JSONDecoder().decode(Configuration.self, from: JSONEncoder().encode(outputConfig))
+        try check(outputDecoded.output_width == 1280 && outputDecoded.output_fps == 24, "Independent output settings round trip")
+        try check(profiles[0].config.camera_id == nil && profiles[0].config.output_width == nil, "Legacy profile optional fields")
         try pipe.fileHandleForWriting.close()
         try pipe.fileHandleForReading.close()
         try helperSelfTest()
@@ -301,7 +357,7 @@ final class SessionModel: ObservableObject {
 
     func refreshCameras() {
         request("cameras.list", params: ["capture": config.capture]) { [weak self] result in
-            self?.decode(result, as: [Camera].self) { self?.cameras = $0 }
+            self?.decode(result, as: [Camera].self) { self?.cameras = $0; self?.reconcileCamera() }
         }
     }
 
@@ -318,11 +374,14 @@ final class SessionModel: ObservableObject {
         guard let profile = profiles.first(where: { $0.name == name }) else { return }
         config = profile.config
         profileName = name
+        reconcileCamera()
+        if connected { refreshCameras() }
     }
 
     func saveProfile() {
         let name = profileName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { error = "Enter a profile name before saving."; return }
+        reconcileCamera()
         request("profiles.save", params: ["name": name, "config": config.json]) { [weak self] result in
             switch result {
             case .success: self?.selectedProfile = name; self?.refresh()
@@ -342,6 +401,7 @@ final class SessionModel: ObservableObject {
 
     func start() {
         guard !active, connected else { return }
+        guard !cameraUnavailable else { error = "Saved camera unavailable. Reconnect it or choose another camera."; return }
         error = nil
         state = "starting"
         startGeneration += 1
@@ -411,6 +471,7 @@ struct ControlPanel: View {
     @ObservedObject var model: SessionModel
     @State private var advanced = false
     @State private var confirmDelete = false
+    var openControls: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -422,74 +483,99 @@ struct ControlPanel: View {
             if let error = model.error {
                 Label(error, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
             }
-            Group {
-                Picker("Camera", selection: $model.config.input_device) {
-                    if model.cameras.isEmpty { Text("No cameras found").tag(model.config.input_device) }
-                    ForEach(model.cameras) { camera in Text(camera.name).tag(camera.index) }
-                }
-                HStack {
-                    Picker("Profile", selection: Binding(get: { model.selectedProfile }, set: model.selectProfile)) {
-                        Text("Custom").tag("")
-                        ForEach(model.profiles) { Text($0.name).tag($0.name) }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    Picker("Camera", selection: Binding(get: { model.selectedCameraID }, set: model.selectCamera)) {
+                        if model.cameraUnavailable { Text(model.cameras.isEmpty ? "No cameras found" : "Saved camera unavailable").tag(model.selectedCameraID) }
+                        ForEach(model.cameras) { camera in Text(camera.name).tag(camera.id) }
                     }
-                    Button { model.refresh() } label: { Image(systemName: "arrow.clockwise") }.help("Refresh cameras and profiles")
-                }
-                HStack {
-                    TextField("Profile name", text: $model.profileName)
-                    Button("Save", action: model.saveProfile)
-                    Button { confirmDelete = true } label: { Image(systemName: "trash") }.disabled(model.selectedProfile.isEmpty).help("Delete selected profile")
-                }
-                Divider()
-                Picker("Background", selection: $model.config.effect) {
-                    Text("Original").tag("plain")
-                    Text("Blur").tag("blur")
-                    Text("Solid gray").tag("color")
-                    Text("Image").tag("image")
-                    Text("Face tracking").tag("track")
-                }
-                if model.config.effect == "blur" {
-                    Stepper("Blur: \(model.config.blur_kernel)", value: $model.config.blur_kernel, in: 1...151, step: 2)
-                }
-                if model.config.effect == "color" {
-                    slider("Gray", value: $model.config.color, range: 0...255)
-                }
-                if model.config.effect == "image" {
+                    if model.cameraUnavailable {
+                        Text("Reconnect saved camera or choose another camera.").font(.caption).foregroundStyle(.secondary)
+                    }
                     HStack {
-                        Text(model.config.image_path.isEmpty ? "Choose background image" : URL(fileURLWithPath: model.config.image_path).lastPathComponent).lineLimit(1).truncationMode(.middle)
-                        Spacer()
-                        Button("Choose...", action: model.chooseImage)
+                        Picker("Profile", selection: Binding(get: { model.selectedProfile }, set: model.selectProfile)) {
+                            Text("Custom").tag("")
+                            ForEach(model.profiles) { Text($0.name).tag($0.name) }
+                        }
+                        Button { model.refresh() } label: { Image(systemName: "arrow.clockwise") }.help("Refresh cameras and profiles")
                     }
-                }
-                Toggle("Track face", isOn: $model.config.track).disabled(model.config.effect == "track")
-                slider("Brightness", value: $model.config.brightness, range: 0...255)
-                DisclosureGroup("Advanced", isExpanded: $advanced) {
-                    VStack(spacing: 9) {
+                    HStack {
+                        TextField("Profile name", text: $model.profileName)
+                        Button("Save", action: model.saveProfile)
+                        Button { confirmDelete = true } label: { Image(systemName: "trash") }.disabled(model.selectedProfile.isEmpty).help("Delete selected profile")
+                    }
+                    Divider()
+                    Picker("Background", selection: $model.config.effect) {
+                        Text("Original").tag("plain")
+                        Text("Blur").tag("blur")
+                        Text("Solid gray").tag("color")
+                        Text("Image").tag("image")
+                        Text("Face tracking").tag("track")
+                    }
+                    if model.config.effect == "blur" {
+                        Stepper("Blur: \(model.config.blur_kernel)", value: $model.config.blur_kernel, in: 1...151, step: 2)
+                    }
+                    if model.config.effect == "color" {
+                        slider("Gray", value: $model.config.color, range: 0...255)
+                    }
+                    if model.config.effect == "image" {
                         HStack {
-                            Text("Size")
-                            TextField("Width", value: $model.config.width, format: .number)
-                            Text("x")
-                            TextField("Height", value: $model.config.height, format: .number)
+                            Text(model.config.image_path.isEmpty ? "Choose background image" : URL(fileURLWithPath: model.config.image_path).lastPathComponent).lineLimit(1).truncationMode(.middle)
+                            Spacer()
+                            Button("Choose...", action: model.chooseImage)
                         }
-                        Stepper("Capture / output FPS: \(model.config.fps.formatted(.number.precision(.fractionLength(0...2))))", value: $model.config.fps, in: 1...60)
-                        Stepper("Processing FPS: \(model.config.processing_fps.formatted(.number.precision(.fractionLength(0...2))))", value: $model.config.processing_fps, in: 1...60)
-                        Picker("Segmentation", selection: $model.config.segmentation) {
-                            Text("MediaPipe").tag("mediapipe"); Text("Apple Vision").tag("vision")
-                        }
-                        Picker("Processing", selection: $model.config.processing) {
-                            Text("OpenCV").tag("opencv"); Text("Core Image").tag("coreimage")
-                        }
-                        Picker("Capture", selection: $model.config.capture) {
-                            Text("Automatic").tag("auto"); Text("OpenCV").tag("opencv"); Text("AVFoundation").tag("avfoundation")
-                        }
-                        Toggle("Repeat latest frame", isOn: $model.config.repeat_frames)
-                        Toggle("Smooth segmentation mask", isOn: $model.config.smoothing)
-                    }.padding(.top, 6)
-                }
-            }.disabled(model.active || !model.connected)
+                    }
+                    Toggle("Track face", isOn: $model.config.track).disabled(model.config.effect == "track")
+                    slider("Brightness", value: $model.config.brightness, range: 0...255)
+                    DisclosureGroup("Advanced", isExpanded: $advanced) {
+                        VStack(spacing: 9) {
+                            HStack {
+                                Text("Capture size")
+                                TextField("Width", value: $model.config.width, format: .number)
+                                Text("x")
+                                TextField("Height", value: $model.config.height, format: .number)
+                            }
+                            Stepper("Capture FPS: \(model.config.fps.formatted(.number.precision(.fractionLength(0...2))))", value: $model.config.fps, in: 1...60)
+                            Toggle("Use capture settings for output", isOn: Binding(
+                                get: { model.config.output_width == nil && model.config.output_height == nil && model.config.output_fps == nil },
+                                set: { inherited in
+                                    model.config.output_width = inherited ? nil : model.config.width
+                                    model.config.output_height = inherited ? nil : model.config.height
+                                    model.config.output_fps = inherited ? nil : model.config.fps
+                                }))
+                            if model.config.output_width != nil || model.config.output_height != nil || model.config.output_fps != nil {
+                                HStack {
+                                    Text("Output size")
+                                    TextField("Width", value: Binding(get: { model.config.output_width ?? model.config.width }, set: { model.config.output_width = $0 }), format: .number)
+                                    Text("x")
+                                    TextField("Height", value: Binding(get: { model.config.output_height ?? model.config.height }, set: { model.config.output_height = $0 }), format: .number)
+                                }
+                                Stepper("Output FPS: \((model.config.output_fps ?? model.config.fps).formatted(.number.precision(.fractionLength(0...2))))", value: Binding(get: { model.config.output_fps ?? model.config.fps }, set: { model.config.output_fps = $0 }), in: 1...60)
+                            }
+                            Stepper("Processing FPS: \(model.config.processing_fps.formatted(.number.precision(.fractionLength(0...2))))", value: $model.config.processing_fps, in: 1...60)
+                            Picker("Segmentation", selection: $model.config.segmentation) {
+                                Text("MediaPipe").tag("mediapipe"); Text("Apple Vision").tag("vision")
+                            }
+                            Picker("Processing", selection: $model.config.processing) {
+                                Text("OpenCV").tag("opencv"); Text("Core Image").tag("coreimage")
+                            }
+                            Picker("Capture", selection: $model.config.capture) {
+                                Text("Automatic").tag("auto"); Text("OpenCV").tag("opencv"); Text("AVFoundation").tag("avfoundation")
+                            }
+                            Toggle("Repeat latest frame", isOn: $model.config.repeat_frames)
+                            Toggle("Smooth segmentation mask", isOn: $model.config.smoothing)
+                        }.padding(.top, 6)
+                    }
+                }.disabled(model.active || !model.connected)
+            }.frame(maxHeight: 420)
+            if !model.connected && !model.hasWorker {
+                Button("Reconnect worker", action: model.reconnect)
+            }
             HStack {
                 Button(model.active ? "Stop camera" : "Start camera", action: model.active ? model.stop : model.start)
-                    .buttonStyle(.borderedProminent).disabled(!model.connected || model.state == "stopping")
+                    .buttonStyle(.borderedProminent).disabled(!model.connected || model.state == "stopping" || (!model.active && model.cameraUnavailable))
                 Spacer()
+                if let openControls { Button("Open controls", action: openControls) }
                 Button("Quit", action: model.quit)
             }
             HStack {
@@ -521,6 +607,7 @@ struct ControlPanel: View {
 struct WebcamModsApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @StateObject private var model = SessionModel()
+    @Environment(\.openWindow) private var openWindow
     init() {
         if CommandLine.arguments.contains("--self-test") {
             do { try SessionModel.selfTest(); exit(0) }
@@ -532,12 +619,30 @@ struct WebcamModsApp: App {
     }
     var body: some Scene {
         MenuBarExtra("Webcam Mods", systemImage: model.state == "running" ? "video.fill" : "video") {
-            ControlPanel(model: model)
+            ControlPanel(model: model, openControls: { showControls() })
         }.menuBarExtraStyle(.window)
+        Window("Webcam Mods Controls", id: "controls") {
+            ControlPanel(model: model)
+        }.windowResizability(.contentSize)
+    }
+    private func showControls() {
+        openWindow(id: "controls")
+        NSApp.activate(ignoringOtherApps: true)
     }
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private var controlsWindow: NSWindow?
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        guard CommandLine.arguments.contains("--show-controls"), let model = SessionModel.current else { return }
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 406, height: 640), styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        window.title = "Webcam Mods Controls"
+        window.contentView = NSHostingView(rootView: ControlPanel(model: model))
+        window.center()
+        window.makeKeyAndOrderFront(nil)
+        controlsWindow = window
+        NSApp.activate(ignoringOtherApps: true)
+    }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let model = SessionModel.current, model.hasWorker else { return .terminateNow }
         model.quit()
