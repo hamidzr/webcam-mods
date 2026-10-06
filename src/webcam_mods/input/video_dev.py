@@ -1,11 +1,11 @@
 from webcam_mods.settings import StartupSettings, load_settings
 import cv2
 from webcam_mods.input.input import AdapterMetadata, FrameInput
-from webcam_mods.utils.video import Frame
+from webcam_mods.utils.video import Frame, validate_frame
 from loguru import logger
 from typing import cast, Any, Iterator, Optional
 import math
-import time
+from threading import Event
 
 
 def available_camera_indices(end: int = 3) -> Iterator[int]:
@@ -94,6 +94,7 @@ class Webcam(FrameInput):
         super().__init__(**kwargs)
         device_index = self.settings.video_in if device_index is None else device_index
         self.cap: cv2.VideoCapture | None = None
+        self._stop = Event()
         self._pending: Frame | None = None
         self.device_index = (
             device_index
@@ -102,8 +103,14 @@ class Webcam(FrameInput):
         )
 
     def setup(self) -> AdapterMetadata:
+        if self.is_setup():
+            return {"width": self.width, "height": self.height, "fps": self.fps}
+        self.teardown()
+        self._stop.clear()
         open_rv = None
         for c in range(5):
+            if self._stop.is_set():
+                raise RuntimeError("camera startup cancelled")
             open_rv = open_video_capture(
                 width=self.width,
                 height=self.height,
@@ -113,10 +120,13 @@ class Webcam(FrameInput):
             )
             if open_rv is not None:
                 break
+            if c == 4:
+                break
             logger.error(
                 f"retrying ({c + 1}) to open video input device #{self.device_index}"
             )
-            time.sleep(2)
+            if self._stop.wait(2):
+                raise RuntimeError("camera startup cancelled")
         if open_rv is None:
             raise FileNotFoundError("failed to open video input device")
         cap, _, _, _ = open_rv
@@ -150,8 +160,7 @@ class Webcam(FrameInput):
             raise
 
     def _validate_frame(self, frame: Frame, *, startup: bool = False) -> None:
-        if frame.ndim != 3 or frame.shape[2] != 3:
-            raise ValueError("camera must return HxWx3 BGR frames")
+        validate_frame(frame)
         height, width = frame.shape[:2]
         if (width, height) != (self.width, self.height):
             if not startup:
@@ -170,11 +179,14 @@ class Webcam(FrameInput):
                 "for those formats."
             )
 
+    def request_stop(self) -> None:
+        self._stop.set()
+
     def teardown(self, *args: Any) -> None:
         self._pending = None
-        if self.cap is not None:
-            self.cap.release()
-            self.cap = None
+        cap, self.cap = self.cap, None
+        if cap is not None:
+            cap.release()
 
     def is_setup(self) -> bool:
         if self.cap is None:

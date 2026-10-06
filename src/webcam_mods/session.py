@@ -5,7 +5,7 @@ from queue import Empty, Queue
 from threading import Lock
 from typing import Literal
 
-from webcam_mods.utils.video import Frame
+from webcam_mods.utils.video import Frame, validate_frame
 
 from webcam_mods.mods.record_replay import Recorder
 from webcam_mods.mods.video_mods import crop, pad_inward_centered
@@ -58,6 +58,8 @@ class RunSession:
             return True
 
     def apply_commands(self) -> list[CommandResult]:
+        if self._closed:
+            return []
         results = []
         # bounded drain avoids control producers starving frame processing
         for _ in range(self.commands.maxsize):
@@ -73,7 +75,7 @@ class RunSession:
             applied = self.recorder.command(command.action)
             return CommandResult(command, applied, "" if applied else "no recording")
         previous = self.settings.to_dict()
-        candidate = self.settings.to_dict()
+        candidate = previous.copy()
         if command.action == "reset":
             candidate = {
                 "crop_dims": [self.settings.width, self.settings.height],
@@ -104,16 +106,18 @@ class RunSession:
         return CommandResult(command, True)
 
     def prepare(self, frame: Frame) -> Frame:
+        if self._closed:
+            raise RuntimeError("run session is closed")
+        validate_frame(frame)
         height, width = frame.shape[:2]
         if (width, height) != (self.settings.width, self.settings.height):
             self.settings.width, self.settings.height = width, height
             if not self.settings.valid(self.settings.to_dict()):
                 self.settings.reset()
-        settings = self.settings.to_dict()
-        result = crop(frame, *settings["crop_dims"], *settings["crop_pos"])
+        result = crop(frame, *self.settings.crop_dims, *self.settings.crop_pos)
         if result is None:
             raise RuntimeError("crop returned no frame")
-        result = pad_inward_centered(result, *settings["pad_size"])
+        result = pad_inward_centered(result, *self.settings.pad_size)
         return self.recorder.engage(result)
 
     def close(self) -> None:

@@ -6,6 +6,7 @@ from typing import Any, Literal
 import cv2
 import numpy as np
 from numpy.typing import NDArray
+from webcam_mods.utils.video import validate_frame
 
 Quality = Literal["fast", "balanced", "accurate"]
 
@@ -112,14 +113,7 @@ class VisionSegmenter:
         """Return foreground confidence in [0, 1], preserving input orientation."""
         if self._closed:
             raise RuntimeError("Vision segmenter is closed")
-        if (
-            not isinstance(frame, np.ndarray)
-            or frame.dtype != np.uint8
-            or frame.ndim != 3
-            or frame.shape[2] != 3
-            or min(frame.shape[:2]) == 0
-        ):
-            raise ValueError("Vision input must be a nonempty HxWx3 uint8 BGR array")
+        validate_frame(frame)
         self._initialize()
         with self._objc.autorelease_pool():
             buffer = self._copy_input(frame)

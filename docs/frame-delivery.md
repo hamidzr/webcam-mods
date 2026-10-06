@@ -31,7 +31,8 @@ On-demand mode closes paused capture and continues delivering the no-signal imag
 at output FPS. Initial setup retains capture until the first activation decision;
 it does not reopen the camera before processing the first frame.
 
-Shutdown signals the worker and interrupts pending AVFoundation frame waits.
+Shutdown signals the worker and interrupts pending AVFoundation frame waits
+and OpenCV startup retry waits.
 The caller waits at most ten seconds, then raises a shutdown timeout. Python
 cannot safely interrupt arbitrary OpenCV or effect calls. A timed-out worker is
 a daemon and retains capture and CLI processing resources until its call returns;

@@ -14,7 +14,7 @@ from loguru import logger
 import numpy as np
 
 from webcam_mods.models import model_path
-from webcam_mods.utils.video import Frame
+from webcam_mods.utils.video import Frame, validate_frame as _validate_frame
 
 Task = Literal["face", "segmentation"]
 Delegate = Literal["cpu", "gpu"]
@@ -23,17 +23,6 @@ _WARMUP = 10
 _SAMPLES = 30
 _ROUNDS = 3
 _TIMEOUT = 15
-
-
-def _validate_frame(frame: Frame) -> None:
-    if (
-        frame.dtype != np.uint8
-        or frame.ndim != 3
-        or frame.shape[2] != 3
-        or frame.shape[0] == 0
-        or frame.shape[1] == 0
-    ):
-        raise ValueError("expected a nonempty uint8 BGR frame")
 
 
 def _probe(task: Task, delegate: Delegate, payload: bytes) -> float:

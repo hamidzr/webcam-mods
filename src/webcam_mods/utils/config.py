@@ -23,6 +23,10 @@ class Config:
         )
         self.width = width if width is not None else settings.in_width
         self.height = height if height is not None else settings.in_height
+        if any(
+            type(value) is not int or value <= 0 for value in (self.width, self.height)
+        ):
+            raise ValueError("config dimensions must be positive integers")
         self._path = Path(path) if path is not None else None
         self.reset()
         if self._path is not None:

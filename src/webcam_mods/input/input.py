@@ -78,20 +78,29 @@ class FrameInput(InNOut):
             yield self.frame()
 
     def demo(self) -> None:
-        self.setup()
-        start_time = dt.datetime.today().timestamp()
-        i = 0
-        for frame in self.frames():
-            if frame is None:
-                continue
-            cv2.imshow("screen", frame)
-            if (cv2.waitKey(1) & 0xFF) == ord("q"):
-                cv2.destroyAllWindows()
-                break
-            time_diff = dt.datetime.today().timestamp() - start_time
-            i += 1
-            if i % 100 == 0:
-                print("fps:", int(i / time_diff))
+        try:
+            self.setup()
+            start_time = dt.datetime.today().timestamp()
+            i = 0
+            for frame in self.frames():
+                if frame is None:
+                    continue
+                cv2.imshow("screen", frame)
+                if (cv2.waitKey(1) & 0xFF) == ord("q"):
+                    break
+                time_diff = dt.datetime.today().timestamp() - start_time
+                i += 1
+                if i % 100 == 0:
+                    print("fps:", int(i / time_diff))
+        finally:
+            try:
+                self.teardown()
+            finally:
+                try:
+                    cv2.destroyWindow("screen")
+                except cv2.error:
+                    # setup or display creation may have failed before a window existed
+                    pass
 
 
 class FrameOutput(InNOut):

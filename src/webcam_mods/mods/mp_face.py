@@ -13,7 +13,7 @@ from loguru import logger
 from webcam_mods.geometry import Rect
 from webcam_mods.models import model_path
 from webcam_mods.mediapipe_delegate import select_delegate
-from webcam_mods.utils.video import Frame
+from webcam_mods.utils.video import Frame, validate_frame
 
 
 class _FaceBounds(Protocol):
@@ -128,6 +128,9 @@ class FaceDetector:
 
     def predict(self, frame: Frame, *, now: float | None = None) -> Optional[Rect]:
         """Return a persistent face as a pixel rectangle."""
+        if self._closed:
+            raise RuntimeError("Face detector is closed")
+        validate_frame(frame)
         if self._detector is not None and (
             self._needs_selection
             or (self._frame_shape is not None and self._frame_shape != frame.shape)

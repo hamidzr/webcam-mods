@@ -4,7 +4,7 @@ import time
 from typing import Any, Literal, cast
 from numpy.typing import NDArray
 
-from webcam_mods.utils.video import Frame
+from webcam_mods.utils.video import Frame, validate_frame
 from webcam_mods.mods.mask_stabilizer import MaskStabilizer
 from webcam_mods.macos.vision import Quality, VisionSegmenter
 from webcam_mods.macos.core_image import CoreImageProcessor
@@ -33,6 +33,7 @@ class MediaPipeSegmenter:
     def predict(self, frame: Frame) -> Mask:
         if self._closed:
             raise RuntimeError("segmenter is closed")
+        validate_frame(frame)
         import mediapipe as mp
 
         if (
@@ -120,6 +121,7 @@ class PersonEffects:
     def mask(self, frame: Frame) -> tuple[Frame, Mask]:
         if self._closed:
             raise RuntimeError("person effects are closed")
+        validate_frame(frame)
         image = cast(Frame, cv2.flip(frame, 1))
         result = self.segmenter.predict(image)
         if self.backend == "mediapipe":
@@ -131,8 +133,8 @@ class PersonEffects:
         return image, result[:, :, None]
 
     def color_bg(self, frame: Frame, color: Color = BG_COLOR) -> Frame:
-        image, mask = self.mask(frame)
         channels = ensure_rgb_color(color)
+        image, mask = self.mask(frame)
         if self.processor is not None:
             return self.processor.process(
                 image,
@@ -157,6 +159,7 @@ class PersonEffects:
         """Own a background snapshot for repeated calls without a background argument."""
         if self._closed:
             raise RuntimeError("person effects are closed")
+        validate_frame(bg_image)
         self._background_source = bg_image.copy()
         self._background = None
 

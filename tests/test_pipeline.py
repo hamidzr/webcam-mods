@@ -296,7 +296,7 @@ class PipelineTest(unittest.TestCase):
         camera = Webcam()
         with (
             patch("webcam_mods.input.video_dev.open_video_capture", return_value=None),
-            patch("webcam_mods.input.video_dev.time.sleep"),
+            patch.object(camera._stop, "wait", return_value=False),
         ):
             with self.assertRaisesRegex(FileNotFoundError, "failed to open"):
                 live_loop(

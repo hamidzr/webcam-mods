@@ -79,9 +79,19 @@ def crop_rect(frame: Frame, box: Rect) -> Optional[Frame]:
 
 def ensure_rgb_color(color: Color) -> tuple[float, ...]:
     # color image but only one color provided
+    channels: tuple[float, ...]
     if not isinstance(color, (list, tuple, np.ndarray)):
-        return (float(color),) * 3
-    return tuple(float(channel) for channel in color)
+        channels = (float(color),) * 3
+    else:
+        try:
+            channels = tuple(float(channel) for channel in color)
+        except TypeError, ValueError:
+            raise ValueError("color must contain three finite BGR values in [0, 255]")
+    if len(channels) != 3 or any(
+        not math.isfinite(channel) or not 0 <= channel <= 255 for channel in channels
+    ):
+        raise ValueError("color must contain three finite BGR values in [0, 255]")
+    return channels
 
 
 # pad frame with pixels on each side.

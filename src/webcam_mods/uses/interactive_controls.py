@@ -19,13 +19,22 @@ class KeyboardControls:
         self.listener = None
 
     def start(self) -> None:
+        if self.listener is not None:
+            return
         if not (self.settings.pan_control or self.settings.padding_control):
             return
         from pynput.keyboard import Key, Listener
 
         self.key_type = Key
         self.listener = Listener(on_press=self.on_press, on_release=self.on_release)
-        self.listener.start()
+        try:
+            self.listener.start()
+        except BaseException as error:
+            try:
+                self.stop()
+            except Exception as cleanup_error:
+                error.add_note(f"keyboard cleanup failed: {cleanup_error}")
+            raise
 
     def on_press(self, key: Any) -> None:
         self.keys.add(key)
@@ -51,12 +60,16 @@ class KeyboardControls:
         self.keys.discard(key)
 
     def stop(self) -> None:
-        if self.listener is not None:
-            self.listener.stop()
-            if self.listener.ident is not None:
-                self.listener.join(timeout=1)
-            self.listener = None
-        self.keys.clear()
+        listener, self.listener = self.listener, None
+        try:
+            if listener is not None:
+                try:
+                    listener.stop()
+                finally:
+                    if listener.ident is not None:
+                        listener.join(timeout=1)
+        finally:
+            self.keys.clear()
 
 
 class ControlAdapters:
