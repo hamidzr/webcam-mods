@@ -1,6 +1,6 @@
 # Current state
 
-Reviewed 2026-10-05. Python 3.14 only. Portable processing and macOS/Linux adapters
+Reviewed 2026-10-06. Python 3.14 only. Portable processing and macOS/Linux adapters
 remain supported. Native macOS menu is optional; installed CLI works independently.
 
 ## Supported behavior
@@ -25,7 +25,10 @@ remain supported. Native macOS menu is optional; installed CLI works independent
   prevent substitution after enumeration changes; independent profile output
   overrides inherit capture settings when absent. Local protocol accepts bounded
   strict JSON and recovers after malformed/oversized requests.
-  See [menu guide](macos-menu.md).
+  Damaged profile rows are reported separately; valid profiles remain usable.
+  CLI export/delete support backup and targeted recovery. Native inventory replies
+  must match the latest request/backend before Start enables. Unsaved profile edits
+  display a modified marker. See [menu guide](macos-menu.md).
 - Persistent exact-shape delegate calibration cache, with hardware/software
   fingerprint, 30-day expiry and 128-entry bound. Probe failures use CPU without
   persisting failure. Cold calibration remains necessary for uncached shapes.
@@ -42,7 +45,9 @@ camera/backend. `auto` maps OpenCV camera identity to AVFoundation on macOS.
 The processing worker owns capture/effect cleanup in repeat mode. Tracking resources
 follow the same ownership contract. A ten-second shutdown timeout cannot safely
 interrupt arbitrary native calls; the worker retains resources until processing
-returns. The local controller refuses another session after such a timeout.
+returns. The local controller refuses another session after such a timeout and retains
+terminal error status even if cleanup finishes later. Status reports
+`restart_required`; the helper must be replaced before another run.
 The menu can terminate its helper during app shutdown after bounded graceful waits.
 
 ## Verification evidence
@@ -53,11 +58,13 @@ pacing, native buffer handling and partial startup cleanup. `just verify` runs
 static checks and the full suite. `just e2e` writes deterministic real-model
 pipeline artifacts; it is not a camera or conferencing test.
 
-Latest local checkpoint: 372 tests, Black, configured Flake8 and strict mypy pass.
+Latest local checkpoint: 381 tests, Black, configured Flake8 and strict mypy pass.
 Native compilation, model/transport tests with a real Python helper, plist and
 signature checks pass. The standalone controls window was inspected through UI
 automation: Advanced scrolling, independent output controls, fixed Start/Quit
-buttons and clean Quit passed without starting capture. App Camera permission
+buttons and clean Quit passed without starting capture. An isolated profile check
+confirmed corruption warnings preserve valid selection, and brightness edits mark
+the selected profile modified without saving. App Camera permission
 behavior remains unverified.
 
 2026-10-05 calibration measurement, local macOS ARM64: a materialized 640x480

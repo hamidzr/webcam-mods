@@ -186,3 +186,16 @@ The controller's state distinguishes starting, running, stopping, idle and error
 running means the first processed frame has been delivered, rather than merely
 accepting Start. Explicit Stop interrupts capture waits and completes cleanup
 before another Start can acquire resources.
+
+## Recovery and terminal state
+
+Damaged profile rows produce sanitized diagnostics through `profiles.errors`;
+`profiles.list` continues returning valid profiles. CLI listing reports diagnostics
+on stderr. Exports publish complete validated JSON atomically, with exclusive
+creation unless overwrite is explicit.
+
+Shutdown timeouts atomically mark the controller terminal with `restart_required`.
+Late worker completion cannot report idle or remove that error. A new helper
+process is required before another run. Native inventory replies carry request
+generations and backend association; stale replies cannot enable Start. UI edits
+remain drafts until Save, with a modified marker on the selected profile.

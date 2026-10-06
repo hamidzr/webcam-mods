@@ -1,6 +1,6 @@
 # Improvement plan
 
-Updated 2026-10-05. Preserve Python processing, existing CLI commands, macOS/Linux
+Updated 2026-10-06. Preserve Python processing, existing CLI commands, macOS/Linux
 adapters and OBS output. Prefer bounded changes supported by concrete defects.
 
 ## Completed implementation and remaining acceptance
@@ -27,6 +27,15 @@ changing a running configuration requires Stop followed by Start.
   IDs and unambiguous members; oversized/malformed input recovers safely.
 - Native settings scroll within a bounded panel, offer a standalone controls
   window, and expose Reconnect only after the old helper exits.
+
+## Profile recovery and reliability round
+
+- Corrupt profile diagnostics remain separate from valid listings; CLI export/delete
+  support backup, editing and targeted recovery.
+- Timeout state stays terminal through late worker completion and explicitly
+  reports that a helper restart is required.
+- Native Start waits for current-backend inventory, rejects stale replies,
+  identifies unsaved profile edits and displays backend package version.
 
 ## Deferred by user
 

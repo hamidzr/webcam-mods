@@ -50,6 +50,12 @@ identity to AVFoundation and revalidates it when opening. Explicit OpenCV still
 opens an index, so a hotplug between lookup and acquisition can change selection;
 prefer native capture for stable identity guarantees.
 
+Save named profiles to reuse settings. A selected profile shows "(modified)"
+when current settings differ from its saved configuration; editing does not
+automatically persist changes. Camera enumeration-only index changes do not mark
+an identity-bound profile modified. Start remains disabled while inventory is
+refreshing; stale replies from another refresh/backend are ignored.
+
 Save named profiles to reuse settings. Saving an existing name replaces its
 configuration. Deletion asks for confirmation in the menu. Profiles are local,
 validated and stored transactionally in
@@ -70,6 +76,22 @@ webcam_mods profile-save Call /tmp/call-profile.json
 webcam_mods profiles-list
 webcam_mods profile-run Call
 ```
+
+Back up or edit a saved profile with:
+
+```sh
+webcam_mods profile-export Call /tmp/call-backup.json
+webcam_mods profile-save Call /tmp/call-backup.json
+webcam_mods profile-delete Unused
+```
+
+Export writes a complete JSON configuration atomically. Existing files are
+preserved unless `--overwrite` is passed. Invalid stored profiles cannot export.
+Stored configuration decoding is limited to 64 KiB; deep/malformed JSON and
+invalid settings produce sanitized errors. Corrupt records do not prevent listing valid profiles: `profiles-list` writes
+valid JSON to stdout and named diagnostics to stderr. The menu displays separate
+warnings. Use `profile-delete NAME` to remove a damaged record, or `profile-save`
+to replace it with a validated configuration. No damaged content is echoed.
 
 `profile-run` uses saved settings and disables interactive crop/replay. Common
 startup flags are rejected rather than silently overriding the profile. Edit and
@@ -126,7 +148,8 @@ the helper available.
 | --- | --- | --- |
 | hello | {} | protocol and package version |
 | cameras.list | capture backend, optional | Array of id/index/name objects; macOS only |
-| profiles.list | {} | Array of name/config objects |
+| profiles.list | {} | Array of valid name/config objects |
+| profiles.errors | {} | Array of name/error objects for damaged profiles |
 | profiles.save | name, config | true |
 | profiles.delete | name | true |
 | start | config, or profile name | Current state |
@@ -136,7 +159,9 @@ the helper available.
 
 EOF also stops the session. Simultaneous sessions are rejected. Configuration
 validation occurs before acquiring resources. The controller refuses restart
-following an unsafe shutdown timeout.
+following an unsafe shutdown timeout. Status then includes `restart_required:
+true`; late cleanup cannot clear the terminal error. Quit/reopen the app or
+replace the helper process before another session.
 
 ## Verification limits
 
@@ -147,7 +172,8 @@ These checks do not establish Camera permission inheritance, physical camera
 capture, conferencing reception or power behavior. Items 2 and 6 remain deferred.
 Controls scroll within a bounded panel; Start/Stop and Quit remain outside the
 scrolling settings. A disconnected helper exposes Reconnect after its old process
-has exited. The same controls can open in a standalone window:
+has exited. The footer shows both app build identity and the connected backend
+package version. The same controls can open in a standalone window:
 
 ```sh
 open -n "$HOME/Applications/Webcam Mods.app" --args --show-controls
