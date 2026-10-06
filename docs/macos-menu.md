@@ -36,6 +36,9 @@ controls; advanced CLI tracking options remain available through `track-face`.
 Brightness adds HSV value, 0..255. Advanced settings expose capture size/FPS,
 processing FPS, backend choices, repeat delivery and optional mask smoothing.
 Requested capture size/FPS must be supported together by the selected camera.
+Native capture prefers an exact FPS match and accepts supported rates within 1%
+of the request, including 29.97/30. It reports the negotiated input FPS; repeat
+delivery retains the independently requested output cadence.
 Output inherits capture dimensions/FPS by default; disable "Use capture settings for output" in
 Advanced to set independent delivery dimensions and cadence. Repeat mode maintains
 output cadence using the latest processed frame.

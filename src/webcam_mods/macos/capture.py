@@ -13,6 +13,7 @@ from webcam_mods.input.input import AdapterMetadata, FrameInput
 from webcam_mods.macos.availability import camera_unavailable_reason, lid_closed
 
 _delegate_class: Any = None
+CAPTURE_FPS_TOLERANCE = 0.01
 
 
 def is_obs_output_device(device: Any) -> bool:
@@ -64,18 +65,20 @@ def select_capture_device_by_id(
 def select_capture_format(
     device: Any, core_media: Any, width: int, height: int, fps: float, index: int
 ) -> Any:
-    """Require an exact format; never silently switch to another input device."""
+    """Keep dimensions exact; prefer exact FPS, then nearby native rates."""
     available: set[tuple[int, int, float, float]] = set()
     selected = None
+    best_difference = float("inf")
     for fmt, w, h, minimum, maximum in _format_ranges(device, core_media):
         available.add((w, h, minimum, maximum))
+        difference = abs(min(max(fps, minimum), maximum) - fps) / fps
         if (
-            selected is None
-            and (w, h) == (width, height)
-            and (minimum <= fps or np.isclose(minimum, fps, rtol=1e-5, atol=0))
-            and (fps <= maximum or np.isclose(maximum, fps, rtol=1e-5, atol=0))
+            (w, h) == (width, height)
+            and difference <= CAPTURE_FPS_TOLERANCE
+            and difference < best_difference
         ):
             selected = fmt
+            best_difference = difference
     if selected is not None:
         return selected
     choices = (
@@ -90,6 +93,21 @@ def select_capture_format(
         "Choose another camera with --input-device or VIDEO_IN; "
         "AVFoundation device indices may differ from OpenCV. Run list-cameras to inspect inputs."
     )
+
+
+def capture_frame_duration(fmt: Any, core_media: Any, fps: float) -> Any:
+    """Clamp nearby requests to a supported range using native boundary times."""
+    rate = min(
+        fmt.videoSupportedFrameRateRanges(),
+        key=lambda rate: abs(
+            min(max(fps, rate.minFrameRate()), rate.maxFrameRate()) - fps
+        ),
+    )
+    if fps < rate.minFrameRate():
+        return rate.maxFrameDuration()
+    if fps > rate.maxFrameRate():
+        return rate.minFrameDuration()
+    return core_media.CMTimeMake(1000, round(fps * 1000))
 
 
 @dataclass(frozen=True)
@@ -368,18 +386,7 @@ class AVFoundationCamera(FrameInput):
                 # macOS may override the format at commit/start unless this lock is retained
                 self._locked_device = device
                 device.setActiveFormat_(selected_format)
-                duration = cm.CMTimeMake(1000, round(self.fps * 1000))
-                for rate in selected_format.videoSupportedFrameRateRanges():
-                    if self.fps < rate.minFrameRate() and np.isclose(
-                        self.fps, rate.minFrameRate(), rtol=1e-5, atol=0
-                    ):
-                        duration = rate.maxFrameDuration()
-                        break
-                    if self.fps > rate.maxFrameRate() and np.isclose(
-                        self.fps, rate.maxFrameRate(), rtol=1e-5, atol=0
-                    ):
-                        duration = rate.minFrameDuration()
-                        break
+                duration = capture_frame_duration(selected_format, cm, self.fps)
                 device.setActiveVideoMinFrameDuration_(duration)
                 device.setActiveVideoMaxFrameDuration_(duration)
             finally:
@@ -428,7 +435,9 @@ class AVFoundationCamera(FrameInput):
                     )
             duration = device.activeVideoMinFrameDuration()
             negotiated_fps = 1.0 / cm.CMTimeGetSeconds(duration)
-            if not np.isclose(negotiated_fps, self.fps, rtol=0.01, atol=0.1):
+            if not np.isclose(
+                negotiated_fps, self.fps, rtol=CAPTURE_FPS_TOLERANCE, atol=0
+            ):
                 raise RuntimeError(
                     f"AVFoundation returned {negotiated_fps:g} FPS; "
                     f"requested {self.fps:g} FPS"

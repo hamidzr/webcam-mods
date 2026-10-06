@@ -13,6 +13,7 @@ from webcam_mods.macos.capture import (
     select_capture_format,
     select_capture_device,
     select_capture_device_by_id,
+    capture_frame_duration,
 )
 
 
@@ -31,8 +32,22 @@ class CameraMailboxTest(unittest.TestCase):
             )
         )
         self.assertIs(select_capture_format(device, cm, 640, 480, 30, 0), fmt)
+        self.assertIs(select_capture_format(device, cm, 640, 480, 29.97, 0), fmt)
+        self.assertIs(capture_frame_duration(fmt, cm, 29.97), rate.maxFrameDuration())
+        rate.minFrameRate.return_value = rate.maxFrameRate.return_value = 29.97
+        self.assertIs(select_capture_format(device, cm, 640, 480, 30, 0), fmt)
+        self.assertIs(capture_frame_duration(fmt, cm, 30), rate.minFrameDuration())
         with self.assertRaises(ValueError):
-            select_capture_format(device, cm, 640, 480, 29.97, 0)
+            select_capture_format(device, cm, 640, 480, 15, 0)
+        exact = Mock()
+        exact_rate = Mock()
+        exact_rate.minFrameRate.return_value = exact_rate.maxFrameRate.return_value = 30
+        exact.videoSupportedFrameRateRanges.return_value = [exact_rate]
+        device.formats.return_value = [fmt, exact]
+        self.assertIs(select_capture_format(device, cm, 640, 480, 30, 0), exact)
+        cm.CMTimeMake = Mock(return_value="requested duration")
+        self.assertEqual(capture_frame_duration(exact, cm, 30), "requested duration")
+        cm.CMTimeMake.assert_called_once_with(1000, 30000)
 
     def test_selected_identity_survives_reordered_devices(self) -> None:
         first, second = Mock(), Mock()
@@ -299,17 +314,23 @@ class CameraMailboxTest(unittest.TestCase):
             other = Mock()
             other.uniqueID.return_value = "other"
             for i in range(2):
+                negotiated_fps = 30.0 if i == 0 else 29.97
+                device.activeVideoMinFrameDuration.return_value = cm.CMTimeMake(
+                    1000, round(negotiated_fps * 1000)
+                )
                 devices.devicesWithMediaType_.return_value = (
                     [device, obs, other] if i == 0 else [other, obs, device]
                 )
                 metadata = camera.setup()
-                self.assertEqual(metadata, {"width": 7, "height": 3, "fps": 30.0})
+                self.assertEqual((metadata["width"], metadata["height"]), (7, 3))
+                self.assertAlmostEqual(metadata["fps"], negotiated_fps)
                 self.assertTrue(camera.is_setup())
                 self.assertTrue(lock_state["held"])
                 self.assertEqual(camera.frame().shape, (3, 7, 3))
                 camera.teardown()
                 self.assertFalse(camera.is_setup())
                 self.assertFalse(lock_state["held"])
+            camera.fps = 30
             session.startRunning.side_effect = RuntimeError("native startup failure")
             with self.assertRaisesRegex(RuntimeError, "startup failed"):
                 camera.setup()
