@@ -70,3 +70,17 @@ e2e:
     {{ uv_run }} python tests/test_pipeline.py --artifacts dist/e2e
 
 verify: check test
+
+# build native menu against the installed Python snapshot (macOS only)
+menu-build:
+    macos/build-menu-app.sh
+
+# verify native transport/model behavior without opening a camera
+menu-check: menu-build
+    "dist/Webcam Mods.app/Contents/MacOS/WebcamMods" --self-test
+    plutil -lint "dist/Webcam Mods.app/Contents/Info.plist"
+    codesign --verify --strict "dist/Webcam Mods.app"
+
+# install the native shell alongside the user-level Python runtime
+menu-install: install
+    macos/build-menu-app.sh --output "$HOME/Applications/Webcam Mods.app"
