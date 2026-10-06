@@ -28,6 +28,10 @@ class Profile:
     repeat_frames: bool = True
     processing_fps: float = 30
     smoothing: bool = False
+    camera_id: str | None = None
+    output_width: int | None = None
+    output_height: int | None = None
+    output_fps: float | None = None
 
     def __post_init__(self) -> None:
         for key, lower, upper in (
@@ -41,10 +45,25 @@ class Profile:
             value = getattr(self, key)
             if type(value) is not int or not lower <= value <= upper:
                 raise ValueError(f"{key} must be an integer in {lower}..{upper}")
+        for key in ("output_width", "output_height"):
+            value = getattr(self, key)
+            if value is not None and (
+                type(value) is not int or not 16 <= value <= 8192
+            ):
+                raise ValueError(f"{key} must be an integer in 16..8192 or null")
+        if self.camera_id is not None and (
+            not isinstance(self.camera_id, str)
+            or not self.camera_id.strip()
+            or len(self.camera_id) > 4096
+            or any(ord(character) < 32 for character in self.camera_id)
+        ):
+            raise ValueError("camera_id must be a nonempty identity string or null")
         if self.blur_kernel % 2 == 0:
             raise ValueError("blur_kernel must be odd")
-        for key in ("fps", "processing_fps"):
+        for key in ("fps", "processing_fps", "output_fps"):
             value = getattr(self, key)
+            if key == "output_fps" and value is None:
+                continue
             if (
                 isinstance(value, bool)
                 or not isinstance(value, (int, float))

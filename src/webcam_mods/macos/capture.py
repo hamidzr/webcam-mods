@@ -93,6 +93,7 @@ class CameraInfo:
     name: str
     formats: tuple[str, ...]
     excluded_reason: str | None = None
+    device_id: str = ""
 
 
 def _format_ranges(
@@ -140,6 +141,7 @@ def camera_inventory(backend: str = "avfoundation") -> list[CameraInfo]:
             CameraInfo(
                 input_index=None if excluded else input_index,
                 name=str(device.localizedName()),
+                device_id=str(device.uniqueID()),
                 formats=tuple(
                     f"{w}x{h} at {low:g}-{high:g} fps" for w, h, low, high in formats
                 ),

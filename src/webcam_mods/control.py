@@ -7,6 +7,7 @@ import threading
 from typing import Any, Callable
 
 from webcam_mods.profiles import Profile, ProfileStore
+from webcam_mods.protocol import RequestFailure, read_requests
 from webcam_mods.input.input import FrameInput
 from webcam_mods.settings import StartupSettings
 
@@ -17,19 +18,24 @@ def run_profile(
     ready: Callable[[], None],
     source_ready: Callable[[FrameInput], None],
 ) -> None:
-    from webcam_mods.capture import create_camera
+    from webcam_mods.capture import camera_index_for_id, create_camera
     from webcam_mods.effects import ProfileEffect
     from webcam_mods.frame_producer import WorkerShutdownTimeout
     from webcam_mods.loopback import live_loop
 
+    input_device = (
+        camera_index_for_id(profile.camera_id, profile.capture)  # type: ignore[arg-type]
+        if profile.camera_id is not None
+        else profile.input_device
+    )
     settings = StartupSettings(
         in_width=profile.width,
         in_height=profile.height,
-        out_width=profile.width,
-        out_height=profile.height,
+        out_width=profile.output_width or profile.width,
+        out_height=profile.output_height or profile.height,
         in_fps=profile.fps,
-        max_out_fps=profile.fps,
-        video_in=profile.input_device,
+        max_out_fps=profile.output_fps or profile.fps,
+        video_in=input_device,
         repeat_frames=profile.repeat_frames,
         processing_fps=profile.processing_fps,
     )
@@ -37,7 +43,9 @@ def run_profile(
     transferred = False
     closed = False
     try:
-        source = create_camera(settings, profile.capture)  # type: ignore[arg-type]
+        source = create_camera(
+            settings, profile.capture, device_id=profile.camera_id  # type: ignore[arg-type]
+        )
         source_ready(source)
         if stop.is_set():
             return
@@ -192,7 +200,11 @@ class Controller:
             if capture not in ("auto", "opencv", "avfoundation"):
                 raise ValueError("invalid capture backend")
             return [
-                {"index": camera.input_index, "name": camera.name}
+                {
+                    "index": camera.input_index,
+                    "name": camera.name,
+                    "id": camera.device_id,
+                }
                 for camera in camera_inventory(capture)
                 if not camera.excluded_reason
             ]
@@ -236,27 +248,19 @@ def main() -> None:
 
     controller = Controller(ProfileStore(), emit)
     try:
-        for line in sys.stdin:
+        for request in read_requests(sys.stdin):
             if output_closed.is_set():
                 break
-            request: Any = None
+            if isinstance(request, RequestFailure):
+                emit({"id": request.id, "error": request.error})
+                continue
             try:
-                request = json.loads(line)
-                if not isinstance(request, dict) or "id" not in request:
-                    raise ValueError("request must be an object with id")
-                result = controller.dispatch(
-                    request.get("method"), request.get("params", {})
-                )
-                emit({"id": request["id"], "result": result})
-                if request.get("method") == "shutdown":
+                result = controller.dispatch(request.method, request.params)
+                emit({"id": request.id, "result": result})
+                if request.method == "shutdown":
                     break
             except Exception as error:
-                emit(
-                    {
-                        "id": request.get("id") if isinstance(request, dict) else None,
-                        "error": str(error),
-                    }
-                )
+                emit({"id": request.id, "error": str(error)})
     finally:
         controller.stop()
 

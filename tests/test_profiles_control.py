@@ -229,7 +229,9 @@ class ControlRegressionTests(unittest.TestCase):
             controller = Controller(
                 ProfileStore(Path(directory) / "p.db"), lambda _: None
             )
-            camera = Mock(input_index=3, excluded_reason=None)
+            camera = Mock(
+                input_index=3, excluded_reason=None, device_id="physical-input"
+            )
             camera.name = "Input"
             with (
                 patch("webcam_mods.control.sys.platform", "darwin"),
@@ -239,7 +241,7 @@ class ControlRegressionTests(unittest.TestCase):
             ):
                 self.assertEqual(
                     controller.dispatch("cameras.list", {"capture": "auto"}),
-                    [{"index": 3, "name": "Input"}],
+                    [{"index": 3, "name": "Input", "id": "physical-input"}],
                 )
                 inventory.assert_called_once_with("auto")
 
@@ -383,3 +385,178 @@ class ProfileEffectTests(unittest.TestCase):
                 background.close.assert_called_once()
                 if stage == "tracker":
                     detector.close.assert_called_once()
+
+
+class ProfileCaptureSettingsTests(unittest.TestCase):
+    def test_optional_settings_validate_without_coercion(self):
+        for key, values in {
+            "camera_id": ["", " ", 1, "bad\nidentity"],
+            "output_width": [True, 15, 8193, 640.0],
+            "output_height": [False, 0, "480"],
+            "output_fps": [True, 0, 241, float("nan"), "30"],
+        }.items():
+            for value in values:
+                with self.subTest(key=key, value=value), self.assertRaises(ValueError):
+                    Profile.parse({key: value})
+        self.assertEqual(Profile.parse({}), Profile())
+
+    def test_saved_camera_tracks_reordering_and_rejects_missing_or_excluded(self):
+        from webcam_mods.capture import camera_index_for_id
+        from webcam_mods.macos.capture import CameraInfo
+
+        wanted = CameraInfo(4, "Physical", (), device_id="physical")
+        other = CameraInfo(0, "Other", (), device_id="other")
+        excluded = CameraInfo(None, "OBS", (), "OBS output", "physical")
+        with patch("webcam_mods.capture.sys.platform", "darwin"):
+            for inventory, expected in (
+                ([other, wanted], 4),
+                ([CameraInfo(1, "Physical", (), device_id="physical"), other], 1),
+            ):
+                with patch(
+                    "webcam_mods.macos.capture.camera_inventory", return_value=inventory
+                ) as listing:
+                    self.assertEqual(
+                        camera_index_for_id("physical", "opencv"), expected
+                    )
+                    listing.assert_called_once_with("opencv")
+            for inventory, message in (
+                ([other], "no longer available"),
+                ([excluded], "OBS output"),
+                (
+                    [CameraInfo(2, "Physical", (), "lid closed", "physical")],
+                    "lid closed",
+                ),
+            ):
+                with patch(
+                    "webcam_mods.macos.capture.camera_inventory", return_value=inventory
+                ):
+                    with self.assertRaisesRegex(ValueError, message):
+                        camera_index_for_id("physical", "auto")
+
+    def test_profile_settings_separate_capture_and_output_and_keep_legacy_defaults(
+        self,
+    ):
+        from webcam_mods.control import run_profile
+
+        for profile, expected in (
+            (Profile(width=1280, height=720, fps=60), (1280, 720, 60)),
+            (
+                Profile(
+                    width=1280,
+                    height=720,
+                    fps=60,
+                    output_width=640,
+                    output_height=480,
+                    output_fps=30,
+                    camera_id="physical",
+                ),
+                (640, 480, 30),
+            ),
+        ):
+            with (
+                self.subTest(profile=profile),
+                patch(
+                    "webcam_mods.capture.camera_index_for_id", return_value=5
+                ) as resolve,
+                patch(
+                    "webcam_mods.capture.create_camera", return_value=Mock()
+                ) as camera,
+                patch(
+                    "webcam_mods.effects.ProfileEffect", return_value=Mock()
+                ) as effect,
+                patch("webcam_mods.loopback.live_loop") as loop,
+            ):
+                run_profile(
+                    profile, threading.Event(), lambda: None, lambda source: None
+                )
+                settings = camera.call_args.args[0]
+                self.assertEqual(
+                    camera.call_args.kwargs["device_id"], profile.camera_id
+                )
+                self.assertEqual(
+                    (settings.in_width, settings.in_height, settings.in_fps),
+                    (1280, 720, 60),
+                )
+                self.assertEqual(
+                    (settings.out_width, settings.out_height, settings.max_out_fps),
+                    expected,
+                )
+                self.assertIs(effect.call_args.args[1], settings)
+                self.assertIs(loop.call_args.kwargs["settings"], settings)
+                if profile.camera_id:
+                    resolve.assert_called_once_with("physical", "auto")
+                    self.assertEqual(settings.video_in, 5)
+                else:
+                    resolve.assert_not_called()
+                    self.assertEqual(settings.video_in, 0)
+
+    def test_optional_settings_sqlite_roundtrip_and_old_json_defaults(self):
+        import sqlite3
+
+        with tempfile.TemporaryDirectory() as directory:
+            store = ProfileStore(Path(directory) / "profiles.db")
+            store.save(
+                "new", {"camera_id": "physical", "output_width": 640, "output_fps": 15}
+            )
+            self.assertEqual(store.get("new").camera_id, "physical")
+            self.assertEqual(store.get("new").output_width, 640)
+            self.assertEqual(store.get("new").output_fps, 15)
+            from contextlib import closing
+
+            with closing(sqlite3.connect(store.path)) as db, db:
+                db.execute(
+                    "INSERT INTO profiles VALUES (?, ?)",
+                    ("old", '{"width":1280,"height":720}'),
+                )
+            self.assertIsNone(store.get("old").camera_id)
+            self.assertIsNone(store.get("old").output_width)
+
+
+class BoundedControlProtocolTests(unittest.TestCase):
+    def test_oversized_and_nonfinite_requests_recover_before_next_valid_request(self):
+        import json
+        import os
+        import subprocess
+        import sys
+
+        with tempfile.TemporaryDirectory() as directory:
+            result = subprocess.run(
+                [sys.executable, "-m", "webcam_mods.control"],
+                input="x" * 65537
+                + '\n{"id":2,"method":"status","params":{"fps":NaN}}\n{"id":3,"method":"hello"}\n{"id":4,"method":"status"}\n',
+                text=True,
+                capture_output=True,
+                env={**os.environ, "XDG_CONFIG_HOME": directory},
+                timeout=10,
+                check=True,
+            )
+            replies = [json.loads(line) for line in result.stdout.splitlines()]
+            self.assertEqual(len(replies), 4)
+            self.assertIn("64 KiB", replies[0]["error"])
+            self.assertIn("error", replies[1])
+            self.assertEqual(replies[2]["result"]["protocol"], 1)
+            self.assertEqual(replies[3]["result"], {"state": "idle"})
+
+
+class ProfileAcquisitionIdentityTests(unittest.TestCase):
+    def test_saved_identity_reaches_native_adapter_without_reenumerating_index(self):
+        from webcam_mods.capture import create_camera
+        from webcam_mods.settings import StartupSettings
+
+        for backend in ("auto", "avfoundation"):
+            with (
+                self.subTest(backend=backend),
+                patch(
+                    "webcam_mods.capture.resolve_backend", return_value="avfoundation"
+                ),
+                patch(
+                    "webcam_mods.capture.opencv_device_id", return_value="wrong-camera"
+                ) as mapping,
+                patch("webcam_mods.macos.capture.AVFoundationCamera") as native,
+            ):
+                create_camera(
+                    StartupSettings(video_in=4), backend, device_id="saved-camera"
+                )
+                mapping.assert_not_called()
+                self.assertEqual(native.call_args.kwargs["device_id"], "saved-camera")
+                self.assertEqual(native.call_args.kwargs["device_index"], 4)

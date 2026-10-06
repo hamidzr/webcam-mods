@@ -111,9 +111,9 @@ class CameraInventoryTest(unittest.TestCase):
         self.assertEqual(
             cameras,
             [
-                CameraInfo(0, "Muxed camera", ()),
-                CameraInfo(None, "OBS", (), "OBS output"),
-                CameraInfo(2, "USB camera", ()),
+                CameraInfo(0, "Muxed camera", (), device_id="a"),
+                CameraInfo(None, "OBS", (), "OBS output", "b"),
+                CameraInfo(2, "USB camera", (), device_id="c"),
             ],
         )
         self.assertEqual(
@@ -133,6 +133,7 @@ class CameraInventoryTest(unittest.TestCase):
         physical.manufacturer.return_value = "Camera Vendor"
         physical.modelID.return_value = "USB Camera"
         physical.localizedName.return_value = "Physical Camera"
+        physical.uniqueID.return_value = "physical"
         physical.formats.return_value = [fmt]
         obs = Mock()
         obs.manufacturer.return_value = "OBS Project"
@@ -155,7 +156,15 @@ class CameraInventoryTest(unittest.TestCase):
                 cameras = camera_inventory()
             eligible = [camera for camera in cameras if camera.input_index is not None]
             self.assertEqual(
-                eligible, [CameraInfo(0, "Physical Camera", ("640x480 at 15-30 fps",))]
+                eligible,
+                [
+                    CameraInfo(
+                        0,
+                        "Physical Camera",
+                        ("640x480 at 15-30 fps",),
+                        device_id="physical",
+                    )
+                ],
             )
             self.assertIs(
                 select_capture_device(devices, eligible[0].input_index)[1], physical
@@ -176,7 +185,7 @@ class CameraInventoryTest(unittest.TestCase):
                 "webcam_mods.macos.capture.camera_inventory",
                 return_value=[
                     CameraInfo(0, "Physical Camera", ("640x480 at 30-30 fps",)),
-                    CameraInfo(None, "OBS", (), "OBS output"),
+                    CameraInfo(None, "OBS", (), "OBS output", "b"),
                 ],
             ),
         ):

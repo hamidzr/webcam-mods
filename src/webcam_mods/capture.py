@@ -70,7 +70,10 @@ def opencv_device_id(index: int) -> str:
 
 
 def create_camera(
-    settings: StartupSettings, backend: CaptureBackend = "auto"
+    settings: StartupSettings,
+    backend: CaptureBackend = "auto",
+    *,
+    device_id: str | None = None,
 ) -> FrameInput:
     """Construct one selected backend; acquisition failures propagate unchanged."""
     resolved = resolve_backend(backend)
@@ -89,10 +92,14 @@ def create_camera(
         return Webcam(settings=settings)
     from webcam_mods.macos.capture import AVFoundationCamera
 
-    if backend == "auto":
+    if device_id is not None or backend == "auto":
         return AVFoundationCamera(
             device_index=settings.video_in,
-            device_id=opencv_device_id(settings.video_in),
+            device_id=(
+                device_id
+                if device_id is not None
+                else opencv_device_id(settings.video_in)
+            ),
             width=settings.in_width,
             height=settings.in_height,
             fps=settings.in_fps,
@@ -105,3 +112,20 @@ def create_camera(
         fps=settings.in_fps,
         device=settings.video_out,
     )
+
+
+def camera_index_for_id(device_id: str, backend: CaptureBackend = "auto") -> int:
+    """Resolve a saved physical identity using the chosen backend's current indices."""
+    if sys.platform != "darwin":
+        raise ValueError("saved camera identities require macOS; select a camera index")
+    from webcam_mods.macos.capture import camera_inventory
+
+    for camera in camera_inventory(backend):
+        if camera.device_id == device_id:
+            if camera.excluded_reason or camera.input_index is None:
+                raise ValueError(
+                    f"saved camera ({camera.name}) unavailable: "
+                    f"{camera.excluded_reason or 'not an input camera'}"
+                )
+            return camera.input_index
+    raise ValueError("saved camera is no longer available; select another camera")
