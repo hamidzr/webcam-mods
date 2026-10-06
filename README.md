@@ -1,428 +1,166 @@
 # Webcam Mods
 
-Tested on Arch Linux.
+Face tracking, background blur/replacement, crop, brightness and bounded replay
+for a virtual camera. Python 3.14 processing runs on macOS and Linux. macOS also
+has an optional native menu bar app. Windows adapters exist but current Windows
+installation and hardware behavior are unverified.
 
-Developer documentation: [current architecture, state, and improvement plan](docs/README.md).
+## Install
 
-
-Checkout my other repository for some ffmpeg-only solutions [here](https://github.com/hamidzr/scripts/tree/master/ffmpeg)
-
-Find installation and a work-in-progress demos here:
- - Latest demo [https://youtu.be/FfD7lu_A1Dw](https://youtu.be/FfD7lu_A1Dw) (recorded on commit `8f08bc68` on Jan 2022). It showcases some of the main features.
- - Archived demo [https://youtu.be/idp7ei-pF40](https://youtu.be/idp7ei-pF40) (recorded using version [cf765](https://github.com/hamidzr/webcam-mods/commit/cf7651fe08caea024e4cc9f33540fa4bd2a2eb82))
-
-## Included Mods
-
-### Face Tracking
-
-Setup your webcam to focus and follow your face by cropping and resizing the frames it receives from
-your main webcam.
-
-Run `webcam_mods track-face`. Tracking selects the largest face initially, then
-follows the nearest compatible face rather than switching when detection order
-changes. This is geometric continuity, not identity recognition; crossing or
-occluded faces can still confuse selection.
-
-Default framing targets face height at 40% of output, horizontal center, and
-vertical position at 42% of output height. Crops match output aspect ratio and
-stay inside the camera image. Zoom is limited to 2x relative to the widest crop
-that fits that aspect ratio. With different input/output aspect ratios, even the
-widest fitted view crops part of the source. Face size and centering yield to
-source boundaries and zoom limits, so distant faces stay smaller and very close
-faces stay larger. Digital zoom cannot recover detail missing from the source.
-
-Tune framing at startup:
-
-```sh
-webcam_mods track-face --face-height 0.35 --max-zoom 1.5 --target-y 0.4
-```
-
-- `--face-height`: target fraction of output height (default 0.4).
-- `--max-zoom`: maximum digital zoom, minimum 1 (default 2).
-- `--target-x`, `--target-y`: face-center position from 0 to 1 (defaults 0.5, 0.42).
-- `--pan-deadzone`: tolerated drift per axis as fraction of crop size (default 0.08).
-- `--zoom-deadzone`: ignored relative crop-size change (default 0.08).
-- `--pan-seconds`, `--zoom-seconds`: exponential response time constants
-  (defaults 0.25, 0.6). Lower values respond faster; one time constant covers
-  about 63% of the remaining change. Both distance directions use the same zoom
-  response, independently of lateral movement and actual processing FPS.
-- `--lost-after`: seconds to hold the previous target before gradually widening
-  and allowing selection of another face (default 1). Before the first face,
-  output uses the widest fitted view.
-
-Legacy `--x-padding` / `--y-padding` specify minimum crop-to-face width/height
-ratios. Supplying either replaces `--face-height` framing, with the omitted ratio
-using its old default (2 or 2.5). Output aspect ratio and zoom limits still apply.
-Tracking uses these startup controls; interactive crop/padding and recording
-controls belong to `crop-cam` and other modes, and are disabled in `track-face`.
-
-### Person Segmentation
-
-Separate the people in the frame from the background using a fast real-time prediction model. The model
-outputs a mask values between 0 to 1.
-We have mods based on this to swap the background with:
-
-- a solid color
-- another image
-- blurred version of the input frame (aka blur my background)
-
-### Cropping
-
-Interactively move your camera around with arrow keys `ctrl+arrowkeys`
-Resize the cropped frame using `ctrl+shift+arrowkeys`
-You can disable this control by defining the environment variable `PAN_CONTROL=False`.
-
-### Padding
-
-Interactively pad your camera output with arrow keys `alt+arrowkeys` while keeping the output
-framesize fixed.
-You can disable this control by defining the environment variable `PADDING_CONTROL=False`.
-
-#### Record & Replay
-
-Record and replay your camera feed on the fly. While you're in any of the other modes above
-enter `record` on stdin to start recording, `stop` to stop, and `replay` to loop
-the recording. Empty replay is rejected. Recording stops at a 256 MiB memory limit
-by default; configure it with `--recording-limit-mb`. Enter `reset` to reset crop
-and padding. Use `--no-controls` to disable keyboard and stdin controls.
-
-_For entertainment purposes only_
-
-## Installation
-
-### Dependencies
-
-System dependencies:
-
-- [uv](https://docs.astral.sh/uv/) and [just](https://just.systems/) (uv provisions Python 3.14)
-- [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
-- A virtual camera device: [Linux] v4l2loopback [Windows or MacOS] [OBS](https://obsproject.com/).
-Follow [pyvirtualcam's instructions](https://github.com/letmaik/pyvirtualcam#supported-virtual-cameras) to set this up.
-
-### macOS virtual camera setup
-
-Install OBS 30 or newer. Open OBS once and select **Start Virtual Camera**.
-If OBS says the virtual camera is not installed, enable its camera extension in
-**System Settings > General > Login Items & Extensions > Camera Extensions**,
-then restart OBS and try again. Select **Stop Virtual Camera** and close OBS.
-After this one-time setup, `webcam_mods` sends
-frames directly to the OBS Virtual Camera; OBS does not need to stay open.
-
-On macOS 13 or newer, use OBS 30 or newer. This project installs
-`pyvirtualcam` 0.15 or newer.
-The OBS device remains installed when `webcam_mods` stops; start and stop
-`webcam_mods` to control the video feed.
-
-
-Install a user-level CLI snapshot, matching Mao's wheel-based install process:
+Requires [uv](https://docs.astral.sh/uv/) and [just](https://just.systems/).
+Run from this checkout:
 
 ```sh
 just install
 webcam_mods --help
 ```
 
-The installed command works outside the checkout. Rerun `just install` after
-source changes. Platform extras and the patched macOS ARM64 MediaPipe wheel are
-included automatically. See [installation details](docs/installation.md) for
-PATH setup, overrides, and uninstalling.
+Installation builds a wheel snapshot and includes platform extras. The command
+works outside the checkout; rerun `just install` after source changes. See
+[installation details](docs/installation.md) for PATH and development setup.
 
-For development, install dependencies from the locked project environment:
+On macOS, install OBS 30 or newer, open it once, and start its Virtual Camera to
+install/enable the camera extension. If necessary enable it under System Settings
+> General > Login Items & Extensions > Camera Extensions. Stop Virtual Camera and
+close OBS. Webcam Mods then sends directly to OBS Virtual Camera. Select that
+camera in the receiving app. No custom camera extension or paid Apple membership
+is required. Preview output requires no OBS installation.
+
+Linux requires v4l2loopback. Configure the module outside the application, for
+example `sudo modprobe v4l2loopback devices=1 exclusive_caps=1 video_nr=10
+card_label="v4l2-cam"`. Existing device use may prevent module changes; the app
+does not unload modules or terminate other video processes.
+
+## Use
+
+```sh
+webcam_mods bg-blur --brighten 20
+webcam_mods track-face --blur
+webcam_mods bg-swap /path/to/background.jpg
+webcam_mods crop-cam --output preview
+webcam_mods list-cameras --capture-backend avfoundation
+```
+
+Common options work before or after commands; command-side values override root
+values. Use `webcam_mods COMMAND --help` for the complete option set.
+`--no-controls` disables keyboard and stdin controls. Camera capture needs Camera
+permission for the launching application. macOS terminal runs offer a numbered
+camera picker unless an explicit index or `VIDEO_IN` is set; noninteractive runs
+never prompt. OBS output, closed-lid built-in cameras and unavailable inputs are
+excluded. Indices belong to the chosen backend.
+
+Capture defaults to `auto`: AVFoundation on macOS with installed bindings,
+otherwise OpenCV. Auto retains OpenCV indices and maps the selected identity into
+native capture; explicit `avfoundation` uses its filtered native indices. Startup
+errors never silently switch cameras or backends. Requested resolution/FPS must
+be supported together by the camera.
+
+`--output preview` opens a bare window containing the final output frame; close
+it or press Escape to stop. `--output virtual-cam` is default. `gui` remains a
+legacy preview alias. [Quality settings](docs/quality-settings.md) describe
+independent capture/output dimensions and FPS. [Repeat mode](docs/frame-delivery.md)
+keeps delivery cadence independent of processing by repeating the latest frame:
+
+```sh
+webcam_mods bg-blur --repeat-frames --processing-fps 15 --output-fps 30
+```
+
+## macOS menu and profiles
+
+See [native menu guide](docs/macos-menu.md) for building/installing the optional
+SwiftUI app, saved profiles and local session control. Explicit Start/Stop owns
+one Python worker session. Existing CLI commands remain available.
+
+## Effects and controls
+
+Background modes use MediaPipe by default; optional `--segmentation-backend vision`
+and `--processing-backend coreimage` select native macOS implementations. OpenCV
+blur is box blur; Core Image blur is Gaussian. These are behavioral choices,
+not a demonstrated general performance advantage. `--mask-smoothing` enables
+motion-aware segmentation smoothing; it remains opt-in.
+
+Face tracking follows the nearest compatible face after initially choosing the
+largest. This is geometric continuity, not identity recognition. Defaults target
+40% face height, horizontal center, vertical position 42%, and at most 2x digital
+zoom within source bounds. Output aspect ratio is preserved. Tuning:
+
+```sh
+webcam_mods track-face --face-height 0.35 --max-zoom 1.5 --target-y 0.4
+```
+
+`--pan-deadzone` and `--zoom-deadzone` suppress small movements;
+`--pan-seconds` and `--zoom-seconds` set independent response time constants.
+`--lost-after` holds framing before widening/reselection. Legacy `--x-padding`
+/ `--y-padding` replace face-height framing with minimum crop-to-face ratios.
+Tracking disables interactive crop/replay controls.
+
+For prepared camera modes, Ctrl+arrows move crop, Ctrl+Shift+arrows resize it,
+and Alt+arrows adjust padding. Stdin accepts `record`, `stop`, `replay` and `reset`.
+Empty replay is rejected. Recording defaults to a 256 MiB memory cap, adjustable
+with `--recording-limit-mb`. Crop/padding persists atomically in
+`~/.webcam-mods.conf`; saved launch profiles are separate.
+
+## Screen sharing
+
+```sh
+webcam_mods share-screen --width 1280 --height 720 --output preview --no-controls
+webcam_mods share-screen --select area --output virtual-cam --no-controls
+```
+
+Explicit coordinates use `--left`, `--top`, `--width`, `--height`; negative
+coordinates support other displays. macOS `--select area|screen|visible` requires
+`select-region` on PATH (installed separately from `~/scripts/compat`). Selection
+cannot combine with coordinates. Area selection fits output aspect ratio; a
+click-through border follows later crop changes. `--no-border` hides it.
+Screen runs use fresh crop state, MSS capture and the same output/control path.
+Grant Screen Recording permission to the launching application.
+
+## Configuration and models
+
+CLI startup settings resolve once: CLI > environment > defaults. Invalid values
+fail before devices open; help remains available. [env.example](env.example)
+lists supported names. Booleans accept true/false or 1/0. Input/output default to
+640x480/30. Native capture ignores OpenCV's `IN_FORMAT` FOURCC.
+
+MediaPipe uses checksum-verified models under `~/.cache/webcam-mods/models`,
+honoring `XDG_CACHE_HOME`. `just models` downloads them ahead of use. macOS ARM64
+uses the bundled Metal-enabled wheel; [vendor provenance](vendor/mediapipe/README.md)
+describes rebuilding it. Other platforms use the official release.
+
+On macOS ARM64, CPU and Metal are compared on first use of each model/frame shape.
+Three warmed comparisons include input conversion and result readback; GPU must
+be over 5% faster in every round. Probe failures use CPU. Successful decisions
+persist with hardware/software identity and expiry; warm launches skip probes.
+Cold calibration still takes several seconds. Other platforms use CPU.
+
+## Develop and verify
 
 ```sh
 just deps
-just models
 just run --help
-```
-
-Run `just check` for static checks and `just test` for headless regression tests.
-
-macOS native capture and optional native effects keep OBS output:
-
-```sh
-uv sync --extra macos
-uv run --extra macos webcam_mods list-cameras --capture-backend avfoundation
-uv run --extra macos webcam_mods --no-controls --capture-backend avfoundation --segmentation-backend vision --vision-quality fast bg-blur
+just check
+just test
+just e2e
 just verify
 ```
 
-With `--capture-backend avfoundation`, `list-cameras` shows native input indices, formats and excluded OBS output without
-opening a camera or requesting permission. Use its index with `--input-device`.
+`check` runs Flake8, Black and strict mypy; `test` runs headless regression tests.
+E2E uses real models and deterministic image input through the production loop,
+writing PNG output and metrics under `dist/e2e`. It needs no camera, OBS or display.
+Native app checks are documented in the [menu guide](docs/macos-menu.md).
 
-Run from macOS Terminal and allow Camera access when prompted. Common options
-work before or after commands; command-side values override root values.
-`--processing-backend coreimage` selects Gaussian background
-blur/compositing; portable OpenCV box blur remains default. Native options are
-experimental and do not guarantee better performance or segmentation quality.
-See [backend report](docs/macos-backends.md) for measured results and limitations.
-Camera capture defaults to `auto`: native AVFoundation on macOS when the optional
-bindings are installed, otherwise OpenCV. Auto retains OpenCV camera-index
-semantics and maps the selected camera by identity; explicit `avfoundation`
-uses native indices. Native capture selects an exact resolution/FPS and holds
-its configuration lock. Acquisition errors never silently switch cameras or
-backends. Use `--capture-backend opencv` to force the portable capture path.
-No own camera extension or paid Apple membership is required.
+These checks establish processing and lifecycle behavior. They do not establish
+conferencing reception, 720p effects/output, realistic moving-person quality or
+power consumption. Those checks are deferred. Historical benchmarks retain exact
+workload context in [macOS backends](docs/macos-backends.md).
 
-Preview the exact final webcam frame in a bare window:
-
-```sh
-uv run webcam_mods --no-controls --output preview bg-blur
-# native capture and Vision, with the same preview output
-uv run --extra macos webcam_mods --no-controls --output preview --capture-backend avfoundation --segmentation-backend vision --vision-quality fast bg-blur
-```
-
-Close the window or press Escape to stop. Preview uses configured output dimensions
-and the output FPS cap, including negotiated input FPS. `--output virtual-cam`
-remains the default. Preview sends frames only to the window and requires no OBS
-setup; webcam input still needs Camera permission. The output option applies to
-camera and screen-sharing commands. Root help groups frequent options;
-`webcam_mods <command> --help` shows all common and command-specific options.
-
-On macOS, camera commands show a numbered camera picker when stdin and stdout
-are terminals and neither `--input-device` nor `VIDEO_IN` is set. Press Enter
-for the suggested camera, or Ctrl-C to cancel. A single input camera is selected
-automatically. OBS output is excluded; indices match the selected capture backend.
-Closed-lid built-in cameras and suspended/disconnected inputs are excluded with a
-warning. External cameras remain selectable, and input indices do not shift when
-the lid closes. Explicit `--input-device` or `VIDEO_IN` selections of an unavailable
-camera fail before effects or capture start. Lid state is checked at startup;
-missing lid information does not by itself exclude a camera.
-Use `--input-device N` (before or after the command) or `VIDEO_IN=N` to skip
-the picker. Non-interactive launches, help, and screen sharing never prompt. The picker
-requires the macOS extras included by `just install`; other platforms keep the
-configured camera index.
-
-Share a screen region through the same preview or virtual-camera output:
-
-```sh
-# macOS interactive selection (requires select-region on PATH)
-uv run webcam_mods share-screen --select area --output preview --no-controls
-uv run webcam_mods share-screen --select screen --output virtual-cam --no-controls
-uv run webcam_mods share-screen --width 1280 --height 720 --output preview --no-controls
-uv run webcam_mods share-screen --left 0 --top 0 --width 1280 --height 720 --output virtual-cam
-```
-
-`--select area|screen|visible` opens the macOS `select-region` picker for a
-rectangle, full display, or display excluding menu bar/dock. Install the helper
-with `just install` in `~/scripts/compat`; explicit coordinates need no
-helper. Selection uses global screen points, including negative coordinates on
-secondary displays. Cancellation or picker failure exits before capture/output
-opens. `--select` cannot be combined with `--left`, `--top`, `--width` or
-`--height`. Area selection locks aspect ratio to output width/height. The live picker shows
-instructions and highlights the exact fitted region; double-clicking a window
-selects its centered fitted rectangle, without following it. Screen/visible
-selection keeps the whole display region, with output padding if needed.
-A click-through dashed border stays outside the shared region and follows later
-crop/pan controls. Use `--no-border` to hide it, or `--border` with explicit
-coordinates to enable it. The border closes with the run, including failures.
-Screen runs start with fresh crop settings rather than saved webcam crops.
-No picker opens unless `--select` is passed. Reinstall `select-region` for the new
-sharing flags; existing recording/screenshot behavior is unchanged.
-
-`--width`/`--height` set the capture region, defaulting to input dimensions.
-`--input-fps` sets requested screen cadence (30 by default); `--output-width`,
-`--output-height` and `--output-fps` independently set final output size and cap.
-Negative `--left`/`--top` support monitors above or left of the primary display.
-Screen sharing supports the same crop/padding, record/replay, `--no-controls`
-and `--freeze-on-error` behavior. `--output gui` remains a preview alias.
-Camera backend selection applies only to cameras; screen capture uses MSS.
-On macOS, grant Screen Recording permission to the application launching Python.
-
-Run modes with `uv run webcam_mods <command>`. For example,
-`uv run webcam_mods crop-cam`. On Linux, install the video device dependencies
-with `uv sync --extra linux --python 3.14`.
-
-Face tracking and background effects use MediaPipe Tasks 1.0.1. On macOS ARM64,
-`uv sync` installs our Metal-enabled source snapshot `1.0.1+git32d0e5b.metal`, which fixes
-[upstream issue #6356](https://github.com/google-ai-edge/mediapipe/issues/6356).
-The wheel and its native dependencies are included in this repository; see
-[build provenance and rebuild instructions](vendor/mediapipe/README.md).
-Use `just install` or the `uv` project installation on macOS: standalone `pip` installs do not
-apply this dependency override. Other platforms use the official release.
-On macOS ARM64, each MediaPipe model automatically compares CPU and Metal
-on its first input frame at each resolution. Three isolated, warmed comparisons
-include input conversion and result readback; GPU must be over 5% faster
-in every comparison. Probe failures use CPU. Selection adds several seconds
-at first use, is cached for the process, and is logged; no CLI selection is needed.
-Both delegates use RGBA input. Other platforms use CPU.
-The two MediaPipe models are downloaded once into `~/.cache/webcam-mods/models`
-and verified with SHA-256; later runs use the cached copies.
-
-## Repeatable end-to-end checks
-
-```sh
-just e2e     # headless pipeline with saved output
-just verify  # static checks + full test suite (includes E2E)
-```
-
-`just e2e` writes deterministic PNG inputs, runs them through the production
-`live_loop` and real MediaPipe effects, writes lossless PNG output, and
-reopens it to assert frame count, dimensions, ordering, crop/brightness,
-background blur/color/replacement, positive and negative face detection,
-foreground preservation, error/freeze behavior, and cleanup on failures.
-Eight frames per scenario keep repeat runs cheap. Models download on first
-use; cached models and the bundled person fixture allow offline repeat runs.
-No webcam, OBS, display, keyboard hooks, or external API is needed.
-
-Outputs live under `dist/e2e/<test>/`: input PNGs, output PNGs,
-`preview.png` (input left, output right), and `metrics.json`.
-`dist/e2e/report.json` records overall success and elapsed time. A failed
-assertion exits nonzero. `just test` uses temporary output directories.
-Timings include disk I/O and model startup, not live-camera FPS.
-
-These checks cover the processing loop and effects. They do not validate CLI
-option wiring, keyboard controls, record/replay, hardware capture, OBS delivery,
-or a conferencing app. For the hardware check, run
-`uv run webcam_mods bg-blur --brighten 20`, select OBS Virtual Camera in the
-receiving app, and confirm moving video, blur, brightness, and clean shutdown.
-
-## Setting up a virtual webcam device on Linux
-
-On Linux once you have the v4l2 module installed you can run `sudo make add-video-dev` to add a virtual
-camera device with some pre-set flags.
-
-Which executes the following to remove and re-insert the module.
-You might need root access for this.
-
-```
-pkill gst-launch &> /dev/null || true
-rmmod v4l2loopback &> /dev/null || true
-modprobe v4l2loopback devices=1 max_buffers=2 exclusive_caps=1 video_nr=10 card_label="v4l2-cam"
-```
-
-
-
-## Upgrading
-
-If you run into an issue upgrading try removing the old config file at `.webcam.conf`
-
-## Running the Mods
-
-After you've successfully followed installation steps, you can run the different modes by
-calling `uv run webcam_mods --help` from the project directory.
-
-## Settings
-
-When you use the interactive controls to move the camera around the resulting parameters are saved in
-a text file to your disk which is by default located at `$HOME/.webcam-mods.conf`
-
-### Environment Variables
-
-Environment variables are used to configure different parameters. Read more about how to set or
-persist them [here](https://lmgtfy.app/?q=how+to+set+environment+variables+in+linux)
-Startup settings resolve once at command execution: CLI options override environment variables,
-then defaults from `settings.py`. Invalid values fail before devices open; `--help` remains available.
-Capture and delivery resolution/FPS are independent. See
-[quality settings](docs/quality-settings.md) for launch examples, negotiation
-checks and frame-rate limits.
-Use `--input-device`, `--input-width`, `--input-height`, `--input-fps`, `--input-format`,
-`--output-width`, `--output-height`, `--output-fps`, `--output-device`,
-`--on-demand/--no-on-demand`, `--pan-control/--no-pan-control`, and
-`--padding-control/--no-padding-control` before the camera command.
-Booleans accept true/false (case-insensitive) or 1/0. Crop/padding persistence remains separate.
-
-- `VIDEO_IN` & `VIDEO_OUT`:
-If you have multiple video input devices, aka webcams, you can pick the one you want by providing its
-index through by setting the `VIDEO_IN` environment variable. eg `export VIDEO_IN=0`. Same if you have
-multiple output devices.
-
-- `MAX_OUT_FPS`: [Default: 30] set an upper limit for output FPS.
-
-- `IN_WIDTH` [Default: 640], `IN_HEIGHT` [Default: 480]: Your video input device likely support
-multiple resolution and FPS settings use these env variables to pick and persist the one you want.
-`v4l2-ctl` can list out the different settings your webcam driver supports: `v4l2-ctl --list-formats-ext | less`
-
-- `OUT_WIDTH` [Default: 640], `OUT_HEIGHT` [Default: 480]: similar to `IN_HEIGHT` and `OUT_HEIGHT`
-but for your output device.
-
-- `ON_DEMAND` [Default: False, Linux only]: set to True to lower cpu usage while the output camera device isn't actively
-used.
-
-- `IN_FORMAT`: input video format. This dictates the requested video format from the input video device (webcam)
-which directly affects picture quality and FPS. If you're looking to get higher a resolution or FPS
-out of your webcam it's crucial to inspect your camera and driver capabilities and set the appropriate format here.
-
-- `PAN_CONTROL` [Default True]: Set to False to disable panning/resizing with `ctrl+arrowkeys/ctrl+shift+arrowkeys`.
-
-- `PADDING_CONTROL` [Default True]: Set to False to disable padding with `alt+arrowkeys`.
-
-
-
-## TODO
-
-house cleaning:
-- clean and reorganize the code
-- set up a code formatter
-- set up a language server for development with Vim and VSCode
-- replace the facetracking model with mediapipe
-- move the config file to `$XDG_CONFIG_HOME`
-
-features:
-- [x] more stable edges for person segmentation
-- [ ] support other video feed formats from webcam eg mjpeg, h264 for higher resolution
-- including headphones in the mask 
-- visualize interactive camera control settings
-- [x] zoom support. done through resizing.
-  - the controls could be more intuitive
-- [x] MacOS support
-  - disable ionotify. quartz install
-- [x] Windows support? should be there with `pyvirtualcam`
-- [ ] hot swap inputs
-- [x] add screen as an input
-- [x] convert/migrate env variables to cli arguments
-- [ ] brightness control. (and hue, saturation?)
-- [~] smooth bounding box tracking (for facetracking and more)
-  - camera/crop size change transition
-- [ ] overlay on top of video
-
-bugs:
-- bug what?
-
-a demo video showcasing the features
-
-## Contact
-
-Are you interested in helping improve this tool (hint: look at the TODO section)?
-Are you looking for a specific feature, or have you found a bug?
-Use [GitHub Issues](https://github.com/hamidzr/webcam-mods/issues/new) to reach out to me.
-
+[Developer documentation](docs/README.md) contains architecture, current state and
+the [backlog](TODO.md). Report bugs through [GitHub Issues](https://github.com/hamidzr/webcam-mods/issues/new).
+Historical demos: [January 2022](https://youtu.be/FfD7lu_A1Dw),
+[earlier demo](https://youtu.be/idp7ei-pF40); they are not current acceptance evidence.
 
 ## Credits
 
-- [Google/mediapipe](https://github.com/google/mediapipe) for their selfie segmentation model.
-- [fangfufu/Linux-Fake-Background-Webcam](https://github.com/fangfufu/Linux-Fake-Background-Webcam)
-For mask post processing and automatic ondemand pause and restart.
-- [letmaik/pyvirtualcam](https://github.com/letmaik/pyvirtualcam)
-
-### Live-camera benchmark
-
-From a camera-authorized Terminal:
-
-```sh
-uv run --extra macos python scripts/benchmark_live.py --frames 300 --warmup 30
-```
-
-Add `--mask-smoothing` to measure opt-in edge stabilization. Moving regions reset
-history locally so stationary edges stay smoothed. Compare otherwise identical
-runs with and without the flag; inspect moving hair/hands for trails.
-
-Defaults to AVFoundation, Vision fast and preview. Use `--output-backend virtual-cam`
-for OBS. Saves timing/cadence/memory metrics, with optional `--save-frame` for quality
-review. See [measurement details](docs/macos-backends.md#live-camera-measurements).
-
-Check repeated physical-camera and OBS producer startup/shutdown from a
-camera-authorized Terminal:
-
-```sh
-uv run --extra macos python scripts/benchmark_live.py --cycles 3 --frames 100 --warmup 10 --output-backend virtual-cam --report dist/benchmarks/lifecycle.json
-```
-
-Each cycle creates fresh capture, effect and output resources, delivers the full
-frame count, checks adapters are closed and closes effects before starting again.
-Multi-cycle JSON contains `status`, requested/completed counts and individual
-`runs`. Progress is saved after each cycle; failures or interruptions retain
-completed runs, identify the failed cycle and exit nonzero. Only `status: passed`
-means all cycles completed. Single-cycle success keeps the existing report shape.
-Metrics stay separate per cycle; peak RSS remains a process-lifetime measurement.
-Images are saved only with `--save-frame`; multiple cycles add `-cycle-N` to its
-filename. Select OBS Virtual Camera in a receiving app to check moving video
-through each restart; producer send completion alone does not establish reception.
+- [MediaPipe](https://github.com/google/mediapipe), face/person models.
+- [Linux-Fake-Background-Webcam](https://github.com/fangfufu/Linux-Fake-Background-Webcam), mask/on-demand inspiration.
+- [pyvirtualcam](https://github.com/letmaik/pyvirtualcam), virtual camera output.

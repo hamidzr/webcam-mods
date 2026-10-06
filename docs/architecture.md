@@ -1,8 +1,9 @@
 # Current architecture
 
-Webcam Mods is a synchronous Python BGR frame-processing application. Supported
-entrypoints are the Typer CLI `webcam_mods` and `python -m webcam_mods`. No HTTP
-server, daemon or cross-process runtime control API exists.
+Webcam Mods processes uint8 BGR frames in Python. Entrypoints are the Typer CLI
+`webcam_mods`, `python -m webcam_mods`, and the local JSONL helper
+`python -m webcam_mods.control`. An optional SwiftUI MenuBarExtra app owns the
+helper process and controls one session. No network listener is opened.
 
 ## Run and frame flow
 
@@ -15,7 +16,7 @@ effect. `live_loop` resizes/pads and sends to the output, which paces delivery. 
 output should_stop hook when its window closes.
 
 `track-face` instead owns its detector, previous prediction and crop tracker, and
-disables crop/replay controls. Optional segmentation follows face cropping. Face
+disables crop/replay controls. Optional segmentation follows face cropping and resize to fixed output dimensions. Face
 misses retain the last prediction. Segmentation mirrors once; ordinary crop and
 brightness do not. Each CLI run closes its owned models and native contexts.
 Legacy Python face/segmentation helper functions retain lazy compatibility
@@ -24,6 +25,10 @@ instances; new runs should instantiate the classes directly.
 ```mermaid
 flowchart TD
     CLI[Typer command] --> Run[Run-owned effects and session]
+    Menu[SwiftUI menu] --> Helper[Managed JSONL helper]
+    Helper --> Run
+    Profiles[Validated SQLite profiles] --> Helper
+    Profiles --> CLI
     Keyboard[Optional keyboard] --> Queue[Bounded command queue]
     Stdin[Optional stdin] --> Queue
     Queue --> Session[RunSession applies commands between frames]
@@ -53,7 +58,13 @@ Root help lists frequent grouped options; command help exposes all common option
 | `__main__.py`, `entry.py` | CLI selection, per-run effects, common options and cleanup |
 | `cli.py` | Shared option parsing, placement precedence and complete command help |
 | `session.py` | Validated frame preparation, ordered command application, recording ownership |
-| `loopback.py` | Adapter selection, metadata validation, synchronous loop and error behavior |
+| `loopback.py` | Adapter selection, metadata validation, synchronous/repeated delivery, cooperative stop and error behavior |
+| `frame_producer.py` | Worker-owned capture/effects, latest snapshot, bounded shutdown |
+| `effects.py` | Shared owned tracking/background/brightness composition |
+| `profiles.py` | Validated launch profiles and transactional SQLite persistence |
+| `control.py` | One-session lifecycle controller and local JSONL request/event protocol |
+| `macos/MenuBar/WebcamMods.swift` | Native menu, managed helper transport and settings UI |
+| `mediapipe_delegate.py` | Isolated CPU/Metal probes and persistent identity-scoped cache |
 | `input/input.py` | Adapter protocol and partial-setup context cleanup |
 | `input/video_dev.py` | OpenCV capture, configured FPS and retry logic |
 | `input/screen.py` | Typed MSS screen-region capture and complete adapter metadata |
@@ -76,9 +87,8 @@ Root help lists frequent grouped options; command help exposes all common option
 | `timing.py` | Monotonic frame pacing and responsive output event polling |
 | `models.py` | Checksum-verified model cache/download |
 
-`output/file.py` remains empty. Legacy `uses/track_face.py` references a missing
-module; `uses/track_box.py` retains its outdated demo call. Neither is supported
-CLI face tracking.
+`output/file.py` remains empty. Legacy helpers are compatibility/demo entrypoints;
+supported CLI tracking uses run-owned effect classes.
 
 ## Lifecycle and errors
 
@@ -92,8 +102,9 @@ are stopped in `finally`; output context teardown closes output.
 Effect exceptions and `None` results produce an error image or, with
 `freeze_on_error`, the last successful resized frame. The initial frozen frame is
 no-signal. Output/capture exceptions propagate. Empty input retries at output cadence and pumps output events;
-bounded runs or strict errors raise. `max_frames`, `strict_errors` and
-`before_frame` are Python testing/control seams, not CLI options.
+bounded runs or strict errors raise. `max_frames`, `strict_errors`, `before_frame`, `should_stop` and `on_ready` are
+Python testing/control seams, not common CLI options. The local controller uses
+cooperative stop and first-successful-frame readiness.
 
 On-demand mode retains Linux consumer detection. Paused capture is closed and the
 loop sends a no-signal frame on a 0.5-second cadence. pyvirtualcam always reports in use.
@@ -114,7 +125,7 @@ without catch-up bursts.
 | Recording/replay | Per-run Recorder; default 256 MiB maximum |
 | Model handles/timestamps | Per-run effect instances, closed by CLI |
 | Crop interpolation | Per-run CropTracker |
-| Last face prediction | Per-command closure |
+| Last face prediction | Owned tracking detector |
 | Native capture mailbox/timestamps | AVFoundationCamera instance |
 
 Native macOS input candidates exclude OBS output by manufacturer/model before
@@ -128,9 +139,10 @@ AVFoundation capture adds a worker and serial callback queue, publishing an owne
 BGR copy in a one-frame mailbox. Core Image uses per-frame autorelease pools.
 
 The command interface distinguishes acceptance (`submit`) from application
-(`apply_commands`, returning results). There is no external status service or
-finished cross-process session API. Per-run effects remain owned by the CLI run
-scope rather than by a generic plugin/session framework. In repeat mode, cleanup
+(`apply_commands`, returning results). Whole-session local control is handled separately by `Controller`: validated
+profile configuration, one background run, cooperative stop and explicit status
+events. It refuses concurrent starts and prevents restart after an unsafe worker
+timeout. `RunSession` remains the frame-level crop/replay control seam. In repeat mode, cleanup
 ownership transfers to the processing worker so shutdown timeouts cannot close
 effects still in use. See [frame delivery](frame-delivery.md) for cancellation
 and shutdown limits.
@@ -147,3 +159,24 @@ Models honor XDG_CACHE_HOME, otherwise ~/.cache/webcam-mods/models. Downloads us
 temporary files, SHA-256 verification and atomic replacement; cached files are
 reverified. See [current state](current-state.md), [native backend evidence](macos-backends.md)
 and [remaining improvement plan](improvement-plan.md).
+
+## Local control and profiles
+
+The native app communicates over its helper's stdin/stdout using JSON lines.
+Requests carry an ID; responses carry that ID and a result or error. Status events
+are asynchronous. Python logging stays on stderr. No socket, port, remote auth or
+interactive CLI scraping is involved. See [protocol](macos-menu.md).
+
+Profiles are validated before persistence and again before a session starts.
+SQLite uses parameterized statements and transactions. Schema version 1 is
+initialized locally; unknown schema versions are rejected. No migration chain
+exists yet. Introducing one requires append-only migration checks and normal
+setup hook installation under project instructions.
+
+Effect construction and cleanup are shared across CLI/profile sessions. Tracking,
+background and brightness run in that order. Tracking outputs fixed dimensions
+before segmentation, preventing per-zoom model reconstruction/calibration.
+The controller's state distinguishes starting, running, stopping, idle and error;
+running means the first processed frame has been delivered, rather than merely
+accepting Start. Explicit Stop interrupts capture waits and completes cleanup
+before another Start can acquire resources.

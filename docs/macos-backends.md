@@ -113,7 +113,7 @@ portable defaults; choose native effects for their behavior or future workloads.
 
 ## Verification
 
-Run `make verify UV_FLAGS='--extra macos'` to include native fixture tests; base
+Run `just verify` on macOS to include native fixture tests; base
 installations skip optional native tests. Tests exercise real Vision/Core Image,
 fractional alpha, orientation, padded pixel-buffer lifetime, mailbox dropping,
 repeated mocked camera startup and failure cleanup. CI is configured for Python
@@ -184,8 +184,10 @@ input/output, 300 measured frames after 30 warmup, delivery 29.955 FPS, processi
 median/p95 6.34/15.23 ms and capture-to-send 21.30/31.64 ms. Capture wait was
 14.01/17.03 ms and process peak RSS 315,473,920 bytes. Earlier run processed 1080p;
 these results are not a same-resolution backend comparison. Conferencing reception
-and repeated hardware start/stop remain unverified. User observed frequent boundary
-jitter with Vision fast; mask refinement is deferred in the improvement plan.
+remains unverified. Three physical-camera/OBS producer restarts were later
+confirmed at 640x480/30 on 2026-10-03. User subsequently accepted observed blur
+quality after motion-aware stabilization; dedicated moving-person quality and power
+measurements remain deferred in the improvement plan.
 
 Preview pacing follow-up: a 120-frame fixed-fixture run (10 warmup, 640x480,
 Vision fast/OpenCV blur) observed 22.19 FPS with the original pacing and 30.00

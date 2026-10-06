@@ -1,214 +1,88 @@
 # Current state
 
-2026-10-03 stabilization refinement: opt-in temporal mask smoothing now resets
-history locally on visible motion rather than bypassing the whole image above 2%
-motion. Moving hands no longer disable smoothing of stationary boundaries;
-large confidence jumps and shape changes still reset all history. Live benchmark
-supports `--mask-smoothing` and records its workload selection. Fixture comparisons
-and a moving/departing-hand regression pass; live motion quality and power remain
-unverified. See [comparison evidence](segmentation-comparison.md).
+Reviewed 2026-10-05. Python 3.14 only. Portable processing and macOS/Linux adapters
+remain supported. Native macOS menu is optional; installed CLI works independently.
 
-2026-10-03 hardware acceptance: three physical-camera -> Vision fast/OpenCV blur
--> OBS producer start/stop cycles passed at 640x480/30. Each delivered 100 measured
-frames after 10 warmup frames, at 29.88-29.95 FPS, with cleanup verified. Three
-capture-only cycles using default auto -> AVFoundation retained 1280x720/30 across
-five-second startup pauses, delivered 120 frames each at 30.01-30.06 FPS and
-closed every adapter. Local reports: `dist/benchmarks/lifecycle.json` and
-`dist/capture-check.json`. Conferencing reception and 720p effects/output remain
-unchecked. Earlier checkpoints below describe evidence available at their time.
+## Supported behavior
 
-2026-10-03 screen selection: `share-screen --select area|screen|visible` uses
-the installed macOS `select-region` helper. Global point geometry matches MSS
-nominal capture resolution, including secondary displays and Retina scaling.
-Selection is explicit, conflicts with coordinate flags, and failures stop before
-capture/output acquisition. Area selection now matches output aspect ratio and shows live tips plus an exact
-fitted-window preview. Selected screen runs own an outside dashed border that
-tracks crop/pan changes, closes on failure, and disappears if the owner dies.
-Screen crop state is fresh and does not overwrite camera persistence.
-Current selection is fixed; window-following and
-camera/screen switching remain future work.
+- Camera commands: crop-cam, bg-blur, bg-color, bg-swap, brighten, track-face,
+  test-loop. Common options work before or after the command.
+- Screen sharing: explicit region or macOS area/screen/visible picker, fresh crop
+  state, optional outside border, preview or virtual-camera output.
+- Per-run crop/padding, ordered bounded controls and 256 MiB default recording cap.
+  Keyboard/stdin adapters start explicitly; import/help starts no listeners.
+- Stable face selection/framing with bounded zoom and independent pan/zoom response.
+- MediaPipe segmentation, optional Vision/Core Image and opt-in motion-aware smoothing.
+- Independent capture/output sizing and FPS; optional repeat mode keeps latest-frame
+  delivery independent of processing. See [frame delivery](frame-delivery.md).
+- SQLite saved launch profiles shared by CLI and menu. Composition orders tracking,
+  background transformation, then brightness. Tracking background inference runs at
+  fixed output dimensions to avoid rebuilding models during zoom.
+- Local JSONL helper manages one session through explicit Start/Stop and status.
+  Configuration changes require a stopped session. Native menu exposes profiles,
+  camera/effect selection, settings and errors. See [menu guide](macos-menu.md).
+- Persistent exact-shape delegate calibration cache, with hardware/software
+  fingerprint, 30-day expiry and 128-entry bound. Probe failures use CPU without
+  persisting failure. Cold calibration remains necessary for uncached shapes.
 
-2026-10-03 CLI polish and screen sharing: grouped root help presents frequent
-options; command help includes the full common option set. Common options parse
-before or after commands, with explicit command-side values overriding root
-values. Validation happens once after parsing, before resources open. Screen
-sharing uses the shared session/controls, startup settings and output path; MSS
-reports complete dimensions/FPS and materializes contiguous uint8 BGR frames.
-Region width/height default to input dimensions; screen cadence defaults to 30 FPS
-and final output size/cap remains independently configurable. Legacy output `gui`
-aliases preview. macOS screen-capture permission is available: a live smoke passed
-three 320x240 screen captures through real preview and three through OBS output,
-both resized to 640x480/30 with capture/output cleanup verified. No captured images
-were saved. Conferencing reception remains unchecked. This checkpoint passes 193
-local tests plus strict mypy (28 source files), Black, Flake8 and compile checks on Python 3.14.
+## Configuration and ownership
 
-2026-10-03 lifecycle acceptance tooling: `scripts/benchmark_live.py --cycles N`
-recreates capture, effects and output each run, rejects adapters still open after
-teardown and closes effects before the next acquisition. Multi-cycle reports keep
-individual metrics and completed-run evidence on failure/interruption; successful
-single-cycle report shape remains compatible. Headless checks exercise ownership,
-cleanup failure, restart ordering and reporting. Local `make verify
-UV_FLAGS='--extra macos'` passes 174 tests and all static checks on Python 3.14.
-Physical-camera restart and
-conferencing reception evidence remain outstanding.
+CLI startup settings resolve once: CLI > environment > defaults. See
+[env.example](../env.example). Input/output default to 640x480/30. Crop/padding
+retains `~/.webcam-mods.conf`; saved launch profiles use a separate SQLite store.
+Native capture selects supported dimensions/FPS, retains its device configuration
+lock, excludes OBS from input selection, and fails rather than silently switching
+camera/backend. `auto` maps OpenCV camera identity to AVFoundation on macOS.
 
-Earlier checkpoint (2026-10-02): session/control and optional native backends.
+The processing worker owns capture/effect cleanup in repeat mode. Tracking resources
+follow the same ownership contract. A ten-second shutdown timeout cannot safely
+interrupt arbitrary native calls; the worker retains resources until processing
+returns. The local controller refuses another session after such a timeout.
+The menu can terminate its helper during app shutdown after bounded graceful waits.
 
-## Implemented behavior
+## Verification evidence
 
-All existing command names remain: crop-cam, bg-color, bg-swap, bg-blur, brighten,
-track-face, share-screen and test-loop. Common freeze-on-error now propagates to
-all camera and screen-sharing commands. Common options can precede or follow the command; --no-controls disables
-keyboard and stdin together. Track-face and test-loop omit crop/replay preparation.
-Screen sharing now uses the same session and adapter lifecycle.
+Headless tests cover CLI parsing, profile validation/persistence, local protocol,
+session state/restarts, timeout ownership, frame validation, processing, recording,
+pacing, native buffer handling and partial startup cleanup. `just verify` runs
+static checks and the full suite. `just e2e` writes deterministic real-model
+pipeline artifacts; it is not a camera or conferencing test.
 
-Each camera CLI run owns Config, ordered controls and Recorder, with effect models
-and native contexts scoped to the run and closed explicitly. CLI import/help starts
-no stdin reader or desktop listener and creates no config file. The original
-Python helpers for face/segmentation remain lazy compatibility instances.
+Latest local checkpoint: 360 tests, Black, configured Flake8 and strict mypy pass.
+Native compilation, model/transport tests with a real Python helper, plist and
+signature checks pass. UI automation timed out selecting this menu-only app;
+visual layout and app Camera permission behavior remain unverified.
 
-Crop/padding uses existing Ctrl/Alt/Shift arrow gestures. Stdin commands are
-`reset`, `record`, `stop`, `replay`. Commands apply before the next frame; invalid
-geometry and empty replay are rejected. Recording copies frames, stops when the
-configured memory cap would be exceeded, and starts new recording/replay at index
-zero. Default cap is 256 MiB, adjustable with --recording-limit-mb. A full command
-queue rejects new controls instead of overwriting old ones.
+2026-10-05 calibration measurement, local macOS ARM64: a materialized 640x480
+astronaut fixture selected the segmentation delegate in 4.407751 seconds with
+six subprocess probes. A fresh process reused that decision in 0.007089 seconds
+with zero probes. Timings cover delegate selection only, excluding imports and
+fixture loading. This establishes warm-start probe avoidance, not live FPS or power.
 
-Config retains ~/.webcam-mods.conf and existing JSON field names. Loading validates
-integer pairs, positive crop bounds and even nonempty padding. Invalid/missing
-settings use in-memory defaults without overwriting the file on construction.
-Actual frame dimensions adapt valid persisted crops or reset invalid ones. Changed
-settings persist atomically; write failures restore the previous in-memory state.
+Historical hardware evidence, 2026-10-03, authorized Terminal:
 
-The loop opens input once, accepts positive finite negotiated metadata, closes
-partial output setup and tears down capture/controls after failures. OpenCV honors
-IN_FPS and releases failed capture handles. Default output remains native V4L2 on
-Linux and pyvirtualcam/OBS elsewhere.
+- Three physical-camera -> Vision fast/OpenCV blur -> OBS producer cycles at
+  640x480/30 delivered 29.88-29.95 FPS, with cleanup verified.
+- Three auto/AVFoundation capture-only 1280x720/30 cycles retained format through
+  five-second startup pauses and delivered 30.01-30.06 FPS.
+- Screen and preview/OBS adapter smokes passed. Native buffer/model fixture tests
+  and real-model headless processing passed.
+- User accepted observed segmentation quality after motion-aware stabilization;
+  dedicated hair/hand/low-light stress coverage and power remain unmeasured.
 
-## Configuration
+See [backend report](macos-backends.md) for older workloads and limits. No claim
+of current native-menu camera permission or receiving-client acceptance follows
+from these historical Terminal runs.
 
-[env.example](../env.example) documents existing environment variables. No new
-backend environment aliases were added; CLI selects optional native backends. Startup
-settings resolve once before acquisition with CLI > environment > defaults. Numeric
-values are validated; malformed environment does not prevent help. Boolean values
-accept true/false (case-insensitive) and 1/0. See README for CLI overrides.
+## Remaining limits
 
-| Settings | Default / behavior |
-| --- | --- |
-| VIDEO_IN | 0, camera index |
-| VIDEO_OUT | /dev/video10, native Linux output only |
-| IN_WIDTH / IN_HEIGHT | 640 / 480, requested capture dimensions |
-| IN_FPS | 30, applied by both capture adapters |
-| IN_FORMAT | YUYV, OpenCV FOURCC request only |
-| OUT_WIDTH / OUT_HEIGHT | 640 / 480 |
-| MAX_OUT_FPS | 30, output cap; loop paces all backends |
-| ON_DEMAND | false; true/1 enables consumer polling |
-| PAN_CONTROL / PADDING_CONTROL | true; true/1 enables respective keyboard gestures |
-| freeze_on_error | false; existing Typer environment option |
-| XDG_CACHE_HOME | ~/.cache fallback, verified model cache |
-| --output | virtual-cam default; preview displays final frames in a bare window |
-| --mask-smoothing | opt-in temporal stabilization with motion bypass |
-| --segmentation-backend | mediapipe default; optional vision |
-| --processing-backend | opencv default; optional coreimage for backgrounds |
-| --capture-backend | auto default; AVFoundation on macOS with bindings, otherwise OpenCV; explicit choices available |
-| --vision-quality | balanced default; fast / accurate available |
-| --controls / --no-controls | enabled default for prepared camera commands |
-| --recording-limit-mb | 256 maximum retained recording MiB |
+Conferencing reception and 720p effects/output (review item 2), and realistic
+quality/latency/power measurements (item 6), are deferred by user. macOS OBS does
+not expose reliable receiver count to this output adapter; automatic activation
+is deferred. Linux real-device acceptance, current Windows behavior and remote
+CI validation remain unverified. Menu app is locally ad hoc signed and depends
+on an installed Python runtime; standalone distribution/notarization is future work.
 
-## Native backends
-
-Optional macOS extra supplies PyObjC Vision, Quartz, AVFoundation, CoreMedia and
-libdispatch. Vision produces person masks; Core Image composites backgrounds and
-uses Gaussian blur rather than existing box blur. AVFoundation uses bounded
-newest-frame delivery and copied BGR arrays. No own camera extension, ScreenCaptureKit,
-HTTP control server or zero-copy frame abstraction was introduced.
-
-[Native backend report](macos-backends.md) contains measured processing timings,
-visual differences, commands and verification limits. Portable defaults stay:
-native backends showed no general processing speed advantage on the measured
-fixture. Portable float32 blending improved 1080p median processing time by about
-11%; final sample differs from baseline by at most one channel value.
-
-## Verification and remaining gaps
-
-Checks cover compileall, configured flake8 rules, Black and unittest discovery,
-including CLI option propagation/import side effects, command ordering, persistence,
-record/replay bounds, model state isolation, partial startup cleanup, real
-MediaPipe, real Vision/Core Image and native buffer orientation/stride/lifetime.
-Use make verify UV_FLAGS='--extra macos' to run optional native tests.
-
-Supported runtime: Python 3.14 only. Local macOS ARM64 checks pass: 133 tests.
-Both CLI entrypoints run and wheel/source-distribution builds succeed. GitHub verification workflow
-targets Python 3.14 on macOS ARM64 and Linux x86_64; remote validation
-is excluded by user choice. Local Linux execution was not performed.
-
-Bare-window preview displays the final resized/padded BGR frame without overlays.
-It pumps GUI events, paces against monotonic deadlines and stops the run on close
-or Escape. Six real macOS preview frames displayed and cleanup passed; camera
-permission checks remain separate. Pacing preserves phase through small sleep/event
-jitter and avoids a redundant GUI poll after reaching the deadline. Whole-period
-misses restart the schedule without bursts. A 120-frame fixed-fixture/real-preview
-smoke (10 warmup, Vision fast, 640x480) observed 22.19 FPS before and 30.00 after
-this pacing fix. Processing medians differed (11.92/6.03 ms); these short runs
-confirm cadence behavior and are not a controlled model-speed comparison.
-
-OBS Virtual Camera initialized, received three synthetic 640x480 frames at 30 FPS
-and closed successfully. A subsequent 12-frame fixture run exercised Vision, Core
-Image and production live_loop through real OBS output with cleanup. Conferencing-app reception was not checked. Initial
-camera permission requests from T3 Code/Python failed for both direct AVFoundation
-and OpenCV. Capture is now confirmed from authorized Terminal; T3 still lacks access.
-A Terminal hardware attempt exposed use of the inputPriority preset, which is
-unsupported on macOS despite being exported by the Python binding. Setup now
-attaches input/output before selecting activeFormat/FPS directly. Mocked regression covers unsupported explicit preset, setup
-ordering and format-failure cleanup. Native capture retains the device configuration
-lock until session shutdown, preventing macOS from overriding the selected format
-at commit/start. Cleanup releases it once, including startup failures; a stopping
-timeout retains it until the worker finishes. Startup rejects unexpected frame dimensions.
-Tests with mocked camera startup do not establish hardware delivery. The new
-live benchmark camera smoke test also failed with permission denial. A later
-Terminal run exposed AVFoundation index 0 selecting OBS (1920x1080/60 only),
-while local index 1 supports the requested 640x480/30. Read-only native format
-selection confirmed both; benchmark now accepts `--input-device`, and format
-errors include device identity, available formats and selection guidance. OBS
-subsequently moved to raw index 1, confirming raw device-order instability. Native
-input selection now excludes OBS by manufacturer/model before applying input
-indices. Default 0 selects the first remaining input; read-only checks with both
-orders selected the built-in camera, and repeated mocked starts cover reordering.
-Five headless
-benchmark regressions pass, and its measurement path delivered 12 fixture frames
-through Vision fast/Core Image and real OBS output at 29.67 FPS (30 FPS target).
-This fixture smoke verifies cadence/delivery, not real-camera throughput.
-
-User Terminal run: physical index 1 delivered 300 measured frames after 30 warmup,
-Vision fast/OpenCV blur/preview, 640x480 output at a 30 FPS target. Before the lock
-fix, capture unexpectedly returned 1920x1080: processing median 24.32 ms/p95
-31.70 ms, capture-to-send median 25.29 ms/p95 32.68 ms, delivery 26.35 FPS and
-process peak RSS 458,276,864 bytes. This confirms hardware capture but exposes an
-incorrect capture resolution. Corrected Terminal rerun is now confirmed: 300 measured frames after 30 warmup,
-640x480 input/output at 30 FPS target, delivery 29.955 FPS. Processing median/p95
-6.34/15.23 ms, capture-to-send 21.30/31.64 ms, capture wait 14.01/17.03 ms, and
-process peak RSS 315,473,920 bytes. This is the requested resolution, not a same-
-resolution comparison with the earlier 1080p run. Repeated hardware start/stop is now confirmed by the latest checkpoint;
-conferencing reception remains unverified. User observed frequent mask-boundary
-jitter in Vision fast preview; visual refinement is reactivated in the
-[improvement plan](improvement-plan.md).
-
-Other remaining gaps:
-
-- No portable consumer/pause capability contract; unified pacing is implemented.
-- Screen conferencing reception and sustained real-desktop capture remain unverified;
-  live preview/OBS adapter smokes and headless CLI integration checks pass.
-- No hot input switching, user-facing file output, HTTP service or cross-process control.
-- Lazy legacy helper compatibility remains; CLI startup uses a validated immutable snapshot.
-- No live-camera latency, power or segmentation-quality benchmark on moving people.
-- Strict mypy checks cover core modules plus static frame/mask regressions: startup
-  settings, pacing, cache, recording, session, core processing, background effects,
-  CLI/loop composition, native capture/effects, output adapters and crop persistence.
-  Frames are uint8 arrays; confidence masks are float32. Shape remains a runtime
-  contract; framework internals and adapter metadata still have dynamic boundaries.
-  Face/geometry modules remain outside the strict scope. Legacy demos are repaired.
-- list-cameras reports native indices/formats and excluded OBS output without
-  opening devices. Three fixture-to-OBS producer restarts passed with cleanup;
-  physical-camera restarts now pass; consumer reception remains unverified.
-
-See [remaining improvement plan](improvement-plan.md).
+No hot input switching, window-following screen capture, remote HTTP endpoint,
+custom camera extension or native-frame/zero-copy abstraction is implemented.
+See [improvement plan](improvement-plan.md) and [backlog](../TODO.md).

@@ -1,42 +1,26 @@
-# TODO
+# Backlog
 
-Active improvement roadmap: [docs/improvement-plan.md](docs/improvement-plan.md).
+Priorities and verification requirements: [improvement plan](docs/improvement-plan.md).
+Current supported behavior: [current state](docs/current-state.md).
 
-## Deferred power presets
+## Deferred acceptance
 
-- Add manual battery/performance presets and optional automatic selection from
-  battery/AC state or macOS Low Power Mode. First establish reliable independent
-  capture/output resolution and FPS at launch. Runtime format switching remains
-  separate work. Deferred by user on 2026-10-03.
-- Measure whole-pipeline power and quality before choosing preset defaults;
-  faster CPU/Metal inference alone does not establish battery savings.
+- Conferencing reception and 720p effects/output (review item 2).
+- Moving-person quality, hair/hands/low light, latency and power (review item 6).
+- Battery/AC/Low Power Mode presets after power measurements.
+- Real Linux V4L2 consumer/output acceptance.
 
-## Visual stabilization checkpoint
+## Feature ideas
 
-- Stabilize jittering background-blur boundary in Vision fast preview. Evaluate
-  segmentation quality, spatial edge feathering and motion-aware temporal smoothing.
-  Preserve fine detail, avoid motion trails, and measure the cost at 640x480/30.
-  Reactivated by user on 2026-10-03. Local motion reset implemented; live
-  quality accepted by user on 2026-10-03. Dedicated hair/hand/low-light
-  coverage and whole-pipeline cost remain unmeasured. See
-  [comparison report](docs/segmentation-comparison.md).
+- Camera/screen switching and window-following screen capture.
+- Stable physical-camera identity across device enumeration changes.
+- Orientation controls and video overlays.
+- Eye tracking, webcam stitching and animation, pending concrete demand.
+- Native-frame processing, pending measured end-to-end benefit.
 
-## Historical feature ideas
+## Existing features
 
-- stich webcams together to have a bigger source cam
-- zoom support
-- CLI args for orientation
-- add eye tracking
-- figure our v4l2 compatibility for python 3
-- animation support
-  - glasses?
-- reduce remaining legacy helper globals
-- cli interface to stack different mods eg bg-swap and track face or blur
-
-## Done
-
-- bounded in-memory record and replay
-- capture/output resolution and FPS CLI options
-
-- interactive control
-- separate thread for prediction (historical; supported effects now run synchronously)
+Zoom, brightness, bounded recording/replay, CLI capture/output settings,
+screen input, stable face framing and optional segmentation smoothing are implemented.
+The native menu, local session control and saved profiles are documented separately
+in [macOS menu](docs/macos-menu.md). Avoid duplicating completed work as open tasks.

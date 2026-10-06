@@ -28,7 +28,7 @@ models:
 build:
     uv build --python 3.14
 
-# install a wheel snapshot, matching Mao's user-level tool installation
+# install a wheel snapshot into the user-level uv tool environment
 install:
     #!/usr/bin/env bash
     set -euo pipefail

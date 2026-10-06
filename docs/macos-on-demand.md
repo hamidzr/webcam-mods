@@ -1,7 +1,9 @@
 # macOS on-demand standby proposal
 
-Status: deferred on 2026-10-03. No implementation planned for now. Startup-time
-optimization is a possible next task, pending measurement and a separate request.
+Status: automatic standby remains deferred as of 2026-10-05. Explicit Start/Stop
+now exists in the [native menu](macos-menu.md). Stop releases capture and models;
+it does not retain loaded effects in standby. Persistent delegate calibration
+reduces warm-start probe overhead independently of receiver detection.
 
 ## Goal
 

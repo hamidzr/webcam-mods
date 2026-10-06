@@ -1,19 +1,19 @@
-# Developer documentation
+# Documentation
 
-Webcam Mods captures frames, applies effects, and sends video to a virtual camera
-or preview window. Python processing is shared across macOS and Linux; device
-delivery and desktop permissions vary by platform.
+Webcam Mods captures uint8 BGR frames, applies effects, and sends the final video
+to OBS Virtual Camera, Linux V4L2, or a preview window.
 
-- [Current architecture](architecture.md): modules, frame flow, lifecycle, state,
-  and existing control paths.
-- [Current state](current-state.md): capabilities, configuration, portability,
-  verification coverage, and known gaps.
-- [macOS backends](macos-backends.md): optional native adapters, benchmark evidence
-  and usage.
-- [Improvement plan](improvement-plan.md): prioritized findings and a proposed
-  shared control path for CLI and future API access.
+- [Installation](installation.md): installed CLI, development commands, native app.
+- [Architecture](architecture.md): processing, ownership, controls and adapters.
+- [Current state](current-state.md): supported behavior and verification limits.
+- [Improvement plan](improvement-plan.md): current priorities and deferred work.
+- [macOS menu](macos-menu.md): native controls, profiles and local protocol.
+- [Quality settings](quality-settings.md): independent input/output resolution and FPS.
+- [Frame delivery](frame-delivery.md): repeat mode, pacing and shutdown limits.
+- [macOS backends](macos-backends.md): adapter choices and dated benchmark evidence.
+- [Segmentation comparison](segmentation-comparison.md): fixture quality evidence.
+- [macOS on-demand](macos-on-demand.md): receiver-detection limitations.
 
-These documents describe source reviewed through 2026-10-03. Proposals are explicitly
-labeled and are not implemented features. See the [project README](../README.md)
-for installation and user commands. Update these documents when changing the
-runtime, configuration, controls, or supported adapters.
+Current behavior reviewed 2026-10-05. Benchmark reports retain their original
+measurement context; they do not establish current conferencing reception or
+power consumption. Update relevant documents when changing runtime behavior.

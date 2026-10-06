@@ -11,7 +11,7 @@ just install
 webcam_mods --help
 ```
 
-Like Mao, `just install` builds a wheel in a temporary directory and installs it
+`just install` builds a wheel in a temporary directory and installs it
 with `uv tool install --force --reinstall`. The `webcam_mods` command works outside
 the checkout. Editing source does not change the installed snapshot; rerun
 `just install` to update it. Temporary build files are removed automatically.
@@ -26,7 +26,7 @@ explicitly includes the bundled patched MediaPipe wheel because wheel metadata
 does not include uv's project source overrides. This also applies to base installs.
 
 Camera output still needs OBS Virtual Camera on macOS/Windows or v4l2loopback on
-Linux. See [virtual camera setup](../README.md#installation). Preview output needs
+Linux. See [virtual camera setup](../README.md#install). Preview output needs
 no virtual camera. Camera and screen capture require OS permissions as usual.
 Models download on first use into `~/.cache/webcam-mods/models` (or `$XDG_CACHE_HOME`).
 
@@ -53,3 +53,26 @@ and the full test suite. E2E outputs go to `dist/e2e`; builds go to `dist`.
 `UV_FLAGS=--no-sync just check` after syncing. It does not affect build or tool
 installation. Use `just extra="" deps` and `just extra="" run --help` to work
 without platform extras. Existing Makefile targets remain available.
+
+## Native macOS menu
+
+Requires macOS 13 or newer and Xcode command-line tools (`swiftc`). Install the
+Python snapshot before building the app:
+
+```sh
+just install
+just menu-build
+just menu-check
+just menu-install
+open "$HOME/Applications/Webcam Mods.app"
+```
+
+The app references the installed uv-tool Python runtime; it does not bundle a
+standalone Python distribution. Removing the uv tool breaks that reference.
+After source changes, reinstall the CLI and rebuild/reinstall the app. The builder
+can accept `--python /absolute/path/to/python` for a different runtime containing
+`webcam_mods.control`. Local bundles are ad hoc signed, not notarized for distribution.
+
+Start requests camera permission. Camera capture/output acceptance from the app
+is separate from native compilation and headless protocol checks. See the
+[menu guide](macos-menu.md) for settings, errors and profile behavior.
