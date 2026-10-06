@@ -31,8 +31,8 @@ def is_crop_valid(
     ):
         return False
 
-    # Make sure that dims are positive numbers, <0 not supported
-    if dims[0] < 0 or dims[1] < 0:
+    # reject empty crops before calling OpenCV
+    if dims[0] <= 0 or dims[1] <= 0:
         return False
 
     # Make sure start + dims are still within the frame
@@ -109,6 +109,8 @@ def pad_inward_centered(
 ) -> Frame:
     assert horizontal % 2 == 0, "needs an even size"
     assert vertical % 2 == 0, "needs an even size"
+    if horizontal == 0 and vertical == 0:
+        return frame
     # print('input frame shape', frame.shape)
     fh, fw, _ = frame.shape
 
@@ -165,9 +167,8 @@ def resize_to_box(img: Frame, tw: int, th: int) -> Frame:
     else:  # stretching image
         interp = cv2.INTER_CUBIC
 
-    # compute new even dimensions. FIXME we shouldn't need to care about making the frame even here
-    new_w = math.floor(w * scale / 2) * 2
-    new_h = math.floor(h * scale / 2) * 2
+    new_w = max(1, min(tw, math.floor(w * scale)))
+    new_h = max(1, min(th, math.floor(h * scale)))
 
     # scale and pad
     scaled_img = cast(Frame, cv2.resize(img, (new_w, new_h), interpolation=interp))
@@ -185,7 +186,17 @@ def pad_to_box(img: Frame, tw: int, th: int, color: Color = 0) -> Frame:
     assert h <= th, "frame does not fit the target"
     assert w <= tw, "frame does not fit the target"
 
-    return pad_outward_centered(img, tw - w, th - h, color)
+    if (w, h) == (tw, th):
+        return img
+    horizontal, vertical = tw - w, th - h
+    return pad(
+        img,
+        horizontal // 2,
+        vertical // 2,
+        horizontal - horizontal // 2,
+        vertical - vertical // 2,
+        color,
+    )
 
 
 def resize_and_pad(img: Frame, sw: int, sh: int, pad_color: Color = 0) -> Frame:

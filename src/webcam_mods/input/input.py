@@ -63,6 +63,12 @@ class InNOut:
 
 
 class FrameInput(InNOut):
+    def request_stop(self) -> None:
+        """Request read cancellation without blocking; callable from another thread.
+
+        Resource teardown remains on the capture thread.
+        """
+
     @abstractmethod
     def frame(self) -> Optional[Frame]:
         raise NotImplementedError()

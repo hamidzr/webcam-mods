@@ -447,12 +447,15 @@ class AVFoundationCamera(FrameInput):
     def is_setup(self) -> bool:
         return self._running
 
-    def teardown(self, *args: Any, **kwargs: Any) -> None:
+    def request_stop(self) -> None:
         with self._condition:
             self._running = False
             self._pending = None
             self._condition.notify_all()
         self._stop.set()
+
+    def teardown(self, *args: Any, **kwargs: Any) -> None:
+        self.request_stop()
         if self._worker is not None:
             self._worker.join(self.timeout)
             if self._worker.is_alive():

@@ -133,15 +133,28 @@ def _run(
                     )
             return effect(frame) if effect is not None else frame
 
-        live_loop(
-            mod=process,
-            fIn=source,
-            interactive_listener=controls,
-            before_frame=session.apply_commands,
-            freeze_on_error=common.freeze_on_error,
-            output_backend=common.output,
-            settings=settings,
-        )
+        from webcam_mods.frame_producer import WorkerShutdownTimeout
+
+        processing_resources = resources.pop_all()
+        try:
+            live_loop(
+                mod=process,
+                fIn=source,
+                interactive_listener=controls,
+                before_frame=session.apply_commands,
+                freeze_on_error=common.freeze_on_error,
+                output_backend=common.output,
+                settings=settings,
+                processing_cleanup=processing_resources.close,
+            )
+        except WorkerShutdownTimeout:
+            # worker retains cleanup ownership until its in-flight call returns
+            raise
+        except BaseException:
+            processing_resources.close()
+            raise
+        else:
+            processing_resources.close()
 
 
 def _common(ctx: typer.Context) -> Common:
@@ -169,9 +182,8 @@ class BackgroundEffect:
         if mode == "swap_bg":
             if not isinstance(value, np.ndarray):
                 raise TypeError("background replacement requires an image")
-            self.transform: Callable[[Frame], Frame] = (
-                lambda frame: self.effects.swap_bg(frame, value)
-            )
+            self.effects.set_background(value)
+            self.transform: Callable[[Frame], Frame] = self.effects.swap_bg
         else:
             if not isinstance(value, int):
                 raise TypeError("background color and blur require an integer")

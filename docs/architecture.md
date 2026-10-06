@@ -130,7 +130,10 @@ BGR copy in a one-frame mailbox. Core Image uses per-frame autorelease pools.
 The command interface distinguishes acceptance (`submit`) from application
 (`apply_commands`, returning results). There is no external status service or
 finished cross-process session API. Per-run effects remain owned by the CLI run
-scope rather than by a generic plugin/session framework.
+scope rather than by a generic plugin/session framework. In repeat mode, cleanup
+ownership transfers to the processing worker so shutdown timeouts cannot close
+effects still in use. See [frame delivery](frame-delivery.md) for cancellation
+and shutdown limits.
 
 ## Dependencies and frame representation
 

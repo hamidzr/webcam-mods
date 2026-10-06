@@ -113,6 +113,8 @@ class PersonEffects:
         self.stabilizer = MaskStabilizer() if smoothing else None
         self.backend = backend
         self._closed = False
+        self._background_source: Frame | None = None
+        self._background: Frame | None = None
 
     def mask(self, frame: Frame) -> tuple[Frame, Mask]:
         if self._closed:
@@ -152,16 +154,33 @@ class PersonEffects:
             image, cast(Frame, cv2.blur(image, (kernel_size, kernel_size))), mask
         )
 
-    def swap_bg(self, frame: Frame, bg_image: Frame) -> Frame:
+    def set_background(self, bg_image: Frame) -> None:
+        """Own a background snapshot for repeated calls without a background argument."""
+        if self._closed:
+            raise RuntimeError("person effects are closed")
+        self._background_source = bg_image.copy()
+        self._background = None
+
+    def swap_bg(self, frame: Frame, bg_image: Frame | None = None) -> Frame:
+        if bg_image is not None:
+            self.set_background(bg_image)
+        if self._background_source is None:
+            raise ValueError("background image is required")
         image, mask = self.mask(frame)
         # background tracks the prepared crop, padding and replay dimensions
-        background = cast(Frame, cv2.resize(bg_image, (image.shape[1], image.shape[0])))
+        if self._background is None or self._background.shape != image.shape:
+            self._background = cast(
+                Frame,
+                cv2.resize(self._background_source, (image.shape[1], image.shape[0])),
+            )
+        background = self._background
         if self.processor is not None:
             return self.processor.process(image, mask[:, :, 0], background=background)
         return apply_alpha_mask(image, background, mask)
 
     def close(self) -> None:
         self._closed = True
+        self._background_source = self._background = None
         if self.stabilizer is not None:
             self.stabilizer.reset()
         try:

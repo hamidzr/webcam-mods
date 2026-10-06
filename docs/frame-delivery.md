@@ -28,9 +28,19 @@ Effect failures retain the existing error-image / `--freeze-on-error` policy.
 Capture and output failures stop the run.
 
 On-demand mode closes paused capture and continues delivering the no-signal image
-at output FPS. Shutdown signals the worker and waits for an in-flight capture or
-effect call before closing effect resources. A blocked native call can delay
-shutdown until it returns. Output timing remains best effort: OS scheduling,
+at output FPS. Initial setup retains capture until the first activation decision;
+it does not reopen the camera before processing the first frame.
+
+Shutdown signals the worker and interrupts pending AVFoundation frame waits.
+The caller waits at most ten seconds, then raises a shutdown timeout. Python
+cannot safely interrupt arbitrary OpenCV or effect calls. A timed-out worker is
+a daemon and retains capture and CLI processing resources until its call returns;
+cleanup then runs on that worker. Process exit can terminate such a worker before
+cleanup completes. Python callers passing owned effects to `live_loop` should
+pass their cleanup callback through `processing_cleanup` rather than close those
+effects in an outer context while a timed-out worker may still use them.
+
+Output timing remains best effort: OS scheduling,
 blocking output writes, or native work holding Python's GIL can cause missed
 frames. Missed delivery deadlines are skipped rather than sent in a burst.
 

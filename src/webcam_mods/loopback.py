@@ -90,6 +90,7 @@ def live_loop(
     output_backend: str = "virtual-cam",
     pace: bool = True,
     settings: StartupSettings | None = None,
+    processing_cleanup: Callable[[], None] | None = None,
 ) -> None:
     """Pass frames through a mod; bounded runs raise on missing input."""
     if max_frames is not None and max_frames < 1:
@@ -114,7 +115,7 @@ def live_loop(
         if settings.repeat_frames:
             from webcam_mods.frame_producer import FrameProducer
 
-            producer = FrameProducer(fIn)
+            producer = FrameProducer(fIn, cleanup=processing_cleanup)
             inp_props = producer.setup()
         else:
             inp_props = fIn.setup()
@@ -177,6 +178,7 @@ def live_loop(
                     min(settings.processing_fps, inp_props["fps"], outp_props["fps"]),
                     before_frame=before_frame,
                     strict=strict_errors or max_frames is not None,
+                    copy_result=False,
                 )
                 try:
                     sent_frames = 0
@@ -259,7 +261,11 @@ def live_loop(
             if producer is not None:
                 producer.close()
             else:
-                fIn.teardown()
+                try:
+                    fIn.teardown()
+                finally:
+                    if processing_cleanup is not None:
+                        processing_cleanup()
         finally:
             if (
                 interactive_listener is not None
