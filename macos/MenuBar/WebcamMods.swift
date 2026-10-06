@@ -545,6 +545,7 @@ struct ControlPanel: View {
     @ObservedObject var model: SessionModel
     @State private var advanced = false
     @State private var confirmDelete = false
+    @State private var showError = false
     var openControls: (() -> Void)?
 
     var body: some View {
@@ -555,7 +556,11 @@ struct ControlPanel: View {
                 Text(model.state.capitalized).font(.caption).foregroundStyle(model.state == "running" ? .green : .secondary)
             }
             if let error = model.error {
-                Label(error, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
+                HStack(alignment: .top) {
+                    Label(error, systemImage: "exclamationmark.triangle")
+                        .font(.caption).foregroundStyle(.red).lineLimit(3)
+                    Button("Details") { showError = true }
+                }
             }
             if let warning = model.profileWarning {
                 Label(warning, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange).lineLimit(4).help(warning)
@@ -671,6 +676,16 @@ struct ControlPanel: View {
             Button("Delete", role: .destructive, action: model.deleteProfile)
             Button("Cancel", role: .cancel) {}
         } message: { Text("Delete \(model.selectedProfile)? Current camera settings remain available.") }
+        .sheet(isPresented: $showError) {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Camera error").font(.headline)
+                ScrollView {
+                    Text(model.error ?? "Error cleared.")
+                        .textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
+                }
+                Button("Done") { showError = false }
+            }.padding(18).frame(width: 480, height: 360)
+        }
     }
 
     private func slider(_ title: String, value: Binding<Int>, range: ClosedRange<Double>) -> some View {

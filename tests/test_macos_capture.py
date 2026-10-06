@@ -17,6 +17,23 @@ from webcam_mods.macos.capture import (
 
 
 class CameraMailboxTest(unittest.TestCase):
+    def test_native_rate_rounding_accepts_nominal_fps(self) -> None:
+        rate = Mock()
+        rate.minFrameRate.return_value = 30.00003000003
+        rate.maxFrameRate.return_value = 30.00003000003
+        fmt = Mock()
+        fmt.videoSupportedFrameRateRanges.return_value = [rate]
+        device = Mock()
+        device.formats.return_value = [fmt]
+        cm = SimpleNamespace(
+            CMVideoFormatDescriptionGetDimensions=lambda _: SimpleNamespace(
+                width=640, height=480
+            )
+        )
+        self.assertIs(select_capture_format(device, cm, 640, 480, 30, 0), fmt)
+        with self.assertRaises(ValueError):
+            select_capture_format(device, cm, 640, 480, 29.97, 0)
+
     def test_selected_identity_survives_reordered_devices(self) -> None:
         first, second = Mock(), Mock()
         first.uniqueID.return_value = "first"

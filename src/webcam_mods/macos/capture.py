@@ -69,7 +69,12 @@ def select_capture_format(
     selected = None
     for fmt, w, h, minimum, maximum in _format_ranges(device, core_media):
         available.add((w, h, minimum, maximum))
-        if selected is None and (w, h) == (width, height) and minimum <= fps <= maximum:
+        if (
+            selected is None
+            and (w, h) == (width, height)
+            and (minimum <= fps or np.isclose(minimum, fps, rtol=1e-5, atol=0))
+            and (fps <= maximum or np.isclose(maximum, fps, rtol=1e-5, atol=0))
+        ):
             selected = fmt
     if selected is not None:
         return selected
@@ -364,6 +369,17 @@ class AVFoundationCamera(FrameInput):
                 self._locked_device = device
                 device.setActiveFormat_(selected_format)
                 duration = cm.CMTimeMake(1000, round(self.fps * 1000))
+                for rate in selected_format.videoSupportedFrameRateRanges():
+                    if self.fps < rate.minFrameRate() and np.isclose(
+                        self.fps, rate.minFrameRate(), rtol=1e-5, atol=0
+                    ):
+                        duration = rate.maxFrameDuration()
+                        break
+                    if self.fps > rate.maxFrameRate() and np.isclose(
+                        self.fps, rate.maxFrameRate(), rtol=1e-5, atol=0
+                    ):
+                        duration = rate.minFrameDuration()
+                        break
                 device.setActiveVideoMinFrameDuration_(duration)
                 device.setActiveVideoMaxFrameDuration_(duration)
             finally:
