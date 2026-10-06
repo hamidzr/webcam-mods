@@ -7,6 +7,7 @@ import math
 import os
 from pathlib import Path
 import sqlite3
+import tempfile
 from typing import Any, Iterator
 
 
@@ -67,8 +68,8 @@ class Profile:
             if (
                 isinstance(value, bool)
                 or not isinstance(value, (int, float))
-                or not math.isfinite(value)
                 or not 1 <= value <= 240
+                or not math.isfinite(value)
             ):
                 raise ValueError(f"{key} must be finite in 1..240")
         for key in ("track", "repeat_frames", "smoothing"):
@@ -95,6 +96,27 @@ class Profile:
         if unknown:
             raise ValueError(f"unknown settings: {', '.join(sorted(unknown))}")
         return cls(**config)
+
+
+MAX_STORED_CONFIG_BYTES = 65536
+
+
+def _stored_profile(config: object) -> Profile:
+    if not isinstance(config, str):
+        raise ValueError("invalid profile JSON")
+    if (
+        len(config) > MAX_STORED_CONFIG_BYTES
+        or len(config.encode("utf-8")) > MAX_STORED_CONFIG_BYTES
+    ):
+        raise ValueError("profile config exceeds 64 KiB limit")
+    try:
+        parsed = json.loads(config)
+    except (ValueError, TypeError, RecursionError, OverflowError) as error:
+        raise ValueError("invalid profile JSON") from error
+    try:
+        return Profile.parse(parsed)
+    except (ValueError, TypeError, RecursionError, OverflowError) as error:
+        raise ValueError("invalid profile settings") from error
 
 
 def validate_name(name: object) -> str:
@@ -144,14 +166,49 @@ class ProfileStore:
                 (name, json.dumps(asdict(profile))),
             )
 
-    def list(self) -> list[dict[str, Any]]:
+    def list_with_errors(
+        self,
+    ) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+        profiles: list[dict[str, Any]] = []
+        errors: list[dict[str, str]] = []
         with self._connect() as db:
-            return [
-                {"name": name, "config": asdict(Profile.parse(json.loads(config)))}
-                for name, config in db.execute(
-                    "SELECT name, config FROM profiles ORDER BY name"
-                )
-            ]
+            for name, config in db.execute(
+                "SELECT name, config FROM profiles ORDER BY name"
+            ):
+                try:
+                    profile = _stored_profile(config)
+                except ValueError as error:
+                    errors.append({"name": name, "error": str(error)})
+                    continue
+                profiles.append({"name": name, "config": asdict(profile)})
+        return profiles, errors
+
+    def errors(self) -> list[dict[str, str]]:
+        return self.list_with_errors()[1]
+
+    def list(self) -> list[dict[str, Any]]:
+        return self.list_with_errors()[0]
+
+    def export(self, name: object, path: Path, *, overwrite: bool = False) -> None:
+        """Write validated config atomically, preserving existing files by default."""
+        payload = json.dumps(asdict(self.get(name)), indent=2, allow_nan=False) + "\n"
+        temporary: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w", encoding="utf-8", dir=path.parent, delete=False
+            ) as output:
+                temporary = Path(output.name)
+                output.write(payload)
+                output.flush()
+                os.fsync(output.fileno())
+            if overwrite:
+                os.replace(temporary, path)
+            else:
+                # hard link publishes the complete file with exclusive-create semantics
+                os.link(temporary, path)
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
 
     def get(self, name: object) -> Profile:
         with self._connect() as db:
@@ -160,7 +217,7 @@ class ProfileStore:
             ).fetchone()
         if row is None:
             raise ValueError("profile not found")
-        return Profile.parse(json.loads(row[0]))
+        return _stored_profile(row[0])
 
     def delete(self, name: object) -> None:
         with self._connect() as db:

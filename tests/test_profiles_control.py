@@ -560,3 +560,173 @@ class ProfileAcquisitionIdentityTests(unittest.TestCase):
                 mapping.assert_not_called()
                 self.assertEqual(native.call_args.kwargs["device_id"], "saved-camera")
                 self.assertEqual(native.call_args.kwargs["device_index"], 4)
+
+
+class ProfileRecoveryTests(unittest.TestCase):
+    def test_corrupt_record_does_not_hide_valid_profiles_and_diagnostics_are_safe(self):
+        from contextlib import closing
+        import sqlite3
+
+        with tempfile.TemporaryDirectory() as directory:
+            store = ProfileStore(Path(directory) / "profiles.db")
+            store.save("valid", {"brightness": 20})
+            with closing(sqlite3.connect(store.path)) as db, db:
+                db.executemany(
+                    "INSERT INTO profiles VALUES (?, ?)",
+                    [
+                        ("damaged-json", "private-corrupt-contents"),
+                        ("damaged-config", '{"private_unknown_field": 42}'),
+                    ],
+                )
+            valid, errors = store.list_with_errors()
+            self.assertEqual([row["name"] for row in valid], ["valid"])
+            self.assertEqual(store.list(), valid)
+            self.assertEqual(store.errors(), errors)
+            self.assertEqual(
+                errors,
+                [
+                    {"name": "damaged-config", "error": "invalid profile settings"},
+                    {"name": "damaged-json", "error": "invalid profile JSON"},
+                ],
+            )
+            for name, message in (
+                ("damaged-json", "invalid profile JSON"),
+                ("damaged-config", "invalid profile settings"),
+            ):
+                with (
+                    self.subTest(name=name),
+                    self.assertRaisesRegex(ValueError, message),
+                ):
+                    store.export(name, Path(directory) / "invalid-export.json")
+            self.assertFalse((Path(directory) / "invalid-export.json").exists())
+            store.delete("damaged-json")
+            self.assertEqual(
+                [row["name"] for row in store.errors()], ["damaged-config"]
+            )
+            self.assertEqual(store.get("valid").brightness, 20)
+
+    def test_export_preserves_existing_target_until_explicit_overwrite(self):
+        import json
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            store = ProfileStore(root / "profiles.db")
+            store.save("valid", {"camera_id": "physical", "output_width": 1280})
+            target = root / "backup.json"
+            target.write_text("existing content")
+            with self.assertRaises(FileExistsError):
+                store.export("valid", target)
+            self.assertEqual(target.read_text(), "existing content")
+            store.export("valid", target, overwrite=True)
+            self.assertEqual(
+                Profile.parse(json.loads(target.read_text())), store.get("valid")
+            )
+            second = root / "new.json"
+            store.export("valid", second)
+            self.assertEqual(second.read_text(), target.read_text())
+            self.assertEqual(
+                sorted(path.name for path in root.iterdir()),
+                ["backup.json", "new.json", "profiles.db"],
+            )
+
+    def test_cli_export_delete_and_named_corruption_warning(self):
+        from contextlib import closing
+        import json
+        import sqlite3
+        from typer.testing import CliRunner
+        from webcam_mods.entry import app
+
+        with tempfile.TemporaryDirectory() as directory:
+            store = ProfileStore(Path(directory) / "profiles.db")
+            store.save("kept", {"effect": "blur"})
+            store.save("removed", {})
+            with closing(sqlite3.connect(store.path)) as db, db:
+                db.execute(
+                    "INSERT INTO profiles VALUES (?, ?)", ("damaged", "not-json")
+                )
+            with patch("webcam_mods.profiles.ProfileStore", return_value=store):
+                runner = CliRunner()
+                listed = runner.invoke(app, ["profiles-list"])
+                self.assertEqual(listed.exit_code, 0, listed.output)
+                self.assertEqual(
+                    [row["name"] for row in json.loads(listed.stdout)],
+                    ["kept", "removed"],
+                )
+                self.assertIn("damaged: invalid profile JSON", listed.stderr)
+                target = Path(directory) / "profile.json"
+                exported = runner.invoke(app, ["profile-export", "kept", str(target)])
+                self.assertEqual(exported.exit_code, 0, exported.output)
+                previous = target.read_text()
+                rejected = runner.invoke(
+                    app, ["profile-export", "removed", str(target)]
+                )
+                self.assertEqual(rejected.exit_code, 2, rejected.output)
+                self.assertEqual(target.read_text(), previous)
+                overwritten = runner.invoke(
+                    app, ["profile-export", "removed", str(target), "--overwrite"]
+                )
+                self.assertEqual(overwritten.exit_code, 0, overwritten.output)
+                deleted = runner.invoke(app, ["profile-delete", "removed"])
+                self.assertEqual(deleted.exit_code, 0, deleted.output)
+                self.assertEqual([row["name"] for row in store.list()], ["kept"])
+                missing = runner.invoke(app, ["profile-delete", "missing"])
+                self.assertEqual(missing.exit_code, 2, missing.output)
+
+
+class StoredProfileBoundsTests(unittest.TestCase):
+    def test_deep_oversized_and_overflow_rows_are_isolated_and_sanitized(self):
+        from contextlib import closing
+        import sqlite3
+
+        with tempfile.TemporaryDirectory() as directory:
+            store = ProfileStore(Path(directory) / "profiles.db")
+            store.save("valid", {})
+            bad = {
+                "deep": ("[" * 2000 + "0" + "]" * 2000, "invalid profile settings"),
+                "oversized": (
+                    '"' + "private" * 10000 + '"',
+                    "profile config exceeds 64 KiB limit",
+                ),
+                "unicode-oversized": (
+                    '"' + "é" * 33000 + '"',
+                    "profile config exceeds 64 KiB limit",
+                ),
+                "overflow": ('{"fps":' + "9" * 400 + "}", "invalid profile settings"),
+            }
+            with closing(sqlite3.connect(store.path)) as db, db:
+                db.executemany(
+                    "INSERT INTO profiles VALUES (?, ?)",
+                    [(name, config) for name, (config, _) in bad.items()],
+                )
+            valid, errors = store.list_with_errors()
+            self.assertEqual([row["name"] for row in valid], ["valid"])
+            self.assertEqual(
+                {row["name"]: row["error"] for row in errors},
+                {name: error for name, (_, error) in bad.items()},
+            )
+            for name, (_, message) in bad.items():
+                with (
+                    self.subTest(name=name),
+                    self.assertRaisesRegex(ValueError, message),
+                ):
+                    store.get(name)
+
+    def test_large_integer_rate_is_rejected_as_value_error(self):
+        for key in ("fps", "processing_fps", "output_fps"):
+            with self.subTest(key=key), self.assertRaisesRegex(ValueError, "finite"):
+                Profile.parse({key: 10**400})
+
+    def test_decoder_recursion_failure_is_sanitized(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = ProfileStore(Path(directory) / "profiles.db")
+            store.save("fixture", {})
+            with patch(
+                "webcam_mods.profiles.json.loads",
+                side_effect=RecursionError("private corrupt data"),
+            ):
+                self.assertEqual(
+                    store.errors(),
+                    [{"name": "fixture", "error": "invalid profile JSON"}],
+                )
+                with self.assertRaisesRegex(ValueError, "invalid profile JSON"):
+                    store.get("fixture")

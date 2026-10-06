@@ -421,7 +421,10 @@ def profiles_list() -> None:
     import json
     from webcam_mods.profiles import ProfileStore
 
-    typer.echo(json.dumps(ProfileStore().list(), indent=2))
+    profiles, errors = ProfileStore().list_with_errors()
+    typer.echo(json.dumps(profiles, indent=2))
+    for error in errors:
+        typer.echo(f"Profile {error['name']}: {error['error']}", err=True)
 
 
 @app.command(cls=SharedOptionsCommand, rich_help_panel="Profiles")
@@ -435,6 +438,36 @@ def profile_save(name: str, config: Path) -> None:
     except (OSError, ValueError, TypeError) as error:
         raise typer.BadParameter(str(error)) from error
     typer.echo(f"Saved {name}")
+
+
+@app.command(cls=SharedOptionsCommand, rich_help_panel="Profiles")
+def profile_delete(name: str) -> None:
+    """Delete one named profile, including a damaged profile."""
+    from webcam_mods.profiles import ProfileStore
+
+    try:
+        ProfileStore().delete(name)
+    except ValueError as error:
+        raise typer.BadParameter(str(error)) from error
+    typer.echo(f"Deleted {name}")
+
+
+@app.command(cls=SharedOptionsCommand, rich_help_panel="Profiles")
+def profile_export(
+    name: str,
+    path: Path,
+    overwrite: bool = typer.Option(
+        False, "--overwrite", help="Replace an existing export file."
+    ),
+) -> None:
+    """Export validated profile config for backup or editing."""
+    from webcam_mods.profiles import ProfileStore
+
+    try:
+        ProfileStore().export(name, path, overwrite=overwrite)
+    except (OSError, ValueError, TypeError) as error:
+        raise typer.BadParameter(str(error)) from error
+    typer.echo(f"Exported {name} to {path}")
 
 
 @app.command(cls=SharedOptionsCommand, rich_help_panel="Profiles")

@@ -8,6 +8,8 @@ from typing import Any, Callable
 
 from webcam_mods.profiles import Profile, ProfileStore
 from webcam_mods.protocol import RequestFailure, read_requests
+
+_STOP_TIMEOUT = 12
 from webcam_mods.input.input import FrameInput
 from webcam_mods.settings import StartupSettings
 
@@ -101,11 +103,25 @@ class Controller:
             return {
                 "state": self.state,
                 **({"error": self.error} if self.error else {}),
+                **({"restart_required": True} if self.poisoned else {}),
             }
 
     def _state(self, state: str, error: str | None = None) -> None:
         with self.lock:
+            if self.poisoned:
+                return
             self.state, self.error = state, error
+            self.emit({"event": "status", "data": self.status()})
+
+    def _poison(self, error: str) -> None:
+        with self.lock:
+            if self.poisoned:
+                return
+            self.poisoned = True
+            self.state = "error"
+            self.error = (
+                f"{error}; quit and reopen the app or restart the control worker"
+            )
             self.emit({"event": "status", "data": self.status()})
 
     def start(self, profile: Profile) -> dict[str, Any]:
@@ -140,8 +156,9 @@ class Controller:
                     from webcam_mods.frame_producer import WorkerShutdownTimeout
 
                     if isinstance(error, WorkerShutdownTimeout):
-                        self.poisoned = True
-                    self._state("error", str(error))
+                        self._poison(str(error))
+                    else:
+                        self._state("error", str(error))
                 else:
                     self._state("idle")
                 finally:
@@ -168,10 +185,9 @@ class Controller:
                 source.request_stop()
             except Exception as error:
                 cancellation_error = str(error)
-        thread.join(timeout=12)
+        thread.join(timeout=_STOP_TIMEOUT)
         if thread.is_alive():
-            self.poisoned = True
-            self._state("error", "session stop timed out; restart the control worker")
+            self._poison("session stop timed out")
         elif cancellation_error is not None:
             self._state("error", cancellation_error)
         return self.status()
@@ -185,6 +201,8 @@ class Controller:
             return self.status()
         if method == "profiles.list":
             return self.store.list()
+        if method == "profiles.errors":
+            return self.store.errors()
         if method == "profiles.save":
             self.store.save(params.get("name"), params.get("config"))
             return True
