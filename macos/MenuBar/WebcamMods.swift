@@ -8,7 +8,7 @@ struct Camera: Decodable, Identifiable {
     let id: String
 }
 
-struct Configuration: Codable {
+struct Configuration: Codable, Equatable {
     var input_device = 0
     var camera_id: String?
     var output_width: Int?
@@ -35,6 +35,11 @@ struct Configuration: Codable {
     }
 }
 
+struct ProfileIssue: Decodable {
+    let name: String
+    let error: String
+}
+
 struct Profile: Decodable, Identifiable {
     let name: String
     let config: Configuration
@@ -52,6 +57,11 @@ final class SessionModel: ObservableObject {
     @Published var state = "idle"
     @Published var error: String?
     @Published var connected = false
+    @Published var inventoryPending = false
+    @Published var backendVersion = ""
+    @Published var profileWarning: String?
+    private var inventoryGeneration = 0
+    private var inventoryCapture: String?
     private var process: Process?
     private var input: FileHandle?
     private var nextID = 0
@@ -65,7 +75,18 @@ final class SessionModel: ObservableObject {
     init() { Self.current = self }
     var hasWorker: Bool { process != nil }
 
+    var profileModified: Bool {
+        guard let saved = profiles.first(where: { $0.name == selectedProfile }) else { return false }
+        var current = config
+        var original = saved.config
+        if current.camera_id != nil && current.camera_id == original.camera_id {
+            current.input_device = 0
+            original.input_device = 0
+        }
+        return current != original
+    }
     var cameraUnavailable: Bool {
+        guard !inventoryPending, inventoryCapture == config.capture else { return true }
         if let id = config.camera_id { return !cameras.contains(where: { $0.id == id }) }
         return !cameras.contains(where: { $0.index == config.input_device })
     }
@@ -73,11 +94,12 @@ final class SessionModel: ObservableObject {
         config.camera_id ?? cameras.first(where: { $0.index == config.input_device })?.id ?? ""
     }
     func selectCamera(_ id: String) {
-        guard let camera = cameras.first(where: { $0.id == id }) else { return }
+        guard !inventoryPending, inventoryCapture == config.capture, let camera = cameras.first(where: { $0.id == id }) else { return }
         config.camera_id = camera.id
         config.input_device = camera.index
     }
     func reconcileCamera() {
+        guard !inventoryPending, inventoryCapture == config.capture else { return }
         if let id = config.camera_id, let camera = cameras.first(where: { $0.id == id }) {
             config.input_device = camera.index
         } else if config.camera_id == nil, let camera = cameras.first(where: { $0.index == config.input_device }) {
@@ -87,6 +109,11 @@ final class SessionModel: ObservableObject {
     func reconnect() {
         guard process == nil, !quitting else { return }
         startGeneration += 1
+        inventoryGeneration += 1
+        inventoryPending = false
+        inventoryCapture = nil
+        cameras = []
+        backendVersion = ""
         outputBuffer.removeAll()
         diagnosticBuffer.removeAll()
         pending.removeAll()
@@ -168,6 +195,7 @@ final class SessionModel: ObservableObject {
                         self.process?.terminate()
                         return
                     }
+                    self.backendVersion = hello["version"] as? String ?? "unknown"
                     self.connected = true
                     self.refresh()
                 case .failure(let issue):
@@ -276,6 +304,7 @@ final class SessionModel: ObservableObject {
         let cameras = try JSONDecoder().decode([Camera].self, from: cameraBytes)
         try check(cameras[0].id == "stable-camera", "Camera identity decoding")
         model.cameras = cameras
+        model.inventoryCapture = model.config.capture
         model.selectCamera("stable-camera")
         try check(model.config.camera_id == "stable-camera" && model.config.input_device == 2, "Camera selection preserves identity")
         model.config.input_device = 0
@@ -290,6 +319,30 @@ final class SessionModel: ObservableObject {
         let outputDecoded = try JSONDecoder().decode(Configuration.self, from: JSONEncoder().encode(outputConfig))
         try check(outputDecoded.output_width == 1280 && outputDecoded.output_fps == 24, "Independent output settings round trip")
         try check(profiles[0].config.camera_id == nil && profiles[0].config.output_width == nil, "Legacy profile optional fields")
+        model.config = profiles[0].config
+        try check(!model.profileModified, "Selected saved profile begins clean")
+        model.config.brightness = 20
+        try check(model.profileModified && model.selectedProfile == "Example", "Draft changes mark selected profile modified without writing")
+        model.config.brightness = 0
+        try check(!model.profileModified, "Restoring saved settings clears modified state")
+        model.inventoryGeneration = 2
+        model.inventoryPending = true
+        model.config.capture = "opencv"
+        model.acceptInventory(.success([["index": 2, "name": "Stale", "id": "old"]]), generation: 1, capture: "avfoundation")
+        try check(model.inventoryPending, "Old inventory response cannot unlock Start")
+        model.acceptInventory(.success([["index": 2, "name": "Older same backend", "id": "old"]]), generation: 1, capture: "opencv")
+        try check(model.inventoryPending, "Out-of-order same-backend response ignored")
+        model.connected = true
+        model.start()
+        try check(model.state == "idle", "Start blocked while inventory pending before camera permission")
+        model.connected = false
+        model.acceptInventory(.success([["index": 3, "name": "Current", "id": "new"]]), generation: 2, capture: "opencv")
+        try check(!model.inventoryPending && model.cameras[0].id == "new", "Current inventory response accepted")
+        model.config.capture = "avfoundation"
+        try check(model.cameraUnavailable, "Backend changes invalidate inventory immediately")
+        let issueBytes = Data("[{\"name\":\"Broken profile\",\"error\":\"invalid configuration\"}]".utf8)
+        let issues = try JSONDecoder().decode([ProfileIssue].self, from: issueBytes)
+        try check(issues[0].name == "Broken profile", "Structured profile warning decoding")
         try pipe.fileHandleForWriting.close()
         try pipe.fileHandleForReading.close()
         try helperSelfTest()
@@ -353,11 +406,32 @@ final class SessionModel: ObservableObject {
         request("profiles.list") { [weak self] result in
             self?.decode(result, as: [Profile].self) { self?.profiles = $0 }
         }
+        request("profiles.errors") { [weak self] result in
+            self?.decode(result, as: [ProfileIssue].self) { issues in
+                self?.profileWarning = issues.isEmpty ? nil : "Some saved profiles could not load. \(issues.map { "\($0.name): \($0.error)" }.joined(separator: "; ")). Use profile-save or profile-delete for these names, then Refresh."
+            }
+        }
     }
 
     func refreshCameras() {
-        request("cameras.list", params: ["capture": config.capture]) { [weak self] result in
-            self?.decode(result, as: [Camera].self) { self?.cameras = $0; self?.reconcileCamera() }
+        inventoryGeneration += 1
+        let generation = inventoryGeneration
+        let capture = config.capture
+        inventoryPending = true
+        cameras = []
+        inventoryCapture = nil
+        request("cameras.list", params: ["capture": capture]) { [weak self] result in
+            self?.acceptInventory(result, generation: generation, capture: capture)
+        }
+    }
+
+    private func acceptInventory(_ result: Result<Any, Error>, generation: Int, capture: String) {
+        guard generation == inventoryGeneration, capture == config.capture else { return }
+        inventoryPending = false
+        decode(result, as: [Camera].self) {
+            cameras = $0
+            inventoryCapture = capture
+            reconcileCamera()
         }
     }
 
@@ -483,19 +557,24 @@ struct ControlPanel: View {
             if let error = model.error {
                 Label(error, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
             }
+            if let warning = model.profileWarning {
+                Label(warning, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange).lineLimit(4).help(warning)
+            }
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     Picker("Camera", selection: Binding(get: { model.selectedCameraID }, set: model.selectCamera)) {
                         if model.cameraUnavailable { Text(model.cameras.isEmpty ? "No cameras found" : "Saved camera unavailable").tag(model.selectedCameraID) }
                         ForEach(model.cameras) { camera in Text(camera.name).tag(camera.id) }
-                    }
+                    }.disabled(model.inventoryPending)
                     if model.cameraUnavailable {
-                        Text("Reconnect saved camera or choose another camera.").font(.caption).foregroundStyle(.secondary)
+                        Text(model.inventoryPending ? "Refreshing camera inventory..." : "Reconnect saved camera or choose another camera.").font(.caption).foregroundStyle(.secondary)
                     }
                     HStack {
                         Picker("Profile", selection: Binding(get: { model.selectedProfile }, set: model.selectProfile)) {
                             Text("Custom").tag("")
-                            ForEach(model.profiles) { Text($0.name).tag($0.name) }
+                            ForEach(model.profiles) { profile in
+                                Text(profile.name + (profile.name == model.selectedProfile && model.profileModified ? " (modified)" : "")).tag(profile.name)
+                            }
                         }
                         Button { model.refresh() } label: { Image(systemName: "arrow.clockwise") }.help("Refresh cameras and profiles")
                     }
@@ -581,7 +660,7 @@ struct ControlPanel: View {
             HStack {
                 Text(model.build).help("Built \(model.buildDate)")
                 Spacer()
-                Text("Local camera controls")
+                Text(model.backendVersion.isEmpty ? "Worker disconnected" : "Backend \(model.backendVersion)")
             }.font(.caption2).foregroundStyle(.secondary)
         }.padding(18).frame(width: 370)
         .onAppear { model.connect() }
