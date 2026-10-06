@@ -91,6 +91,8 @@ def live_loop(
     pace: bool = True,
     settings: StartupSettings | None = None,
     processing_cleanup: Callable[[], None] | None = None,
+    should_stop: Callable[[], bool] | None = None,
+    on_ready: Callable[[], None] | None = None,
 ) -> None:
     """Pass frames through a mod; bounded runs raise on missing input."""
     if max_frames is not None and max_frames < 1:
@@ -142,6 +144,15 @@ def live_loop(
                 cast(Frame, failure_image), sw=fOut.width, sh=fOut.height
             )
 
+            ready_reported = False
+
+            def report_ready() -> None:
+                nonlocal ready_reported
+                if not ready_reported:
+                    ready_reported = True
+                    if on_ready is not None:
+                        on_ready()
+
             last_frame = paused_frame
 
             def handle_empty_frame() -> Frame:
@@ -151,7 +162,9 @@ def live_loop(
 
             def process_output_events() -> bool:
                 cam.process_events()
-                return not cam.should_stop()
+                return not cam.should_stop() and not (
+                    should_stop is not None and should_stop()
+                )
 
             if producer is not None:
 
@@ -182,13 +195,17 @@ def live_loop(
                 )
                 try:
                     sent_frames = 0
-                    while max_frames is None or sent_frames < max_frames:
+                    while (max_frames is None or sent_frames < max_frames) and not (
+                        should_stop is not None and should_stop()
+                    ):
                         paused = on_demand and not cam.is_in_use()
                         producer.enable(not paused)
                         completed = producer.latest()
                         cam.send(
                             paused_frame if paused or completed is None else completed
                         )
+                        if completed is not None:
+                            report_ready()
                         sent_frames += 1
                         if pace:
                             if not pacer.wait(process_events=process_output_events):
@@ -202,7 +219,9 @@ def live_loop(
                 return
 
             sent_frames = 0
-            while max_frames is None or sent_frames < max_frames:
+            while (max_frames is None or sent_frames < max_frames) and not (
+                should_stop is not None and should_stop()
+            ):
                 if before_frame is not None:
                     before_frame()
                 if on_demand:
@@ -247,6 +266,8 @@ def live_loop(
                 # assert frame.shape[1] == fOut.width
                 # logger.debug('sending frame shape', frame.shape)
                 cam.send(frame)
+                if not paused:
+                    report_ready()
                 sent_frames += 1
                 if pace:
                     if not pacer.wait(

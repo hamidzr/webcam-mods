@@ -119,3 +119,35 @@ class TrackFaceCliTests(unittest.TestCase):
                 )
                 self.assertNotEqual(result.exit_code, 0)
                 capture.assert_not_called()
+
+    def test_timed_out_tracking_worker_retains_all_effect_resources(self) -> None:
+        from webcam_mods.frame_producer import WorkerShutdownTimeout
+
+        detector, tracker, background = MagicMock(), MagicMock(), MagicMock()
+        cleanups = []
+
+        def blocked_worker(**kwargs: object) -> None:
+            cleanups.append(kwargs["processing_cleanup"])
+            raise WorkerShutdownTimeout("inference still active")
+
+        with (
+            patch("webcam_mods.mods.mp_face.FaceDetector", return_value=detector),
+            patch("webcam_mods.mods.camera_motion.CropTracker", return_value=tracker),
+            patch.object(entry, "BackgroundEffect", return_value=background),
+            patch.object(entry, "create_camera"),
+            patch.object(entry, "live_loop", side_effect=blocked_worker),
+        ):
+            result = CliRunner().invoke(
+                entry.app, ["--no-controls", "track-face", "--blur"]
+            )
+        self.assertIsInstance(result.exception, WorkerShutdownTimeout)
+        self.assertEqual(result.exit_code, 1)
+        detector.close.assert_not_called()
+        tracker.close.assert_not_called()
+        background.close.assert_not_called()
+        self.assertEqual(len(cleanups), 1)
+        cleanups[0]()
+        cleanups[0]()
+        detector.close.assert_called_once()
+        tracker.close.assert_called_once()
+        background.close.assert_called_once()

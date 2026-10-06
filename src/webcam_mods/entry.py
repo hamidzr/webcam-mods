@@ -4,7 +4,6 @@ from enum import Enum
 import importlib.util
 import os
 import sys
-import time
 from pathlib import Path
 from typing import Callable, Literal, cast
 from webcam_mods.utils.video import Frame
@@ -28,7 +27,7 @@ import typer
 from webcam_mods.config import DEFAULT_BG_IMAGE
 from webcam_mods.settings import StartupSettings, load_settings
 from webcam_mods.loopback import live_loop
-from webcam_mods.mods.video_mods import brighten as brighten_mod, crop_rect
+from webcam_mods.mods.video_mods import brighten as brighten_mod
 from webcam_mods.session import RunSession
 from webcam_mods.uses.interactive_controls import ControlAdapters
 
@@ -291,62 +290,33 @@ def track_face(
     blur_kernel_size: int = typer.Option(31, min=1),
 ) -> None:
     """Follow one face with bounded zoom and stable output proportions."""
-    from webcam_mods.mods.camera_motion import CropTracker
-    from webcam_mods.mods.mp_face import FaceDetector
+    from webcam_mods.effects import TrackingEffect
 
     if blur_kernel_size % 2 == 0:
         raise typer.BadParameter("blur kernel size must be odd")
-    with ExitStack() as resources:
-        detector = FaceDetector(lost_after=lost_after)
-        resources.callback(detector.close)
-        settings = _common(ctx).settings or load_settings()
-        tracker = CropTracker(
-            fps=(
-                min(settings.in_fps, settings.processing_fps, settings.max_out_fps)
-                if settings.repeat_frames
-                else min(settings.in_fps, settings.max_out_fps)
-            ),
-            aspect_ratio=settings.out_width / settings.out_height,
-            face_height=face_height,
-            max_zoom=max_zoom,
-            target_x=target_x,
-            target_y=target_y,
-            pan_deadzone=pan_deadzone,
-            zoom_deadzone=zoom_deadzone,
-            pan_seconds=pan_seconds,
-            zoom_seconds=zoom_seconds,
-            lost_after=lost_after,
-        )
-        resources.callback(tracker.close)
-        background = (
-            BackgroundEffect(_common(ctx), "blur_bg", blur_kernel_size)
-            if blur
-            else None
-        )
-        if background is not None:
-            resources.callback(background.close)
-        padding = (
-            (
-                x_padding if x_padding is not None else 2.0,
-                y_padding if y_padding is not None else 2.5,
-            )
-            if x_padding is not None or y_padding is not None
-            else None
-        )
-
-        def process(frame: Frame) -> Frame | None:
-            now = time.monotonic()
-            prediction = detector.predict(frame, now=now)
-            height, width = frame.shape[:2]
-            result = crop_rect(
-                frame,
-                tracker.generate_crop(
-                    prediction, padding, frame_size=(width, height), now=now
-                ),
-            )
-            return background(result) if result is not None and background else result
-
-        _run(_common(ctx), process, prepare=False)
+    common = _common(ctx)
+    settings = common.settings or load_settings()
+    background = BackgroundEffect(common, "blur_bg", blur_kernel_size) if blur else None
+    padding = (
+        (x_padding or 2.0, y_padding or 2.5)
+        if x_padding is not None or y_padding is not None
+        else None
+    )
+    effect = TrackingEffect(
+        settings,
+        background=background,
+        padding=padding,
+        face_height=face_height,
+        max_zoom=max_zoom,
+        target_x=target_x,
+        target_y=target_y,
+        pan_deadzone=pan_deadzone,
+        zoom_deadzone=zoom_deadzone,
+        pan_seconds=pan_seconds,
+        zoom_seconds=zoom_seconds,
+        lost_after=lost_after,
+    )
+    _run(common, effect, prepare=False)
 
 
 @app.command(cls=SharedOptionsCommand, rich_help_panel="Screen")
@@ -443,6 +413,55 @@ def list_cameras(ctx: typer.Context) -> None:
         typer.echo(f"{label}: {camera.name}")
         for capture_format in camera.formats:
             typer.echo(f"  {capture_format}")
+
+
+@app.command(cls=SharedOptionsCommand, rich_help_panel="Profiles")
+def profiles_list() -> None:
+    """List saved profile names and validated settings as JSON."""
+    import json
+    from webcam_mods.profiles import ProfileStore
+
+    typer.echo(json.dumps(ProfileStore().list(), indent=2))
+
+
+@app.command(cls=SharedOptionsCommand, rich_help_panel="Profiles")
+def profile_save(name: str, config: Path) -> None:
+    """Save a named profile from a JSON config file."""
+    import json
+    from webcam_mods.profiles import ProfileStore
+
+    try:
+        ProfileStore().save(name, json.loads(config.read_text()))
+    except (OSError, ValueError, TypeError) as error:
+        raise typer.BadParameter(str(error)) from error
+    typer.echo(f"Saved {name}")
+
+
+@app.command(cls=SharedOptionsCommand, rich_help_panel="Profiles")
+def profile_run(ctx: typer.Context, name: str) -> None:
+    """Run a saved effect profile without interactive crop controls."""
+    import threading
+
+    for parameter in ctx.parent.command.params if ctx.parent is not None else []:
+        key = parameter.name
+        if key is None:
+            continue
+        for context in (ctx, ctx.parent):
+            if context is None:
+                continue
+            source = context.get_parameter_source(key)
+            if source is not None and source.name == "COMMANDLINE":
+                raise typer.BadParameter(
+                    "profile-run uses saved settings; edit the profile instead of supplying common flags"
+                )
+    from webcam_mods.control import run_profile
+    from webcam_mods.profiles import ProfileStore
+
+    try:
+        profile = ProfileStore().get(name)
+    except ValueError as error:
+        raise typer.BadParameter(str(error)) from error
+    run_profile(profile, threading.Event(), lambda: None, lambda source: None)
 
 
 @app.callback()
