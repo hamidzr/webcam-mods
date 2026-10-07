@@ -79,22 +79,33 @@ class NativePreviewTests(unittest.TestCase):
             self.preview.publish(self.frame)
             self.assertEqual(encode.call_count, 2)
 
-    def test_rate_limit_latest_only_and_aspect_preserved(self):
+    def test_each_delivered_frame_replaces_latest_and_preserves_aspect(self):
         self.preview.get()
         self.preview.publish(self.frame)
         first = self.preview.get()
         self.assertEqual((first["width"], first["height"]), (640, 360))
         self.assertLessEqual(len(base64.b64decode(first["jpeg"])), 512 * 1024)
         self.frame.fill(99)
-        self.now = 0.05
-        self.preview.publish(self.frame)
-        self.assertEqual(self.preview.get(), first)
-        self.now = 0.11
+        self.now = 1 / 60
         self.preview.publish(self.frame)
         second = self.preview.get()
         self.assertNotEqual(second, first)
         self.assertEqual(decode(second).shape, (360, 640, 3))
         self.assertTrue(np.all(decode(second) == 99))
+
+    def test_encoding_follows_output_delivery_at_different_frame_rates(self):
+        for fps in (15, 29.97, 30, 60):
+            with self.subTest(fps=fps):
+                preview = NativePreview(lambda: self.now)
+                self.now = 0
+                preview.get()
+                with patch(
+                    "webcam_mods.output.native_preview.cv2.imencode", wraps=cv2.imencode
+                ) as encode:
+                    for tick in range(int(fps)):
+                        self.now = tick / fps
+                        preview.publish(self.frame)
+                    self.assertEqual(encode.call_count, int(fps))
 
     def test_portrait_small_and_noisy_bounds(self):
         random = np.random.default_rng(1)
@@ -165,6 +176,7 @@ class PreviewPipelineTests(unittest.TestCase):
                 preview = NativePreview()
                 expected = resize_and_pad(source.original + 20, 96, 64)
                 delivered = []
+                output_ready = Mock()
 
                 def on_frame(frame):
                     np.testing.assert_array_equal(frame, sink.frames[-1])
@@ -183,6 +195,10 @@ class PreviewPipelineTests(unittest.TestCase):
                     pace=repeat,
                     settings=StartupSettings(repeat_frames=repeat),
                     on_frame=on_frame,
+                    on_output_ready=output_ready,
+                )
+                output_ready.assert_called_once_with(
+                    {"width": 96, "height": 64, "fps": 60}
                 )
                 self.assertEqual(len(delivered), len(sink.frames))
                 np.testing.assert_array_equal(delivered[-1], expected)
@@ -214,6 +230,7 @@ class PreviewPipelineTests(unittest.TestCase):
 
     def test_run_profile_wires_preview_sink_and_final_frame_callback(self):
         callback = Mock()
+        output_ready = Mock()
         for output, backend in (
             ("preview", "native-preview"),
             ("virtualcam", "virtual-cam"),
@@ -231,9 +248,11 @@ class PreviewPipelineTests(unittest.TestCase):
                     lambda source: None,
                     output=output,
                     on_frame=callback,
+                    on_output_ready=output_ready,
                 )
                 self.assertEqual(loop.call_args.kwargs["output_backend"], backend)
                 self.assertIs(loop.call_args.kwargs["on_frame"], callback)
+                self.assertIs(loop.call_args.kwargs["on_output_ready"], output_ready)
 
 
 class PreviewControllerTests(unittest.TestCase):
@@ -258,11 +277,19 @@ class PreviewControllerTests(unittest.TestCase):
 
     def test_stop_restart_and_error_clear_frames_and_reject_old_session_callback(self):
         callbacks, modes = [], []
+        cadence_callbacks = []
         started, release = threading.Event(), threading.Event()
         fail = False
 
-        def runner(profile, stop, ready, source_ready, *, output, on_frame):
+        def runner(
+            profile, stop, ready, source_ready, *, output, on_frame, on_output_ready
+        ):
             callbacks.append(on_frame)
+            if cadence_callbacks:
+                cadence_callbacks[0]({"fps": 15, "width": 48, "height": 32})
+                self.assertIsNone(controller.output_fps)
+            cadence_callbacks.append(on_output_ready)
+            on_output_ready({"fps": 29.97, "width": 48, "height": 32})
             modes.append(output)
             ready()
             started.set()
@@ -278,6 +305,7 @@ class PreviewControllerTests(unittest.TestCase):
             started.clear()
             controller.dispatch("start", {"output": output})
             self.assertTrue(started.wait(1))
+            self.assertEqual(controller.status()["output_fps"], 29.97)
             self.assertIsNone(controller.dispatch("preview.get", {}))
             if len(callbacks) > 1:
                 callbacks[0](frame)
@@ -285,6 +313,7 @@ class PreviewControllerTests(unittest.TestCase):
             callbacks[-1](frame)
             self.assertIsNotNone(controller.dispatch("preview.get", {}))
             controller.stop()
+            self.assertNotIn("output_fps", controller.status())
             self.assertIsNone(controller.dispatch("preview.get", {}))
             callbacks[-1](frame)
             self.assertIsNone(controller.dispatch("preview.get", {}))

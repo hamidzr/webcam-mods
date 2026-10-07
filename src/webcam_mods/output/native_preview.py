@@ -25,7 +25,6 @@ class NativePreview:
         self._clock = clock
         self._lock = threading.Lock()
         self._requested: float | None = None
-        self._encoded: float | None = None
         self._latest: PreviewFrame | None = None
         self._closed = False
 
@@ -48,14 +47,8 @@ class NativePreview:
     def publish(self, frame: Frame) -> None:
         with self._lock:
             now = self._clock()
-            if (
-                self._closed
-                or self._requested is None
-                or now - self._requested > 1
-                or (self._encoded is not None and now - self._encoded < 0.1)
-            ):
+            if self._closed or self._requested is None or now - self._requested > 1:
                 return
-            self._encoded = now
 
         height, width = frame.shape[:2]
         scale = min(1, 640 / width, 480 / height)

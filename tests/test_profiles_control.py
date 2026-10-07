@@ -11,6 +11,40 @@ from webcam_mods.profiles import Profile, ProfileStore
 
 
 class ProfileTests(unittest.TestCase):
+    def test_starter_profiles_persist_without_overwriting_edits_or_deletions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "profiles.db"
+            store = ProfileStore(path)
+            store.save("Natural", {"brightness": 20})
+            store.save("My Call", {"effect": "blur"})
+            controller = Controller(store, lambda _: None)
+            self.assertTrue(controller.dispatch("profiles.seed_defaults", {}))
+            self.assertEqual(len(store.list()), 6)
+            self.assertEqual(store.get("Natural").brightness, 20)
+            self.assertEqual(store.get("Soft Background Blur").effect, "blur")
+            self.assertTrue(store.get("Auto Framing").track)
+            combined = store.get("Blur + Auto Framing")
+            self.assertEqual(combined.effect, "blur")
+            self.assertTrue(combined.track)
+            self.assertEqual(combined.fps, 30)
+            self.assertEqual(combined.processing_fps, 30)
+            self.assertEqual(store.get("Studio Gray").effect, "color")
+            store.save("Studio Gray", {"color": 100, "effect": "color"})
+            store.delete("Auto Framing")
+            reopened = ProfileStore(path)
+            reopened.seed_defaults()
+            self.assertEqual(reopened.get("Studio Gray").color, 100)
+            self.assertNotIn("Auto Framing", [p["name"] for p in reopened.list()])
+            self.assertEqual(reopened.get("My Call").effect, "blur")
+
+    def test_seed_defaults_rejects_params_before_writing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = ProfileStore(Path(directory) / "profiles.db")
+            controller = Controller(store, lambda _: None)
+            with self.assertRaisesRegex(ValueError, "params must be empty"):
+                controller.dispatch("profiles.seed_defaults", {"unexpected": True})
+            self.assertEqual(store.list(), [])
+
     def test_validates_without_coercion(self):
         for config in (
             {"track": 1},

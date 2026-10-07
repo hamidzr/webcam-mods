@@ -5,7 +5,7 @@ import platform
 import math
 from loguru import logger
 from webcam_mods.capture import create_camera
-from webcam_mods.input.input import FrameInput, FrameOutput
+from webcam_mods.input.input import AdapterMetadata, FrameInput, FrameOutput
 from webcam_mods.utils.video import Frame
 from webcam_mods.timing import FramePacer
 from typing import Any, Callable, Optional, TypedDict, cast
@@ -98,6 +98,7 @@ def live_loop(
     should_stop: Callable[[], bool] | None = None,
     on_ready: Callable[[], None] | None = None,
     on_frame: Callable[[Frame], None] | None = None,
+    on_output_ready: Callable[[AdapterMetadata], None] | None = None,
 ) -> None:
     """Pass frames through a mod; bounded runs raise on missing input."""
     if max_frames is not None and max_frames < 1:
@@ -137,6 +138,8 @@ def live_loop(
         # This is the loop that reads from the input, edits, and then writes to the loopback
         with fOut as (cam, outp_props):
             _validate_metadata(outp_props, "output")
+            if on_output_ready is not None:
+                on_output_ready(outp_props)
             logger.info(f"input: {inp_props}, output: {outp_props}")
             signal_image = cv2.imread(str(NO_SIGNAL_IMAGE))
             failure_image = cv2.imread(str(ERROR_IMAGE))

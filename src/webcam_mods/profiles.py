@@ -7,6 +7,7 @@ import math
 import os
 from pathlib import Path
 import sqlite3
+import sys
 import tempfile
 from typing import Any, Iterator
 
@@ -164,6 +165,32 @@ class ProfileStore:
             db.execute(
                 "INSERT INTO profiles VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET config=excluded.config",
                 (name, json.dumps(asdict(profile))),
+            )
+
+    def seed_defaults(self) -> None:
+        """Add starter profiles once; preserve edits, collisions and deletions."""
+        base = Profile(capture="avfoundation" if sys.platform == "darwin" else "auto")
+        defaults = {
+            "Natural": base,
+            "Soft Background Blur": replace(base, effect="blur"),
+            "Auto Framing": replace(base, track=True),
+            "Blur + Auto Framing": replace(base, effect="blur", track=True),
+            "Studio Gray": replace(base, effect="color", color=192),
+        }
+        with self._connect() as db:
+            db.execute(
+                "CREATE TABLE IF NOT EXISTS profile_seeds (name TEXT PRIMARY KEY)"
+            )
+            if not db.execute(
+                "INSERT OR IGNORE INTO profile_seeds VALUES ('desktop-v1')"
+            ).rowcount:
+                return
+            db.executemany(
+                "INSERT OR IGNORE INTO profiles VALUES (?, ?)",
+                [
+                    (name, json.dumps(asdict(profile)))
+                    for name, profile in defaults.items()
+                ],
             )
 
     def list_with_errors(

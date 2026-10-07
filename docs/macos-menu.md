@@ -31,12 +31,20 @@ previewing the same processed output in the window. Output mode is selected per
 app launch and is separate from saved effect profiles. Closing or minimizing the
 window pauses preview requests and encoding; a running camera session continues
 until Stop or Quit. Preview keeps only the latest JPEG in memory, fits within
-640x480 and refreshes up to 10 FPS. It shows final output framing and effects at
+640x480 and follows delivered output frames. The window polls at the negotiated
+output FPS, including independent output rates and nearby native rates such as
+29.97 FPS. It shows final output framing and effects at
 reduced resolution; output delivery retains configured dimensions and FPS.
 
 Camera permission is requested on Start. Enable Webcam Mods under System Settings >
 Privacy & Security > Camera if access is denied. OBS extension setup is separate;
-see [installation](installation.md).
+see [installation](installation.md). The window checks for the modern OBS camera
+extension without opening a camera. When detected, it shows an OBS readiness
+checkmark. Otherwise, it shows download/setup links and extension approval steps
+for the installed macOS version. Preview remains available without OBS; virtual
+output requires the extension. Check again or return to the app after setup to
+refresh readiness. OBS must stop its own Virtual Camera before Webcam Mods starts
+publishing; extension detection does not test exclusive output access.
 
 Status distinguishes Idle, Starting, Running, Stopping and Error. Running follows
 the first processed frame delivered to output. Starting can include model download
@@ -67,6 +75,11 @@ index mapping. Unavailable cameras and OBS output are excluded. Native capture f
 identity to AVFoundation and revalidates it when opening. Explicit OpenCV still
 opens an index, so a hotplug between lookup and acquisition can change selection;
 prefer native capture for stable identity guarantees.
+
+On first connection, the desktop app saves five starter profiles: Natural,
+Soft Background Blur, Auto Framing, Blur + Auto Framing and Studio Gray. Each uses
+640x480 at 30 FPS. They are editable local profiles; existing names are preserved,
+and later launches retain edits and do not restore deleted starters.
 
 Save named profiles to reuse settings. A selected profile shows "(modified)"
 when current settings differ from its saved configuration; editing does not
@@ -167,13 +180,14 @@ the helper available.
 | hello | {} | protocol and package version |
 | cameras.list | capture backend, optional | Array of id/index/name objects; macOS only |
 | profiles.list | {} | Array of valid name/config objects |
+| profiles.seed_defaults | {} | Save starter pack once without replacing existing names; true |
 | profiles.errors | {} | Array of name/error objects for damaged profiles |
 | profiles.save | name, config | true |
 | profiles.delete | name | true |
 | start | config, or profile name; optional output: virtualcam (default) or preview | Current state |
 | preview.get | {} | Latest {jpeg: base64, width, height}, or null |
 | stop | {} | State after bounded shutdown |
-| status | {} | Current state and optional error |
+| status | {} | Current state, optional error and negotiated output_fps once output opens |
 | shutdown | {} | Stop result, then helper exits |
 
 EOF also stops the session. Simultaneous sessions are rejected. Configuration
@@ -186,8 +200,9 @@ replace the helper process before another session.
 
 `just menu-check` compiles and runs native transport/model tests, including JPEG
 decoding, single in-flight preview requests, stale-response rejection, stop/hide
-cleanup and timeouts. Python regressions verify final-frame routing in direct
-and repeat modes, preview-only output without OBS, bounded encoding and session
+cleanup, OBS readiness, negotiated preview cadence and timeouts. Python regressions
+verify final-frame routing in direct and repeat modes, preview-only output without
+OBS, bounded encoding and session
 cleanup. These checks do not establish physical-camera permission behavior,
 conferencing reception, realistic quality or power behavior.
 

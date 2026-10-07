@@ -12,7 +12,7 @@ from webcam_mods.output.native_preview import NativePreview
 from webcam_mods.utils.video import Frame
 
 _STOP_TIMEOUT = 12
-from webcam_mods.input.input import FrameInput
+from webcam_mods.input.input import AdapterMetadata, FrameInput
 from webcam_mods.settings import StartupSettings
 
 
@@ -24,6 +24,7 @@ def run_profile(
     *,
     output: str = "virtualcam",
     on_frame: Callable[[Frame], None] | None = None,
+    on_output_ready: Callable[[AdapterMetadata], None] | None = None,
 ) -> None:
     from webcam_mods.capture import camera_index_for_id, create_camera
     from webcam_mods.effects import ProfileEffect
@@ -70,6 +71,7 @@ def run_profile(
             on_ready=ready,
             strict_errors=True,
             on_frame=on_frame,
+            on_output_ready=on_output_ready,
         )
     except WorkerShutdownTimeout:
         # backend process must exit; it cannot safely start another session
@@ -112,8 +114,10 @@ class Controller:
         self.source: FrameInput | None = None
         self.poisoned = False
         self.preview: NativePreview | None = None
+        self.output_fps: float | None = None
 
     def _clear_preview(self) -> None:
+        self.output_fps = None
         if self.preview is not None:
             self.preview.close()
             self.preview = None
@@ -124,6 +128,11 @@ class Controller:
                 "state": self.state,
                 **({"error": self.error} if self.error else {}),
                 **({"restart_required": True} if self.poisoned else {}),
+                **(
+                    {"output_fps": self.output_fps}
+                    if self.output_fps is not None
+                    else {}
+                ),
             }
 
     def _state(self, state: str, error: str | None = None) -> None:
@@ -176,6 +185,16 @@ class Controller:
                     if not self.stop_event.is_set() and self.state == "starting":
                         self._state("running")
 
+            def output_ready(metadata: AdapterMetadata) -> None:
+                with self.lock:
+                    if (
+                        self.preview is preview
+                        and not self.stop_event.is_set()
+                        and self.state == "starting"
+                    ):
+                        self.output_fps = metadata["fps"]
+                        self.emit({"event": "status", "data": self.status()})
+
             def run() -> None:
                 try:
                     if self._native_runner is not None:
@@ -186,6 +205,7 @@ class Controller:
                             source_ready,
                             output=output,
                             on_frame=preview.publish,
+                            on_output_ready=output_ready,
                         )
                     else:
                         self.runner(profile, self.stop_event, ready, source_ready)
@@ -244,6 +264,11 @@ class Controller:
                 return self.preview.get() if self.preview is not None else None
         if method == "profiles.list":
             return self.store.list()
+        if method == "profiles.seed_defaults":
+            if params:
+                raise ValueError("profiles.seed_defaults params must be empty")
+            self.store.seed_defaults()
+            return True
         if method == "profiles.errors":
             return self.store.errors()
         if method == "profiles.save":

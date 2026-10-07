@@ -46,6 +46,31 @@ struct Profile: Decodable, Identifiable {
     var id: String { name }
 }
 
+enum OBSReadiness {
+    case ready, notInstalled, setupRequired
+
+    static func assess(models: [String], installed: Bool) -> OBSReadiness {
+        // modern OBS extension exposes this model; legacy plugins are incompatible
+        if models.contains(where: { $0.caseInsensitiveCompare("OBS Camera Extension") == .orderedSame }) { return .ready }
+        return installed ? .setupRequired : .notInstalled
+    }
+
+    var title: String {
+        switch self {
+        case .ready: return "OBS Virtual Camera ready"
+        case .notInstalled: return "OBS not installed"
+        case .setupRequired: return "OBS Virtual Camera setup needed"
+        }
+    }
+
+    var guidance: String {
+        let settings = ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 15
+            ? "General > Login Items & Extensions > Camera Extensions"
+            : "Privacy & Security > Security"
+        return "Preview works without OBS. To share video, install OBS 30 or newer, open it and click Start Virtual Camera. Allow its camera extension in System Settings > \(settings), then restart OBS. Stop its Virtual Camera and close OBS before starting Webcam Mods."
+    }
+}
+
 @MainActor
 final class SessionModel: ObservableObject {
     static weak var current: SessionModel?
@@ -58,6 +83,8 @@ final class SessionModel: ObservableObject {
         didSet { if state != "running" { clearPreview() } }
     }
     @Published var outputMode = "preview"
+    @Published var outputFPS: Double?
+    @Published var obsReadiness = OBSReadiness.setupRequired
     @Published var previewImage: NSImage?
     @Published var previewError: String?
     private var previewPending = false
@@ -172,6 +199,23 @@ final class SessionModel: ObservableObject {
     }
 
     var active: Bool { ["starting", "running", "stopping"].contains(state) }
+    var outputUnavailable: Bool { outputMode == "virtualcam" && obsReadiness != .ready }
+    var previewInterval: TimeInterval {
+        let requested = config.output_fps ?? config.fps
+        let fps = outputFPS ?? (config.repeat_frames ? requested : min(config.fps, requested))
+        return 1 / (fps.isFinite && (1...240).contains(fps) ? fps : Configuration().fps)
+    }
+
+    func refreshOBS() {
+        let external: AVCaptureDevice.DeviceType
+        if #available(macOS 14, *) { external = .external }
+        else { external = .externalUnknown }
+        let devices = AVCaptureDevice.DiscoverySession(deviceTypes: [external], mediaType: .video, position: .unspecified).devices
+        obsReadiness = OBSReadiness.assess(
+            models: devices.filter { $0.isConnected }.map { $0.modelID },
+            installed: NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.obsproject.obs-studio") != nil
+        )
+    }
     var build: String {
         let info = Bundle.main.infoDictionary ?? [:]
         return "\(info["CFBundleShortVersionString"] as? String ?? "unknown") (\(info["BuildCommit"] as? String ?? "unknown"))"
@@ -246,7 +290,10 @@ final class SessionModel: ObservableObject {
                     }
                     self.backendVersion = hello["version"] as? String ?? "unknown"
                     self.connected = true
-                    self.refresh()
+                    self.request("profiles.seed_defaults") { [weak self] result in
+                        if case .failure(let issue) = result { self?.error = issue.localizedDescription }
+                        self?.refresh()
+                    }
                 case .failure(let issue):
                     self.error = issue.localizedDescription
                     self.state = "error"
@@ -275,6 +322,7 @@ final class SessionModel: ObservableObject {
             }
             if message["event"] as? String == "status", let data = message["data"] as? [String: Any] {
                 state = data["state"] as? String ?? "idle"
+                outputFPS = data["output_fps"] as? Double
                 error = data["error"] as? String
             } else if let id = message["id"] as? Int, let callback = pending.removeValue(forKey: id) {
                 if let message = message["error"] as? String { callback(.failure(failure(message))) }
@@ -426,10 +474,31 @@ final class SessionModel: ObservableObject {
         model.state = "idle"
         model.pollPreview(visible: true)
         try check(!model.previewPending, "Idle window does not poll frames")
+        try check(OBSReadiness.assess(models: [], installed: false) == .notInstalled, "Missing OBS detected")
+        try check(OBSReadiness.assess(models: ["OBS Virtual Camera"], installed: true) == .setupRequired, "Legacy OBS camera is not ready")
+        try check(OBSReadiness.assess(models: ["obs camera extension"], installed: false) == .ready, "Modern extension works without OBS app running or installed")
+        model.obsReadiness = .notInstalled
+        model.outputMode = "preview"
+        try check(!model.outputUnavailable, "Missing OBS does not block preview")
+        model.outputMode = "virtualcam"
+        try check(model.outputUnavailable, "Missing OBS blocks virtual output")
+        model.obsReadiness = .ready
+        try check(!model.outputUnavailable, "Ready extension enables virtual output")
+        model.config.fps = 30
+        model.config.output_fps = 60
+        model.config.repeat_frames = true
+        model.outputFPS = nil
+        try check(model.previewInterval == 1 / 60.0, "Repeat preview follows requested output cadence before negotiation")
+        model.config.repeat_frames = false
+        try check(model.previewInterval == 1 / 30.0, "Direct preview respects capture cadence before negotiation")
+        model.consume(Data("{\"event\":\"status\",\"data\":{\"state\":\"running\",\"output_fps\":29.97}}\n".utf8))
+        try check(model.previewInterval == 1 / 29.97, "Preview follows negotiated output FPS")
+        model.consume(Data("{\"event\":\"status\",\"data\":{\"state\":\"idle\"}}\n".utf8))
+        try check(model.outputFPS == nil, "Idle clears negotiated output cadence")
         try pipe.fileHandleForWriting.close()
         try pipe.fileHandleForReading.close()
         try helperSelfTest()
-        print("Native model self-test passed (JSONL, errors, timeout, profiles, camera identity, preview lifecycle).")
+        print("Native model self-test passed (JSONL, profiles, camera identity, preview lifecycle/cadence, OBS readiness).")
     }
 
     private static func helperSelfTest() throws {
@@ -454,10 +523,11 @@ final class SessionModel: ObservableObject {
         try helper.run()
         let requests: [[String: Any]] = [
             ["id": 1, "method": "hello"],
-            ["id": 2, "method": "profiles.save", "params": ["name": "Native test", "config": Configuration().json]],
-            ["id": 3, "method": "profiles.list"],
-            ["id": 4, "method": "preview.get", "params": [:]],
-            ["id": 5, "method": "shutdown"]
+            ["id": 2, "method": "profiles.seed_defaults"],
+            ["id": 3, "method": "profiles.save", "params": ["name": "Native test", "config": Configuration().json]],
+            ["id": 4, "method": "profiles.list"],
+            ["id": 5, "method": "preview.get", "params": [:]],
+            ["id": 6, "method": "shutdown"]
         ]
         for request in requests {
             var bytes = try JSONSerialization.data(withJSONObject: request)
@@ -470,23 +540,27 @@ final class SessionModel: ObservableObject {
             throw NSError(domain: "WebcamModsSelfTest", code: 1, userInfo: [NSLocalizedDescriptionKey: "Real helper timed out"])
         }
         let lines = output.fileHandleForReading.readDataToEndOfFile().split(separator: 10)
-        guard helper.terminationStatus == 0, lines.count == 5 else {
+        guard helper.terminationStatus == 0, lines.count == 6 else {
             throw NSError(domain: "WebcamModsSelfTest", code: 1, userInfo: [NSLocalizedDescriptionKey: "Real helper failed"])
         }
         let messages = try lines.map { try JSONSerialization.jsonObject(with: Data($0)) as? [String: Any] }
         guard let hello = messages[0]?["result"] as? [String: Any], hello["protocol"] as? Int == 1,
-              let profiles = messages[2]?["result"] as? [[String: Any]],
-              messages[3]?["result"] is NSNull else {
+              messages[1]?["result"] as? Bool == true,
+              let profiles = messages[3]?["result"] as? [[String: Any]],
+              messages[4]?["result"] is NSNull else {
             throw NSError(domain: "WebcamModsSelfTest", code: 1, userInfo: [NSLocalizedDescriptionKey: "Real helper response mismatch"])
         }
         let profileData = try JSONSerialization.data(withJSONObject: profiles)
         let decoded = try JSONDecoder().decode([Profile].self, from: profileData)
-        guard decoded.count == 1, decoded[0].config.brightness == 0, decoded[0].config.capture == "avfoundation" else {
+        guard decoded.count == 6,
+              let saved = decoded.first(where: { $0.name == "Native test" }), saved.config.brightness == 0, saved.config.capture == "avfoundation",
+              let blurred = decoded.first(where: { $0.name == "Blur + Auto Framing" }), blurred.config.effect == "blur", blurred.config.track else {
             throw NSError(domain: "WebcamModsSelfTest", code: 1, userInfo: [NSLocalizedDescriptionKey: "Real helper profile mismatch"])
         }
     }
 
     func refresh() {
+        refreshOBS()
         refreshCameras()
         request("profiles.list") { [weak self] result in
             self?.decode(result, as: [Profile].self) { self?.profiles = $0 }
@@ -560,8 +634,11 @@ final class SessionModel: ObservableObject {
 
     func start() {
         guard !active, connected else { return }
+        refreshOBS()
+        guard !outputUnavailable else { error = obsReadiness.guidance; return }
         guard !cameraUnavailable else { error = "Saved camera unavailable. Reconnect it or choose another camera."; return }
         error = nil
+        outputFPS = nil
         state = "starting"
         startGeneration += 1
         let generation = startGeneration
@@ -657,6 +734,21 @@ struct ControlPanel: View {
                     }
                     Text(model.outputMode == "preview" ? "Test camera and effects in this window." : "Send video to OBS Virtual Camera and preview here.")
                         .font(.caption).foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Label(model.obsReadiness.title, systemImage: model.obsReadiness == .ready ? "checkmark.circle.fill" : "exclamationmark.triangle")
+                                .foregroundStyle(model.obsReadiness == .ready ? .green : .orange)
+                            Spacer()
+                            Button("Check again", action: model.refreshOBS)
+                        }
+                        if model.obsReadiness != .ready {
+                            Text(model.obsReadiness.guidance).foregroundStyle(.secondary)
+                            HStack {
+                                Link("Download OBS", destination: URL(string: "https://obsproject.com/download")!)
+                                Link("Setup guide", destination: URL(string: "https://obsproject.com/kb/virtual-camera-troubleshooting")!)
+                            }
+                        }
+                    }.font(.caption)
                     Picker("Camera", selection: Binding(get: { model.selectedCameraID }, set: model.selectCamera)) {
                         if model.cameraUnavailable { Text(model.cameras.isEmpty ? "No cameras found" : "Saved camera unavailable").tag(model.selectedCameraID) }
                         ForEach(model.cameras) { camera in Text(camera.name).tag(camera.id) }
@@ -749,7 +841,7 @@ struct ControlPanel: View {
             }
             HStack {
                 Button(model.active ? "Stop camera" : "Start camera", action: model.active ? model.stop : model.start)
-                    .buttonStyle(.borderedProminent).disabled(!model.connected || model.state == "stopping" || (!model.active && model.cameraUnavailable))
+                    .buttonStyle(.borderedProminent).disabled(!model.connected || model.state == "stopping" || (!model.active && (model.cameraUnavailable || model.outputUnavailable)))
                 Spacer()
                 Button("Quit", action: model.quit)
             }
@@ -861,7 +953,7 @@ struct WebcamModsApp: App {
         MenuBarExtra("Webcam Mods", systemImage: model.state == "running" ? "video.fill" : "video") {
             Text("Camera: \(model.state.capitalized)")
             Button(model.active ? "Stop camera" : "Start camera", action: model.active ? model.stop : model.start)
-                .disabled(!model.connected || model.state == "stopping" || (!model.active && model.cameraUnavailable))
+                .disabled(!model.connected || model.state == "stopping" || (!model.active && (model.cameraUnavailable || model.outputUnavailable)))
             Button("Open window") { delegate.showControls() }.keyboardShortcut("o")
             Divider()
             Button("Quit Webcam Mods", action: model.quit).keyboardShortcut("q")
@@ -876,13 +968,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         showControls()
-        previewTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+        schedulePreview()
+    }
+
+    private func schedulePreview() {
+        let timer = Timer(timeInterval: SessionModel.current?.previewInterval ?? 1 / Configuration().fps, repeats: true) { [weak self] timer in
             Task { @MainActor in
                 guard let self else { return }
                 let visible = self.controlsWindow.map { $0.isVisible && !$0.isMiniaturized } ?? false
                 SessionModel.current?.pollPreview(visible: visible)
+                if let model = SessionModel.current, timer.timeInterval != model.previewInterval {
+                    timer.invalidate()
+                    self.schedulePreview()
+                }
             }
         }
+        previewTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        SessionModel.current?.refreshOBS()
     }
 
     func showControls() {
