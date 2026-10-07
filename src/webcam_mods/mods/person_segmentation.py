@@ -117,6 +117,7 @@ class PersonEffects:
         self._closed = False
         self._background_source: Frame | None = None
         self._background: Frame | None = None
+        self._background_blur_kernel = 1
 
     def mask(self, frame: Frame) -> tuple[Frame, Mask]:
         if self._closed:
@@ -155,12 +156,15 @@ class PersonEffects:
             image, cast(Frame, cv2.blur(image, (kernel_size, kernel_size))), mask
         )
 
-    def set_background(self, bg_image: Frame) -> None:
+    def set_background(self, bg_image: Frame, *, blur_kernel: int = 1) -> None:
         """Own a background snapshot for repeated calls without a background argument."""
         if self._closed:
             raise RuntimeError("person effects are closed")
         validate_frame(bg_image)
+        if type(blur_kernel) is not int or blur_kernel <= 0 or blur_kernel % 2 == 0:
+            raise ValueError("blur kernel size must be a positive odd number")
         self._background_source = bg_image.copy()
+        self._background_blur_kernel = blur_kernel
         self._background = None
 
     def swap_bg(self, frame: Frame, bg_image: Frame | None = None) -> Frame:
@@ -171,10 +175,19 @@ class PersonEffects:
         image, mask = self.mask(frame)
         # background tracks the prepared crop, padding and replay dimensions
         if self._background is None or self._background.shape != image.shape:
-            self._background = cast(
+            background = cast(
                 Frame,
                 cv2.resize(self._background_source, (image.shape[1], image.shape[0])),
             )
+            if self._background_blur_kernel > 1:
+                background = cast(
+                    Frame,
+                    cv2.blur(
+                        background,
+                        (self._background_blur_kernel, self._background_blur_kernel),
+                    ),
+                )
+            self._background = background
         background = self._background
         if self.processor is not None:
             return self.processor.process(image, mask[:, :, 0], background=background)
