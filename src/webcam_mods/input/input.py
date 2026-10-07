@@ -4,6 +4,8 @@ from typing import Any, Optional, Generator, Self, TypedDict, NotRequired
 import cv2
 from webcam_mods.utils.video import Frame
 import datetime as dt
+import math
+from collections.abc import Mapping
 
 
 class AdapterMetadata(TypedDict):
@@ -13,6 +15,18 @@ class AdapterMetadata(TypedDict):
     height: int
     fps: float
     device: NotRequired[str]
+
+
+def validate_metadata(properties: Mapping[str, object], adapter: str) -> None:
+    for name in ("width", "height", "fps"):
+        value = properties.get(name)
+        if (
+            not isinstance(value, (int, float))
+            or isinstance(value, bool)
+            or not math.isfinite(value)
+            or value <= 0
+        ):
+            raise ValueError(f"invalid {adapter} {name}: {value!r}")
 
 
 class InNOut:

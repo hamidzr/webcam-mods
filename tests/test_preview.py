@@ -75,10 +75,17 @@ class PreviewTests(unittest.TestCase):
         )
 
     def test_preview_receives_exact_final_frame_and_close_stops_capture(self):
-        windows = self.windows(visible=0)
+        windows = self.windows()
         source = Source()
         preview = GUI(width=16, height=12, fps=12)
         transformed = source.image[:, ::-1].copy()
+        expected = resize_and_pad(transformed, 16, 12)
+        windows["getWindowProperty"].side_effect = lambda *args: (
+            0
+            if windows["imshow"].called
+            and np.array_equal(windows["imshow"].call_args.args[1], expected)
+            else 1
+        )
         live_loop(
             mod=lambda frame: frame[:, ::-1].copy(),
             fIn=source,

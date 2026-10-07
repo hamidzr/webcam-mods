@@ -3,8 +3,10 @@
 from dataclasses import dataclass, fields
 import math
 import os
-from typing import Any
+from typing import Any, Literal
 from collections.abc import Mapping
+
+SignalPattern = Literal["color-bars", "noise"]
 
 
 @dataclass(frozen=True)
@@ -20,11 +22,14 @@ class StartupSettings:
     max_out_fps: float = 30
     processing_fps: float = 30
     repeat_frames: bool = False
+    signal_pattern: SignalPattern = "color-bars"
     on_demand: bool = False
     pan_control: bool = True
     padding_control: bool = True
 
     def __post_init__(self) -> None:
+        if self.signal_pattern not in ("color-bars", "noise"):
+            raise ValueError("SIGNAL_PATTERN must be color-bars or noise")
         for name in ("in_width", "in_height", "out_width", "out_height"):
             value = getattr(self, name)
             if type(value) is not int or value <= 0:

@@ -30,6 +30,7 @@ class Profile:
     repeat_frames: bool = True
     processing_fps: float = 30
     smoothing: bool = False
+    signal_pattern: str = "color-bars"
     camera_id: str | None = None
     output_width: int | None = None
     output_height: int | None = None
@@ -77,6 +78,7 @@ class Profile:
             if type(getattr(self, key)) is not bool:
                 raise ValueError(f"{key} must be a boolean")
         for key, choices in (
+            ("signal_pattern", ("color-bars", "noise")),
             ("effect", ("plain", "blur", "color", "image", "track")),
             ("segmentation", ("mediapipe", "vision")),
             ("processing", ("opencv", "coreimage")),

@@ -132,7 +132,19 @@ On macOS ARM64, CPU and Metal are compared on first use of each model/frame shap
 Three warmed comparisons include input conversion and result readback; GPU must
 be over 5% faster in every round. Probe failures use CPU. Successful decisions
 persist with hardware/software identity and expiry; warm launches skip probes.
-Cold calibration still takes several seconds. Other platforms use CPU.
+Cold calibration runs all three warmed CPU/Metal comparisons in one isolated
+worker per model, avoiding repeated Python imports. Runtime-specific cache files
+keep checkout and installed-tool calibrations separate. Other platforms use CPU.
+`uv run scripts/benchmark_startup.py --compare-legacy` measures cold calibration
+against the former six-worker approach using cached models and synthetic input,
+without opening a camera or changing calibration caches.
+
+Interactive sessions open output before capture/model startup. Both preview and
+virtual camera receive TV color bars with a startup message until the first
+processed frame. Choose animated TV static with `--signal-pattern noise` (or
+`SIGNAL_PATTERN=noise`); native profiles expose Loading picture in Advanced.
+Color bars are cached; static refreshes at most 8 times/second and stops when
+live video arrives. Bounded capture/export runs contain only live frames.
 
 ## Develop and verify
 

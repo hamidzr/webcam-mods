@@ -47,6 +47,7 @@ class SettingsTests(unittest.TestCase):
             ("IN_FORMAT", "ABC"),
             ("ON_DEMAND", "maybe"),
             ("VIDEO_OUT", ""),
+            ("SIGNAL_PATTERN", "invalid"),
         ):
             with self.subTest(name=name), self.assertRaisesRegex(ValueError, name):
                 load_settings({name: value})

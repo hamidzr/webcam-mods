@@ -47,6 +47,11 @@ class OutputBackend(str, Enum):
     gui = "gui"
 
 
+class SignalPattern(str, Enum):
+    color_bars = "color-bars"
+    noise = "noise"
+
+
 class SegmentationBackend(str, Enum):
     mediapipe = "mediapipe"
     vision = "vision"
@@ -548,6 +553,11 @@ def common(
         rich_help_panel="Output",
         metavar="DESTINATION",
     ),
+    signal_pattern: SignalPattern | None = typer.Option(
+        None,
+        help="Loading/paused frames: color-bars or noise; shared by all outputs.",
+        rich_help_panel="Output",
+    ),
     input_device: int | None = typer.Option(
         None,
         min=0,
@@ -643,6 +653,7 @@ def common(
             out_height=output_height,
             max_out_fps=output_fps,
             repeat_frames=repeat_frames,
+            signal_pattern=signal_pattern.value if signal_pattern is not None else None,
             processing_fps=processing_fps,
             video_out=output_device,
             on_demand=on_demand,

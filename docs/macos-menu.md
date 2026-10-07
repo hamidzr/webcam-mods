@@ -64,6 +64,10 @@ keep it at the same location when reusing saved profiles. Image provenance and
 generation prompts are in [background credits](../macos/Backgrounds/README.md).
 Brightness adds HSV value, 0..255. Advanced settings expose capture size/FPS,
 processing FPS, backend choices, repeat delivery and optional mask smoothing.
+Loading picture selects TV color bars or animated TV static. Both preview and
+virtual-camera output receive the same loading frames with a startup message
+while capture, model initialization and calibration run. Live frames replace them
+automatically; startup preview remains available while the session is starting.
 Requested capture size/FPS must be supported together by the selected camera.
 Native capture prefers an exact FPS match and accepts supported rates within 1%
 of the request, including 29.97/30. It reports the negotiated input FPS; repeat
@@ -156,6 +160,7 @@ Profile fields and defaults:
 | processing | opencv | opencv or coreimage |
 | repeat_frames | true | Repeat latest frame at output cadence |
 | processing_fps | 30 | Fresh-frame cap in repeat mode |
+| signal_pattern | color-bars | Loading/paused picture: color-bars or noise |
 | smoothing | false | Opt-in motion-aware mask stabilization |
 
 ## Local protocol

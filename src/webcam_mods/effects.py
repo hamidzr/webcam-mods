@@ -91,10 +91,17 @@ class TrackingEffect:
 
 class ProfileEffect:
     def __init__(self, profile: Profile, settings: StartupSettings) -> None:
-        from webcam_mods.entry import BackgroundEffect, Common
-
         self.resources = ExitStack()
         self.brightness = profile.brightness
+        self._profile, self._settings = profile, settings
+        self._initialized = False
+        self._closed = False
+        self.transform: Effect | None = None
+
+    def _initialize(self) -> None:
+        from webcam_mods.entry import BackgroundEffect, Common
+
+        profile, settings = self._profile, self._settings
         common = Common(segmentation=profile.segmentation, processing=profile.processing, mask_smoothing=profile.smoothing)  # type: ignore[arg-type]
         background = None
         try:
@@ -111,18 +118,23 @@ class ProfileEffect:
                 profile.track or profile.effect == "track"
             ):
                 self.resources.callback(background.close)
-            self.transform: Effect | None = (
+            self.transform = (
                 TrackingEffect(settings, background=background)
                 if profile.track or profile.effect == "track"
                 else background
             )
             if isinstance(self.transform, TrackingEffect):
                 self.resources.callback(self.transform.close)
+            self._initialized = True
         except BaseException:
             self.resources.close()
             raise
 
     def __call__(self, frame: Frame) -> Frame | None:
+        if self._closed:
+            raise RuntimeError("profile effect is closed")
+        if not self._initialized:
+            self._initialize()
         result = self.transform(frame) if self.transform is not None else frame
         return (
             brighten(result, self.brightness)
@@ -131,4 +143,5 @@ class ProfileEffect:
         )
 
     def close(self) -> None:
+        self._closed = True
         self.resources.close()

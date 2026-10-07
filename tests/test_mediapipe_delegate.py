@@ -383,7 +383,7 @@ class WorkerMeasurementTests(unittest.TestCase):
                         with self.assertRaises(ValueError):
                             delegates._calibrate("face", self.frame)
                 run.assert_called_once()
-                self.assertEqual(run.call_args.kwargs["timeout"], 15)
+                self.assertEqual(run.call_args.kwargs["timeout"], 90)
                 self.assertTrue(run.call_args.kwargs["check"])
                 self.assertEqual(run.call_args.args[0][-2:], ["face", "calibrate"])
                 np.testing.assert_array_equal(

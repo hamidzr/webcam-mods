@@ -30,6 +30,7 @@ _WARMUP = 10
 _SAMPLES = 30
 _ROUNDS = 3
 _TIMEOUT = 15
+_CALIBRATION_TIMEOUT = _TIMEOUT * _ROUNDS * 2
 _CACHE_LIMIT = 128
 _CACHE_MAX_AGE = 30 * 24 * 60 * 60
 _CACHE_MAX_BYTES = 128 * 1024
@@ -171,7 +172,8 @@ def _calibrate(task: Task, frame: Frame) -> tuple[list[float], list[float]]:
         [sys.executable, "-m", "webcam_mods.mediapipe_delegate", task, "calibrate"],
         input=stream.getvalue(),
         capture_output=True,
-        timeout=_TIMEOUT,
+        # preserve the former six workers' total budget for large input shapes
+        timeout=_CALIBRATION_TIMEOUT,
         check=True,
     )
     document = json.loads(result.stdout)

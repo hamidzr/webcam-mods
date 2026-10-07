@@ -1,15 +1,19 @@
-from webcam_mods.config import NO_SIGNAL_IMAGE, ERROR_IMAGE
+from webcam_mods.config import ERROR_IMAGE
 from webcam_mods.settings import StartupSettings, load_settings
 import cv2
 import platform
-import math
 from loguru import logger
 from webcam_mods.capture import create_camera
-from webcam_mods.input.input import AdapterMetadata, FrameInput, FrameOutput
+from webcam_mods.input.input import (
+    AdapterMetadata,
+    FrameInput,
+    FrameOutput,
+    validate_metadata as _validate_metadata,
+)
 from webcam_mods.utils.video import Frame
 from webcam_mods.timing import FramePacer
+from webcam_mods.signals import SignalFrames
 from typing import Any, Callable, Optional, TypedDict, cast
-from collections.abc import Mapping
 
 from webcam_mods.mods.video_mods import resize_and_pad
 
@@ -69,18 +73,6 @@ def default_frame_output(
         return PyVirtualCam(**options)
 
 
-def _validate_metadata(properties: Mapping[str, object], adapter: str) -> None:
-    for name in ("width", "height", "fps"):
-        value = properties.get(name)
-        if (
-            not isinstance(value, (int, float))
-            or isinstance(value, bool)
-            or not math.isfinite(value)
-            or value <= 0
-        ):
-            raise ValueError(f"invalid {adapter} {name}: {value!r}")
-
-
 def live_loop(
     mod: Optional[Callable[[Frame], Optional[Frame]]] = None,
     on_demand: bool | None = None,
@@ -108,7 +100,10 @@ def live_loop(
     if fIn is None:
         fIn = create_camera(settings)
 
-    producer = None
+    from webcam_mods.frame_producer import FrameProducer
+
+    producer: FrameProducer | None = None
+    bounded_direct = max_frames is not None and not settings.repeat_frames
     try:
         if interactive_listener is _DEFAULT_LISTENER:
             from webcam_mods.uses.interactive_controls import create_default_listener
@@ -118,54 +113,107 @@ def live_loop(
             before_frame = interactive_listener.apply_commands
         if interactive_listener is not None:
             interactive_listener.start()
-        paused = False if not on_demand else True
 
-        if settings.repeat_frames:
-            from webcam_mods.frame_producer import FrameProducer
-
-            producer = FrameProducer(fIn, cleanup=processing_cleanup)
-            inp_props = producer.setup()
-        else:
+        inp_props = None
+        if bounded_direct:
             inp_props = fIn.setup()
-        _validate_metadata(inp_props, "input")
+            _validate_metadata(inp_props, "input")
+        else:
+            producer = FrameProducer(fIn, cleanup=processing_cleanup)
         if fOut is None:
             fOut = default_frame_output(
-                inp_props["fps"], backend=output_backend, settings=settings
+                inp_props["fps"] if inp_props is not None else fIn.fps,
+                backend=output_backend,
+                settings=settings,
             )
-        logger.info(
-            f"begin passing from #{fIn.__class__.__name__} to #{fOut.__class__.__name__}"
-        )
-        # This is the loop that reads from the input, edits, and then writes to the loopback
         with fOut as (cam, outp_props):
             _validate_metadata(outp_props, "output")
             if on_output_ready is not None:
                 on_output_ready(outp_props)
-            logger.info(f"input: {inp_props}, output: {outp_props}")
-            signal_image = cv2.imread(str(NO_SIGNAL_IMAGE))
+            signals = SignalFrames(fOut.width, fOut.height, settings.signal_pattern)
             failure_image = cv2.imread(str(ERROR_IMAGE))
-            if signal_image is None or failure_image is None:
-                raise RuntimeError("bundled signal images could not be read")
-            paused_frame = resize_and_pad(
-                cast(Frame, signal_image), sw=fOut.width, sh=fOut.height
-            )
+            if failure_image is None:
+                raise RuntimeError("bundled error image could not be read")
             error_frame = resize_and_pad(
                 cast(Frame, failure_image), sw=fOut.width, sh=fOut.height
             )
-
+            last_frame = signals.frame("Opening camera...")
             ready_reported = False
 
-            def report_ready() -> None:
-                nonlocal ready_reported
-                if not ready_reported:
-                    ready_reported = True
-                    if on_ready is not None:
-                        on_ready()
+            def produce(frame: Frame) -> Frame:
+                nonlocal last_frame
+                try:
+                    result = mod(frame) if mod else frame
+                    if result is None:
+                        if strict_errors:
+                            raise RuntimeError("mod returned no frame")
+                        return last_frame if freeze_on_error else error_frame
+                    normalized = resize_and_pad(result, sw=fOut.width, sh=fOut.height)
+                    last_frame = (
+                        normalized.copy() if settings.repeat_frames else normalized
+                    )
+                    return last_frame
+                except Exception as error:
+                    if strict_errors:
+                        raise
+                    logger.error(f"failed to process frame. {error}")
+                    return last_frame if freeze_on_error else error_frame
 
-            last_frame = paused_frame
+            # bounded direct runs export only live frames, preserving capture semantics
+            if bounded_direct:
+                pacer = FramePacer(outp_props["fps"])
+                sent_frames = 0
+                while sent_frames < cast(int, max_frames) and not (
+                    should_stop is not None and should_stop()
+                ):
+                    if before_frame is not None:
+                        before_frame()
+                    paused = on_demand and not cam.is_in_use()
+                    if paused:
+                        fIn.teardown()
+                        delivered = signals.frame("Camera paused")
+                    else:
+                        if not fIn.is_setup():
+                            _validate_metadata(fIn.setup(), "input")
+                        frame = fIn.frame()
+                        if frame is None:
+                            raise RuntimeError("input returned no frame")
+                        delivered = produce(frame)
+                    cam.send(delivered)
+                    if on_frame is not None:
+                        on_frame(delivered)
+                    if not paused and not ready_reported:
+                        ready_reported = True
+                        if on_ready is not None:
+                            on_ready()
+                    sent_frames += 1
+                    cam.process_events()
+                    if cam.should_stop():
+                        break
+                    if pace:
 
-            def handle_empty_frame() -> Frame:
-                return last_frame if freeze_on_error else error_frame
+                        def bounded_events() -> bool:
+                            cam.process_events()
+                            return not cam.should_stop() and not (
+                                should_stop is not None and should_stop()
+                            )
 
+                        if not pacer.wait(
+                            interval=0.5 if paused else None,
+                            process_events=bounded_events,
+                        ):
+                            break
+                return
+
+            assert producer is not None
+            producer.configure(
+                produce,
+                min(settings.processing_fps, outp_props["fps"]),
+                before_frame=before_frame,
+                strict=strict_errors or max_frames is not None,
+                copy_result=False,
+                continuous=settings.repeat_frames,
+            )
             pacer = FramePacer(outp_props["fps"])
 
             def process_output_events() -> bool:
@@ -174,114 +222,71 @@ def live_loop(
                     should_stop is not None and should_stop()
                 )
 
-            if producer is not None:
-
-                def produce(frame: Frame) -> Frame:
-                    nonlocal last_frame
-                    try:
-                        result = mod(frame) if mod else frame
-                        if result is None:
-                            if strict_errors:
-                                raise RuntimeError("mod returned no frame")
-                            return handle_empty_frame()
-                        last_frame = resize_and_pad(
-                            result, sw=fOut.width, sh=fOut.height
-                        ).copy()
-                        return last_frame
-                    except Exception as error:
-                        if strict_errors:
-                            raise
-                        logger.error(f"failed to process frame. {error}")
-                        return handle_empty_frame()
-
-                producer.configure(
-                    produce,
-                    min(settings.processing_fps, inp_props["fps"], outp_props["fps"]),
-                    before_frame=before_frame,
-                    strict=strict_errors or max_frames is not None,
-                    copy_result=False,
-                )
-                try:
-                    sent_frames = 0
-                    while (max_frames is None or sent_frames < max_frames) and not (
-                        should_stop is not None and should_stop()
-                    ):
-                        paused = on_demand and not cam.is_in_use()
-                        producer.enable(not paused)
-                        completed = producer.latest()
-                        delivered = (
-                            paused_frame if paused or completed is None else completed
-                        )
-                        cam.send(delivered)
-                        if on_frame is not None:
-                            on_frame(delivered)
-                        if completed is not None:
-                            report_ready()
-                        sent_frames += 1
-                        if pace:
-                            if not pacer.wait(process_events=process_output_events):
-                                break
-                        elif not process_output_events():
-                            break
-                finally:
-                    producer.close()
-                # surface worker failures, including cleanup, before normal return
-                producer.latest()
-                return
-
+            logger.info(
+                "begin passing from #{} to #{}",
+                fIn.__class__.__name__,
+                fOut.__class__.__name__,
+            )
+            # output is open before capture or model startup can block
+            producer.start()
+            inp_props = None
             sent_frames = 0
+            requested = False
             while (max_frames is None or sent_frames < max_frames) and not (
                 should_stop is not None and should_stop()
             ):
-                if before_frame is not None:
-                    before_frame()
-                if on_demand:
-                    paused = not cam.is_in_use()
-                    if paused:
-                        fIn.teardown()
-
-                frame = None
+                paused = on_demand and not cam.is_in_use()
+                producer.enable(not paused)
                 if paused:
-                    frame = paused_frame
+                    requested = False
+                if settings.repeat_frames:
+                    completed = producer.latest()
                 else:
-                    if not fIn.is_setup():
-                        _validate_metadata(fIn.setup(), "input")
-
-                    frame = fIn.frame()
-                    if frame is None:
-                        if max_frames is not None or strict_errors:
-                            raise RuntimeError("input returned no frame")
-                        if pace:
-                            if not pacer.wait(process_events=process_output_events):
-                                break
-                        elif not process_output_events():
+                    if not paused and not requested:
+                        producer.request_frame()
+                        requested = True
+                    completed = producer.take(
+                        timeout=(
+                            (0.1 if ready_reported else 0.01 if not pace else 0)
+                            if not paused
+                            else 0
+                        )
+                    )
+                    if completed is not None:
+                        requested = False
+                    elif ready_reported and not paused:
+                        if not process_output_events():
                             break
                         continue
-                    try:
-                        if mod:
-                            frame = mod(frame)
-                        if frame is not None:
-                            frame = resize_and_pad(frame, sw=fOut.width, sh=fOut.height)
-                            last_frame = frame
-                        else:
-                            if strict_errors:
-                                raise RuntimeError("mod returned no frame")
-                            frame = handle_empty_frame()
-                    except Exception as e:
-                        if strict_errors:
-                            raise
-                        logger.error(f"failed to process frame. {e}")
-                        frame = handle_empty_frame()
-
-                # assert frame.shape[0] == fOut.height
-                # assert frame.shape[1] == fOut.width
-                # logger.debug('sending frame shape', frame.shape)
-                cam.send(frame)
+                if inp_props is None:
+                    inp_props = producer.metadata()
+                    if inp_props is not None:
+                        logger.info(f"input: {inp_props}, output: {outp_props}")
+                        if not settings.repeat_frames:
+                            delivered_fps = min(inp_props["fps"], outp_props["fps"])
+                            pacer = FramePacer(delivered_fps)
+                            if on_output_ready is not None:
+                                on_output_ready({**outp_props, "fps": delivered_fps})
+                if paused:
+                    delivered = signals.frame("Camera paused")
+                elif completed is None:
+                    delivered = signals.frame(
+                        "Opening camera..."
+                        if inp_props is None
+                        else "Preparing camera and effects..."
+                    )
+                else:
+                    delivered = completed
+                cam.send(delivered)
                 if on_frame is not None:
-                    on_frame(frame)
-                if not paused:
-                    report_ready()
-                sent_frames += 1
+                    on_frame(delivered)
+                if completed is not None and not paused:
+                    if not ready_reported:
+                        ready_reported = True
+                        if on_ready is not None:
+                            on_ready()
+                if settings.repeat_frames or completed is not None or paused:
+                    sent_frames += 1
                 if pace:
                     if not pacer.wait(
                         interval=0.5 if paused else None,
@@ -290,6 +295,9 @@ def live_loop(
                         break
                 elif not process_output_events():
                     break
+        assert producer is not None
+        producer.close()
+        producer.latest()
     finally:
         try:
             if producer is not None:

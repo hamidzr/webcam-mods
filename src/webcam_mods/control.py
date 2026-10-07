@@ -48,6 +48,7 @@ def run_profile(
         video_in=input_device,
         repeat_frames=profile.repeat_frames,
         processing_fps=profile.processing_fps,
+        signal_pattern=profile.signal_pattern,  # type: ignore[arg-type]
     )
     effect = ProfileEffect(profile, settings)
     transferred = False

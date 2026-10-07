@@ -413,9 +413,10 @@ class ProfileEffectTests(unittest.TestCase):
                     ),
                 ):
                     with self.assertRaises(RuntimeError):
-                        ProfileEffect(
+                        effect = ProfileEffect(
                             Profile(effect="blur", track=True), StartupSettings()
                         )
+                        effect(np.zeros((48, 64, 3), dtype=np.uint8))
                 background.close.assert_called_once()
                 if stage == "tracker":
                     detector.close.assert_called_once()

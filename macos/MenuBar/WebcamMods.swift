@@ -29,6 +29,7 @@ struct Configuration: Codable, Equatable {
     var repeat_frames = true
     var processing_fps = 30.0
     var smoothing = false
+    var signal_pattern = "color-bars"
 
     var json: [String: Any] {
         (try? JSONSerialization.jsonObject(with: JSONEncoder().encode(self))) as? [String: Any] ?? [:]
@@ -97,7 +98,7 @@ final class SessionModel: ObservableObject {
     @Published var selectedProfile = ""
     @Published var profileName = ""
     @Published var state = "idle" {
-        didSet { if state != "running" { clearPreview() } }
+        didSet { if !previewing || (state == "starting" && oldValue != "starting") { clearPreview() } }
     }
     @Published var outputMode = "preview"
     @Published var outputFPS: Double?
@@ -184,13 +185,13 @@ final class SessionModel: ObservableObject {
             previewVisible = visible
             if !visible { clearPreview() }
         }
-        guard visible, connected, state == "running", !previewPending else { return }
+        guard visible, connected, previewing, !previewPending else { return }
         previewPending = true
         let generation = previewGeneration
         request("preview.get") { [weak self] result in
             guard let self else { return }
             self.previewPending = false
-            guard self.previewVisible, self.state == "running", generation == self.previewGeneration else { return }
+            guard self.previewVisible, self.previewing, generation == self.previewGeneration else { return }
             self.acceptPreview(result)
         }
     }
@@ -230,6 +231,7 @@ final class SessionModel: ObservableObject {
         connect()
     }
 
+    var previewing: Bool { ["starting", "running"].contains(state) }
     var active: Bool { ["starting", "running", "stopping"].contains(state) }
     var outputUnavailable: Bool { outputMode == "virtualcam" && obsReadiness != .ready }
     var previewInterval: TimeInterval {
@@ -499,8 +501,21 @@ final class SessionModel: ObservableObject {
         model.error = nil
         model.acceptPreview(.success(["jpeg": "invalid", "width": 2, "height": 2]))
         try check(model.previewError != nil && model.error == nil, "Preview errors remain separate from session errors")
-        model.state = "running"
+        model.state = "starting"
         model.connected = true
+        model.pollPreview(visible: true)
+        let startupReply = try JSONSerialization.data(withJSONObject: ["id": model.nextID, "result": frame])
+        model.consume(startupReply + Data([10]))
+        try check(model.previewImage != nil, "Startup polls and displays shared status frames")
+        model.state = "starting"
+        try check(model.previewImage != nil, "Startup cadence updates preserve loading picture")
+        model.state = "running"
+        try check(model.previewImage != nil, "First live frame transition preserves picture")
+        model.pollPreview(visible: false)
+        var noiseConfig = Configuration()
+        noiseConfig.signal_pattern = "noise"
+        let noiseDecoded = try JSONDecoder().decode(Configuration.self, from: JSONEncoder().encode(noiseConfig))
+        try check(noiseDecoded.signal_pattern == "noise", "Loading picture survives profile encoding")
         let previewID = model.nextID + 1
         model.pollPreview(visible: true)
         model.pollPreview(visible: true)
@@ -875,6 +890,9 @@ struct ControlPanel: View {
                             }
                             Picker("Capture", selection: $model.config.capture) {
                                 Text("Automatic").tag("auto"); Text("OpenCV").tag("opencv"); Text("AVFoundation").tag("avfoundation")
+                            }
+                            Picker("Loading picture", selection: $model.config.signal_pattern) {
+                                Text("TV color bars").tag("color-bars"); Text("TV static").tag("noise")
                             }
                             Toggle("Repeat latest frame", isOn: $model.config.repeat_frames)
                             Toggle("Smooth segmentation mask", isOn: $model.config.smoothing)

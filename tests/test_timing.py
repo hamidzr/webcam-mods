@@ -189,6 +189,6 @@ class TimingTests(unittest.TestCase):
             patch("webcam_mods.timing.time.sleep", side_effect=clock.sleep),
         ):
             live_loop(fIn=source, fOut=sink, interactive_listener=None, on_demand=False)
-        self.assertEqual(sink.sent, [])
+        self.assertEqual(sink.sent, [10.0])
         self.assertFalse(source.active)
         self.assertAlmostEqual(clock.now, 10.02)
