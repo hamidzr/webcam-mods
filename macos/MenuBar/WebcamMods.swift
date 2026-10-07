@@ -22,6 +22,7 @@ struct Configuration: Codable, Equatable {
     var blur_kernel = 31
     var color = 192
     var image_path = ""
+    var image_blur = false
     var track = false
     var segmentation = "mediapipe"
     var processing = "opencv"
@@ -457,8 +458,10 @@ final class SessionModel: ObservableObject {
             try check(bitmap?.pixelsWide == 1600 && bitmap?.pixelsHigh == 900, "Built-in background dimensions: \(background.id)")
             model.selectBackground(background)
             model.config.effect = "image"
+            model.config.image_blur = true
             let decoded = try JSONDecoder().decode(Configuration.self, from: JSONEncoder().encode(model.config))
             try check(decoded.image_path == background.url.path && model.selectedBackground?.id == background.id, "Background selection survives profile encoding")
+            try check(decoded.image_blur && decoded.blur_kernel == model.config.blur_kernel, "Image blur survives profile encoding")
         }
         model.config.image_path = "/tmp/custom-background.jpg"
         model.prepareImageBackground()
@@ -587,6 +590,8 @@ final class SessionModel: ObservableObject {
         var imageConfig = Configuration()
         imageConfig.effect = "image"
         imageConfig.image_path = BuiltInBackground.catalog[0].url.path
+        imageConfig.image_blur = true
+        imageConfig.blur_kernel = 15
         let requests: [[String: Any]] = [
             ["id": 1, "method": "hello"],
             ["id": 2, "method": "profiles.seed_defaults"],
@@ -621,6 +626,7 @@ final class SessionModel: ObservableObject {
         guard decoded.count == 6,
               let saved = decoded.first(where: { $0.name == "Native test" }), saved.config.brightness == 0, saved.config.capture == "avfoundation",
               saved.config.effect == "image", saved.config.image_path == imageConfig.image_path,
+              saved.config.image_blur, saved.config.blur_kernel == 15,
               let blurred = decoded.first(where: { $0.name == "Blur + Auto Framing" }), blurred.config.effect == "blur", blurred.config.track else {
             throw NSError(domain: "WebcamModsSelfTest", code: 1, userInfo: [NSLocalizedDescriptionKey: "Real helper profile mismatch"])
         }
@@ -845,7 +851,7 @@ struct ControlPanel: View {
                         Text("Image").tag("image")
                         Text("Face tracking").tag("track")
                     }
-                    if model.config.effect == "blur" {
+                    if model.config.effect == "blur" || (model.config.effect == "image" && model.config.image_blur) {
                         Stepper("Blur: \(model.config.blur_kernel)", value: $model.config.blur_kernel, in: 1...151, step: 2)
                     }
                     if model.config.effect == "color" {
@@ -853,6 +859,7 @@ struct ControlPanel: View {
                     }
                     if model.config.effect == "image" {
                         BackgroundGallery(model: model)
+                        Toggle("Blur image background", isOn: $model.config.image_blur)
                     }
                     Toggle("Track face", isOn: $model.config.track).disabled(model.config.effect == "track")
                     slider("Brightness", value: $model.config.brightness, range: 0...255)

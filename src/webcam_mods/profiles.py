@@ -23,6 +23,7 @@ class Profile:
     blur_kernel: int = 31
     color: int = 192
     image_path: str = ""
+    image_blur: bool = False
     track: bool = False
     segmentation: str = "mediapipe"
     processing: str = "opencv"
@@ -74,7 +75,7 @@ class Profile:
                 or not math.isfinite(value)
             ):
                 raise ValueError(f"{key} must be finite in 1..240")
-        for key in ("track", "repeat_frames", "smoothing"):
+        for key in ("track", "repeat_frames", "smoothing", "image_blur"):
             if type(getattr(self, key)) is not bool:
                 raise ValueError(f"{key} must be a boolean")
         for key, choices in (

@@ -62,6 +62,10 @@ thumbnail to switch, or Choose your own to open an image file. Saved profiles
 retain the selected image path. Built-in images live inside the app bundle, so
 keep it at the same location when reusing saved profiles. Image provenance and
 generation prompts are in [background credits](../macos/Backgrounds/README.md).
+Image mode also offers Blur image background and the same blur strength control.
+Image blur uses a box filter with either processing backend. The resized, blurred
+image is cached per session and rebuilt only when background settings or processing
+dimensions change. CLI equivalent: `webcam_mods bg-swap --blur --blur-kernel-size 31`.
 Brightness adds HSV value, 0..255. Advanced settings expose capture size/FPS,
 processing FPS, backend choices, repeat delivery and optional mask smoothing.
 Loading picture selects TV color bars or animated TV static. Both preview and
@@ -155,6 +159,7 @@ Profile fields and defaults:
 | blur_kernel | 31 | Positive odd box-blur kernel or Core Image radius mapping |
 | color | 192 | Gray background, 0..255 |
 | image_path | empty | Image required for image effect |
+| image_blur | false | Cache image background blur using blur_kernel |
 | capture | auto | auto, opencv, avfoundation; menu defaults avfoundation |
 | segmentation | mediapipe | mediapipe or vision |
 | processing | opencv | opencv or coreimage |

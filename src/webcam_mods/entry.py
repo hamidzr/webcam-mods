@@ -174,6 +174,8 @@ class BackgroundEffect:
         mode: Literal["blur_bg", "color_bg", "swap_bg"],
         value: int | Frame,
         brightness: int = 0,
+        *,
+        image_blur_kernel: int = 1,
     ) -> None:
         from webcam_mods.mods.person_segmentation import PersonEffects
 
@@ -186,7 +188,7 @@ class BackgroundEffect:
         if mode == "swap_bg":
             if not isinstance(value, np.ndarray):
                 raise TypeError("background replacement requires an image")
-            self.effects.set_background(value)
+            self.effects.set_background(value, blur_kernel=image_blur_kernel)
             self.transform: Callable[[Frame], Frame] = self.effects.swap_bg
         else:
             if not isinstance(value, int):
@@ -221,15 +223,30 @@ def bg_color(
 
 
 @app.command(cls=SharedOptionsCommand, rich_help_panel="Background")
-def bg_swap(ctx: typer.Context, img_path: str = str(DEFAULT_BG_IMAGE)) -> None:
-    """Basic controls and image background replacement."""
+def bg_swap(
+    ctx: typer.Context,
+    img_path: str = str(DEFAULT_BG_IMAGE),
+    blur: bool = False,
+    blur_kernel_size: int = typer.Option(31, min=1, max=511),
+) -> None:
+    """Replace background with an image; optional blur is cached, not applied live."""
+    if blur_kernel_size % 2 == 0:
+        raise typer.BadParameter(
+            "kernel size must be odd", param_hint="blur-kernel-size"
+        )
     background = cv2.imread(str(Path(img_path)))
     if background is None:
         raise typer.BadParameter(
             "background image could not be read", param_hint="img-path"
         )
     _run(
-        _common(ctx), BackgroundEffect(_common(ctx), "swap_bg", cast(Frame, background))
+        _common(ctx),
+        BackgroundEffect(
+            _common(ctx),
+            "swap_bg",
+            cast(Frame, background),
+            image_blur_kernel=blur_kernel_size if blur else 1,
+        ),
     )
 
 

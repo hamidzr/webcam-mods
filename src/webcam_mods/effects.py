@@ -113,7 +113,12 @@ class ProfileEffect:
                 image = cv2.imread(profile.image_path)
                 if image is None:
                     raise ValueError("background image could not be read")
-                background = BackgroundEffect(common, "swap_bg", cast(Frame, image))
+                background = BackgroundEffect(
+                    common,
+                    "swap_bg",
+                    cast(Frame, image),
+                    image_blur_kernel=profile.blur_kernel if profile.image_blur else 1,
+                )
             if background is not None and not (
                 profile.track or profile.effect == "track"
             ):
