@@ -909,7 +909,7 @@ struct PreviewPanel: View {
             if let error = model.previewError {
                 Label(error, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange)
             }
-            Text("Preview shows final framing and effects. Preview refreshes up to 10 FPS; output uses configured FPS.")
+            Text("Preview shows final framing and effects at the output frame rate.")
                 .font(.caption).foregroundStyle(.secondary)
         }.padding(20).frame(maxWidth: .infinity, maxHeight: .infinity)
     }
