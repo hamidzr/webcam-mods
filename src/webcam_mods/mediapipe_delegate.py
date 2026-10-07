@@ -35,9 +35,13 @@ _CACHE_MAX_AGE = 30 * 24 * 60 * 60
 _CACHE_MAX_BYTES = 128 * 1024
 
 
-def _cache_path() -> Path:
+def _cache_path(identity: str | None = None) -> Path:
     root = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
-    return root / "webcam-mods" / "delegate-calibration.json"
+    directory = root / "webcam-mods"
+    if identity is None:
+        return directory / "delegate-calibration.json"
+    namespace = hashlib.sha256(identity.encode()).hexdigest()
+    return directory / "delegate-calibration" / f"{namespace}.json"
 
 
 @lru_cache(maxsize=1)
@@ -74,7 +78,12 @@ def _disk_key(task: Task, shape: tuple[int, ...]) -> str:
 
 
 def _read_cache(identity: str) -> dict[str, dict[str, Any]]:
-    path = _cache_path()
+    # retain compatible legacy measurements while installations own separate files
+    entries = _read_cache_file(_cache_path(identity), identity)
+    return entries or _read_cache_file(_cache_path(), identity)
+
+
+def _read_cache_file(path: Path, identity: str) -> dict[str, dict[str, Any]]:
     try:
         # bound parsing even if a cache file was damaged or replaced
         with path.open("rb") as stream:
@@ -107,7 +116,7 @@ def _read_cache(identity: str) -> dict[str, dict[str, Any]]:
 
 
 def _write_cache(identity: str, key: str, delegate: Delegate) -> None:
-    path = _cache_path()
+    path = _cache_path(identity)
     temporary: Path | None = None
     try:
         entries = _read_cache(identity)
@@ -142,13 +151,50 @@ def _probe(task: Task, delegate: Delegate, payload: bytes) -> float:
         timeout=_TIMEOUT,
         check=True,
     )
-    value = json.loads(result.stdout)["median_ms"]
+    return _valid_timing(json.loads(result.stdout)["median_ms"])
+
+
+def _valid_timing(value: object) -> float:
     if not isinstance(value, (int, float)) or isinstance(value, bool):
         raise ValueError("invalid calibration result")
     median = float(value)
     if not math.isfinite(median) or median <= 0:
         raise ValueError("invalid calibration timing")
     return median
+
+
+def _calibrate(task: Task, frame: Frame) -> tuple[list[float], list[float]]:
+    """Keep all warmed comparisons in one isolated, time-bounded process."""
+    stream = BytesIO()
+    np.save(stream, frame, allow_pickle=False)
+    result = subprocess.run(
+        [sys.executable, "-m", "webcam_mods.mediapipe_delegate", task, "calibrate"],
+        input=stream.getvalue(),
+        capture_output=True,
+        timeout=_TIMEOUT,
+        check=True,
+    )
+    document = json.loads(result.stdout)
+    if not isinstance(document, dict):
+        raise ValueError("invalid calibration result")
+    measurements = []
+    for delegate in ("cpu", "gpu"):
+        values = document.get(delegate)
+        if not isinstance(values, list) or len(values) != _ROUNDS:
+            raise ValueError("invalid calibration rounds")
+        measurements.append([_valid_timing(value) for value in values])
+    return measurements[0], measurements[1]
+
+
+def _measure_rounds(task: Task, frame: Frame) -> dict[str, list[float]]:
+    measurements: dict[str, list[float]] = {"cpu": [], "gpu": []}
+    for round_index in range(_ROUNDS):
+        order: tuple[Delegate, Delegate] = (
+            ("cpu", "gpu") if round_index % 2 == 0 else ("gpu", "cpu")
+        )
+        for delegate in order:
+            measurements[delegate].append(_measure(task, delegate, frame))
+    return measurements
 
 
 def select_delegate(task: Task, frame: Frame) -> Delegate:
@@ -173,21 +219,10 @@ def select_delegate(task: Task, frame: Frame) -> Delegate:
     except OSError, ValueError, metadata.PackageNotFoundError:
         # cache availability must never prevent inference or fresh calibration
         pass
-    stream = BytesIO()
-    np.save(stream, frame, allow_pickle=False)
-    payload = stream.getvalue()
-    cpu: list[float] = []
-    gpu: list[float] = []
     selected: Delegate = "cpu"
     succeeded = False
     try:
-        for round_index in range(_ROUNDS):
-            order: tuple[Delegate, Delegate] = (
-                ("cpu", "gpu") if round_index % 2 == 0 else ("gpu", "cpu")
-            )
-            measured = {delegate: _probe(task, delegate, payload) for delegate in order}
-            cpu.append(measured["cpu"])
-            gpu.append(measured["gpu"])
+        cpu, gpu = _calibrate(task, frame)
         if all(g < c * 0.95 for c, g in zip(cpu, gpu)):
             selected = "gpu"
         succeeded = True
@@ -287,13 +322,19 @@ def _main() -> None:
         pass
     if len(sys.argv) != 3 or sys.argv[1] not in ("face", "segmentation"):
         raise ValueError("expected task and delegate")
-    if sys.argv[2] not in ("cpu", "gpu"):
-        raise ValueError("expected cpu or gpu delegate")
+    if sys.argv[2] not in ("cpu", "gpu", "calibrate"):
+        raise ValueError("expected cpu, gpu, or calibrate delegate")
     task: Task = "face" if sys.argv[1] == "face" else "segmentation"
     delegate: Delegate = "cpu" if sys.argv[2] == "cpu" else "gpu"
     frame = np.load(BytesIO(sys.stdin.buffer.read()), allow_pickle=False)
     _validate_frame(frame)
-    print(json.dumps({"median_ms": _measure(task, delegate, frame)}))
+    print(
+        json.dumps(
+            _measure_rounds(task, frame)
+            if sys.argv[2] == "calibrate"
+            else {"median_ms": _measure(task, delegate, frame)}
+        )
+    )
 
 
 if __name__ == "__main__":

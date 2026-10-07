@@ -39,45 +39,41 @@ class DelegateSelectionTests(unittest.TestCase):
         self.addCleanup(self.machine.stop)
 
     def test_gpu_requires_consistent_five_percent_gain(self) -> None:
-        for measurements, expected in (
-            ([10, 8, 8, 10, 10, 8], "gpu"),
-            ([10, 9.5, 9.5, 10, 10, 9.5], "cpu"),
-            ([10, 8, 11, 10, 10, 8], "cpu"),
+        for cpu, gpu, expected in (
+            ([10, 10, 10], [8, 8, 8], "gpu"),
+            ([10, 10, 10], [9.5, 9.5, 9.5], "cpu"),
+            ([10, 10, 10], [8, 11, 8], "cpu"),
         ):
             with self.subTest(expected=expected):
                 delegates._CACHE.clear()
                 self.cache_path.unlink(missing_ok=True)
                 with patch.object(
-                    delegates, "_probe", side_effect=measurements
-                ) as probe:
+                    delegates, "_calibrate", return_value=(cpu, gpu)
+                ) as calibrate:
                     self.assertEqual(
                         delegates.select_delegate("face", self.frame), expected
                     )
-                self.assertEqual(
-                    [call.args[1] for call in probe.call_args_list],
-                    ["cpu", "gpu", "gpu", "cpu", "cpu", "gpu"],
-                )
-                payloads = [call.args[2] for call in probe.call_args_list]
-                self.assertTrue(all(payload == payloads[0] for payload in payloads))
-                np.testing.assert_array_equal(
-                    np.load(BytesIO(payloads[0]), allow_pickle=False), self.frame
-                )
+                calibrate.assert_called_once()
+                self.assertEqual(calibrate.call_args.args[0], "face")
+                np.testing.assert_array_equal(calibrate.call_args.args[1], self.frame)
 
     def test_cache_is_per_task_and_shape(self) -> None:
-        with patch.object(delegates, "_probe", return_value=1.0) as probe:
+        with patch.object(
+            delegates, "_calibrate", return_value=([1.0] * 3, [1.0] * 3)
+        ) as probe:
             delegates.select_delegate("face", self.frame)
             delegates.select_delegate("face", self.frame + 1)
-            self.assertEqual(probe.call_count, 6)
+            self.assertEqual(probe.call_count, 1)
             delegates.select_delegate("segmentation", self.frame)
-            self.assertEqual(probe.call_count, 12)
+            self.assertEqual(probe.call_count, 2)
             delegates.select_delegate("face", self.frame[:4])
-            self.assertEqual(probe.call_count, 18)
+            self.assertEqual(probe.call_count, 3)
 
     def test_persistent_cache_skips_probes_after_memory_cache_reset(self) -> None:
-        with patch.object(delegates, "_probe", side_effect=[10, 8, 8, 10, 10, 8]):
+        with patch.object(delegates, "_calibrate", return_value=([10] * 3, [8] * 3)):
             self.assertEqual(delegates.select_delegate("face", self.frame), "gpu")
         delegates._CACHE.clear()
-        with patch.object(delegates, "_probe") as probe:
+        with patch.object(delegates, "_calibrate") as probe:
             self.assertEqual(delegates.select_delegate("face", self.frame), "gpu")
             probe.assert_not_called()
 
@@ -98,26 +94,32 @@ class DelegateSelectionTests(unittest.TestCase):
                         }
                     )
                 )
-                with patch.object(delegates, "_probe", return_value=1) as probe:
+                with patch.object(
+                    delegates, "_calibrate", return_value=([1.0] * 3, [1.0] * 3)
+                ) as probe:
                     self.assertEqual(
                         delegates.select_delegate("face", self.frame), "cpu"
                     )
-                    self.assertEqual(probe.call_count, 6)
+                    self.assertEqual(probe.call_count, 1)
 
     def test_corrupt_or_oversized_cache_does_not_break_calibration(self) -> None:
         for payload in ("broken", "[]", "x" * (delegates._CACHE_MAX_BYTES + 1)):
             with self.subTest(size=len(payload)):
                 delegates._CACHE.clear()
                 self.cache_path.write_text(payload)
-                with patch.object(delegates, "_probe", return_value=1) as probe:
+                with patch.object(
+                    delegates, "_calibrate", return_value=([1.0] * 3, [1.0] * 3)
+                ) as probe:
                     self.assertEqual(
                         delegates.select_delegate("face", self.frame), "cpu"
                     )
-                    self.assertEqual(probe.call_count, 6)
+                    self.assertEqual(probe.call_count, 1)
 
     def test_unwritable_cache_does_not_break_calibration(self) -> None:
         with patch.object(delegates.os, "replace", side_effect=OSError("read only")):
-            with patch.object(delegates, "_probe", return_value=1):
+            with patch.object(
+                delegates, "_calibrate", return_value=([1.0] * 3, [1.0] * 3)
+            ):
                 self.assertEqual(delegates.select_delegate("face", self.frame), "cpu")
         self.assertFalse(self.cache_path.exists())
         self.assertEqual(list(self.cache_path.parent.iterdir()), [])
@@ -132,17 +134,17 @@ class DelegateSelectionTests(unittest.TestCase):
             self.assertEqual(set(entries), {"face:1,12,3", "face:2,12,3"})
 
     def test_failed_probe_is_not_persisted(self) -> None:
-        with patch.object(delegates, "_probe", side_effect=OSError("failed")):
+        with patch.object(delegates, "_calibrate", side_effect=OSError("failed")):
             self.assertEqual(delegates.select_delegate("face", self.frame), "cpu")
         self.assertFalse(self.cache_path.exists())
 
     def test_other_platforms_skip_probes(self) -> None:
         with patch.object(delegates.platform, "system", return_value="Linux"):
-            with patch.object(delegates, "_probe") as probe:
+            with patch.object(delegates, "_calibrate") as probe:
                 self.assertEqual(delegates.select_delegate("face", self.frame), "cpu")
                 probe.assert_not_called()
         with patch.object(delegates.platform, "machine", return_value="x86_64"):
-            with patch.object(delegates, "_probe") as probe:
+            with patch.object(delegates, "_calibrate") as probe:
                 self.assertEqual(delegates.select_delegate("face", self.frame), "cpu")
                 probe.assert_not_called()
 
@@ -157,7 +159,9 @@ class DelegateSelectionTests(unittest.TestCase):
             with self.subTest(failure=type(failure).__name__):
                 delegates._CACHE.clear()
                 self.cache_path.unlink(missing_ok=True)
-                with patch.object(delegates, "_probe", side_effect=failure) as probe:
+                with patch.object(
+                    delegates, "_calibrate", side_effect=failure
+                ) as probe:
                     self.assertEqual(
                         delegates.select_delegate("face", self.frame), "cpu"
                     )
@@ -204,6 +208,41 @@ class DelegateSelectionTests(unittest.TestCase):
 
 
 class CacheIdentityTests(unittest.TestCase):
+    def test_runtime_namespaces_coexist_and_preserve_legacy_cache(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.dict("os.environ", {"XDG_CACHE_HOME": directory}):
+                legacy = delegates._cache_path()
+                legacy.parent.mkdir(parents=True)
+                legacy.write_text(
+                    json.dumps(
+                        {
+                            "identity": "runtime-one",
+                            "entries": {
+                                "face:8,12,3": {
+                                    "delegate": "gpu",
+                                    "timestamp": time.time(),
+                                }
+                            },
+                        }
+                    )
+                )
+                self.assertEqual(
+                    delegates._read_cache("runtime-one")["face:8,12,3"]["delegate"],
+                    "gpu",
+                )
+                delegates._write_cache("runtime-one", "segmentation:8,12,3", "cpu")
+                delegates._write_cache("runtime-two", "face:8,12,3", "cpu")
+                self.assertEqual(len(delegates._read_cache("runtime-one")), 2)
+                self.assertEqual(
+                    delegates._read_cache("runtime-two")["face:8,12,3"]["delegate"],
+                    "cpu",
+                )
+                self.assertTrue(delegates._cache_path("runtime-one").is_file())
+                self.assertTrue(delegates._cache_path("runtime-two").is_file())
+                self.assertEqual(
+                    json.loads(legacy.read_text())["identity"], "runtime-one"
+                )
+
     def test_patched_wheel_and_os_changes_invalidate_identity(self) -> None:
         delegates._cache_identity.cache_clear()
         self.addCleanup(delegates._cache_identity.cache_clear)
@@ -296,6 +335,61 @@ class WorkerMeasurementTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "prediction failed"):
             self.measure("face")
         self.handle.close.assert_called_once()
+
+    def test_rounds_alternate_delegates_on_identical_frames(self) -> None:
+        with patch.object(
+            delegates, "_measure", side_effect=[10, 8, 9, 11, 12, 7]
+        ) as measure:
+            self.assertEqual(
+                delegates._measure_rounds("face", self.frame),
+                {"cpu": [10, 11, 12], "gpu": [8, 9, 7]},
+            )
+        self.assertEqual(
+            [call.args[1] for call in measure.call_args_list],
+            ["cpu", "gpu", "gpu", "cpu", "cpu", "gpu"],
+        )
+        self.assertTrue(
+            all(call.args[2] is self.frame for call in measure.call_args_list)
+        )
+
+    def test_calibration_uses_one_bounded_worker_and_validates_all_rounds(self) -> None:
+        valid = {"cpu": [10, 11, 12], "gpu": [8, 9, 7]}
+        documents: tuple[object, ...] = (
+            valid,
+            [],
+            {},
+            {"cpu": [1, 2], "gpu": [1, 2, 3]},
+            {"cpu": [1, 2, 3], "gpu": [1, 2, 3, 4]},
+            {"cpu": [1, 2, 3], "gpu": [1, True, 3]},
+            {"cpu": [1, 2, 3], "gpu": [1, float("nan"), 3]},
+            {"cpu": [1, 2, 3], "gpu": [1, 0, 3]},
+            {"cpu": [1, 2, 3], "gpu": [1, -1, 3]},
+            {"cpu": [1, 2, 3], "gpu": [1, "2", 3]},
+        )
+        for document in documents:
+            with self.subTest(document=document):
+                result = subprocess.CompletedProcess(
+                    ["worker"], 0, stdout=json.dumps(document).encode()
+                )
+                with patch.object(
+                    delegates.subprocess, "run", return_value=result
+                ) as run:
+                    if document == valid:
+                        self.assertEqual(
+                            delegates._calibrate("face", self.frame),
+                            ([10, 11, 12], [8, 9, 7]),
+                        )
+                    else:
+                        with self.assertRaises(ValueError):
+                            delegates._calibrate("face", self.frame)
+                run.assert_called_once()
+                self.assertEqual(run.call_args.kwargs["timeout"], 15)
+                self.assertTrue(run.call_args.kwargs["check"])
+                self.assertEqual(run.call_args.args[0][-2:], ["face", "calibrate"])
+                np.testing.assert_array_equal(
+                    np.load(BytesIO(run.call_args.kwargs["input"]), allow_pickle=False),
+                    self.frame,
+                )
 
 
 if __name__ == "__main__":
