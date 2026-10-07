@@ -46,6 +46,23 @@ struct Profile: Decodable, Identifiable {
     var id: String { name }
 }
 
+struct BuiltInBackground: Identifiable {
+    let id: String
+    let title: String
+    let url: URL
+    let image: NSImage
+
+    static let catalog: [BuiltInBackground] = [
+        ("warm-study", "Warm study"),
+        ("quiet-office", "Quiet office"),
+        ("soft-shelves", "Soft shelves")
+    ].compactMap { id, title in
+        guard let url = Bundle.main.url(forResource: id, withExtension: "jpg", subdirectory: "Backgrounds"),
+              let image = NSImage(contentsOf: url) else { return nil }
+        return BuiltInBackground(id: id, title: title, url: url, image: image)
+    }
+}
+
 enum OBSReadiness {
     case ready, notInstalled, setupRequired
 
@@ -109,6 +126,21 @@ final class SessionModel: ObservableObject {
 
     init() { Self.current = self }
     var hasWorker: Bool { process != nil }
+
+    var selectedBackground: BuiltInBackground? {
+        BuiltInBackground.catalog.first { $0.url.path == config.image_path }
+    }
+
+    func selectBackground(_ background: BuiltInBackground) {
+        config.image_path = background.url.path
+    }
+
+    func prepareImageBackground() {
+        if config.effect == "image", config.image_path.isEmpty,
+           let background = BuiltInBackground.catalog.first {
+            selectBackground(background)
+        }
+    }
 
     var profileModified: Bool {
         guard let saved = profiles.first(where: { $0.name == selectedProfile }) else { return false }
@@ -416,6 +448,22 @@ final class SessionModel: ObservableObject {
         let outputDecoded = try JSONDecoder().decode(Configuration.self, from: JSONEncoder().encode(outputConfig))
         try check(outputDecoded.output_width == 1280 && outputDecoded.output_fps == 24, "Independent output settings round trip")
         try check(profiles[0].config.camera_id == nil && profiles[0].config.output_width == nil, "Legacy profile optional fields")
+        let backgrounds = BuiltInBackground.catalog
+        try check(backgrounds.count == 3, "All built-in backgrounds bundled and readable")
+        for background in backgrounds {
+            let bitmap = NSBitmapImageRep(data: try Data(contentsOf: background.url))
+            try check(bitmap?.pixelsWide == 1600 && bitmap?.pixelsHigh == 900, "Built-in background dimensions: \(background.id)")
+            model.selectBackground(background)
+            model.config.effect = "image"
+            let decoded = try JSONDecoder().decode(Configuration.self, from: JSONEncoder().encode(model.config))
+            try check(decoded.image_path == background.url.path && model.selectedBackground?.id == background.id, "Background selection survives profile encoding")
+        }
+        model.config.image_path = "/tmp/custom-background.jpg"
+        model.prepareImageBackground()
+        try check(model.selectedBackground == nil && model.config.image_path == "/tmp/custom-background.jpg", "Custom image is preserved when entering image mode")
+        model.config.image_path = ""
+        model.prepareImageBackground()
+        try check(model.selectedBackground?.id == backgrounds.first?.id, "Empty image mode gets a built-in background")
         model.config = profiles[0].config
         try check(!model.profileModified, "Selected saved profile begins clean")
         model.config.brightness = 20
@@ -498,7 +546,7 @@ final class SessionModel: ObservableObject {
         try pipe.fileHandleForWriting.close()
         try pipe.fileHandleForReading.close()
         try helperSelfTest()
-        print("Native model self-test passed (JSONL, profiles, camera identity, preview lifecycle/cadence, OBS readiness).")
+        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence, OBS readiness).")
     }
 
     private static func helperSelfTest() throws {
@@ -521,10 +569,13 @@ final class SessionModel: ObservableObject {
         let ended = DispatchSemaphore(value: 0)
         helper.terminationHandler = { _ in ended.signal() }
         try helper.run()
+        var imageConfig = Configuration()
+        imageConfig.effect = "image"
+        imageConfig.image_path = BuiltInBackground.catalog[0].url.path
         let requests: [[String: Any]] = [
             ["id": 1, "method": "hello"],
             ["id": 2, "method": "profiles.seed_defaults"],
-            ["id": 3, "method": "profiles.save", "params": ["name": "Native test", "config": Configuration().json]],
+            ["id": 3, "method": "profiles.save", "params": ["name": "Native test", "config": imageConfig.json]],
             ["id": 4, "method": "profiles.list"],
             ["id": 5, "method": "preview.get", "params": [:]],
             ["id": 6, "method": "shutdown"]
@@ -554,6 +605,7 @@ final class SessionModel: ObservableObject {
         let decoded = try JSONDecoder().decode([Profile].self, from: profileData)
         guard decoded.count == 6,
               let saved = decoded.first(where: { $0.name == "Native test" }), saved.config.brightness == 0, saved.config.capture == "avfoundation",
+              saved.config.effect == "image", saved.config.image_path == imageConfig.image_path,
               let blurred = decoded.first(where: { $0.name == "Blur + Auto Framing" }), blurred.config.effect == "blur", blurred.config.track else {
             throw NSError(domain: "WebcamModsSelfTest", code: 1, userInfo: [NSLocalizedDescriptionKey: "Real helper profile mismatch"])
         }
@@ -785,11 +837,7 @@ struct ControlPanel: View {
                         slider("Gray", value: $model.config.color, range: 0...255)
                     }
                     if model.config.effect == "image" {
-                        HStack {
-                            Text(model.config.image_path.isEmpty ? "Choose background image" : URL(fileURLWithPath: model.config.image_path).lastPathComponent).lineLimit(1).truncationMode(.middle)
-                            Spacer()
-                            Button("Choose...", action: model.chooseImage)
-                        }
+                        BackgroundGallery(model: model)
                     }
                     Toggle("Track face", isOn: $model.config.track).disabled(model.config.effect == "track")
                     slider("Brightness", value: $model.config.brightness, range: 0...255)
@@ -855,6 +903,7 @@ struct ControlPanel: View {
         .onChange(of: model.config.capture) { _ in
             if model.connected && !model.active { model.refreshCameras() }
         }
+        .onChange(of: model.config.effect) { _ in model.prepareImageBackground() }
         .alert("Delete profile?", isPresented: $confirmDelete) {
             Button("Delete", role: .destructive, action: model.deleteProfile)
             Button("Cancel", role: .cancel) {}
@@ -876,6 +925,47 @@ struct ControlPanel: View {
             Text(title).frame(width: 75, alignment: .leading)
             Slider(value: Binding(get: { Double(value.wrappedValue) }, set: { value.wrappedValue = Int($0) }), in: range, step: 1)
             Text("\(value.wrappedValue)").monospacedDigit().frame(width: 32, alignment: .trailing)
+        }
+    }
+}
+
+struct BackgroundGallery: View {
+    @ObservedObject var model: SessionModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Quiet spaces for work calls.").font(.caption).foregroundStyle(.secondary)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 135), spacing: 10)], spacing: 10) {
+                ForEach(BuiltInBackground.catalog) { background in
+                    let selected = model.selectedBackground?.id == background.id
+                    Button { model.selectBackground(background) } label: {
+                        VStack(alignment: .leading, spacing: 5) {
+                            Image(nsImage: background.image).resizable().scaledToFit()
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                                .overlay(alignment: .topTrailing) {
+                                    if selected {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundStyle(.white, Color.accentColor)
+                                            .padding(5)
+                                    }
+                                }
+                            Text(background.title).font(.caption).foregroundStyle(.primary)
+                        }.padding(5)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(selected ? Color.accentColor.opacity(0.1) : Color.clear)
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(selected ? Color.accentColor : Color.secondary.opacity(0.25), lineWidth: selected ? 2 : 1))
+                            .contentShape(RoundedRectangle(cornerRadius: 8))
+                    }.buttonStyle(.plain)
+                        .accessibilityLabel(background.title)
+                        .accessibilityAddTraits(selected ? [.isSelected] : [])
+                }
+            }
+            HStack {
+                Text(model.selectedBackground?.title ?? (model.config.image_path.isEmpty ? "Choose a background" : URL(fileURLWithPath: model.config.image_path).lastPathComponent))
+                    .font(.caption).lineLimit(1).truncationMode(.middle)
+                Spacer()
+                Button("Choose your own...", action: model.chooseImage)
+            }
         }
     }
 }

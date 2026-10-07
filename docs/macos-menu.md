@@ -56,6 +56,12 @@ Background choices are original, blur, solid gray and image. Tracking combines
 with background and brightness. Effect order: track/crop, fixed-size background
 processing, brightness, final output sizing. Tracking uses standard framing
 controls; advanced CLI tracking options remain available through `track-face`.
+Image mode includes an offline thumbnail gallery: Warm study, Quiet office and
+Soft shelves. Entering Image with no previous image selects Warm study; click a
+thumbnail to switch, or Choose your own to open an image file. Saved profiles
+retain the selected image path. Built-in images live inside the app bundle, so
+keep it at the same location when reusing saved profiles. Image provenance and
+generation prompts are in [background credits](../macos/Backgrounds/README.md).
 Brightness adds HSV value, 0..255. Advanced settings expose capture size/FPS,
 processing FPS, backend choices, repeat delivery and optional mask smoothing.
 Requested capture size/FPS must be supported together by the selected camera.

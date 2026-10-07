@@ -19,6 +19,8 @@ VERSION=$("$PYTHON" -c 'import tomllib,sys; print(tomllib.load(open(sys.argv[1],
 COMMIT=$(git -C "$ROOT" describe --always --dirty)
 BUILD_DATE=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
 mkdir -p "$OUTPUT/Contents/MacOS" "$OUTPUT/Contents/Resources"
+mkdir -p "$OUTPUT/Contents/Resources/Backgrounds"
+cp "$ROOT"/macos/Backgrounds/*.jpg "$ROOT/macos/Backgrounds/README.md" "$OUTPUT/Contents/Resources/Backgrounds/"
 swiftc -parse-as-library -swift-version 5 -O -target "$(uname -m)-apple-macosx13.0" \
     "$ROOT/macos/MenuBar/WebcamMods.swift" -o "$OUTPUT/Contents/MacOS/WebcamMods"
 printf '%s\n' "$PYTHON" > "$OUTPUT/Contents/Resources/backend-python.txt"
