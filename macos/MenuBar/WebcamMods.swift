@@ -54,7 +54,15 @@ final class SessionModel: ObservableObject {
     @Published var profiles: [Profile] = []
     @Published var selectedProfile = ""
     @Published var profileName = ""
-    @Published var state = "idle"
+    @Published var state = "idle" {
+        didSet { if state != "running" { clearPreview() } }
+    }
+    @Published var outputMode = "preview"
+    @Published var previewImage: NSImage?
+    @Published var previewError: String?
+    private var previewPending = false
+    private var previewVisible = false
+    private var previewGeneration = 0
     @Published var error: String?
     @Published var connected = false
     @Published var inventoryPending = false
@@ -106,6 +114,47 @@ final class SessionModel: ObservableObject {
             config.camera_id = camera.id
         }
     }
+    private func clearPreview() {
+        previewGeneration += 1
+        previewImage = nil
+        previewError = nil
+    }
+
+    func pollPreview(visible: Bool) {
+        if previewVisible != visible {
+            previewVisible = visible
+            if !visible { clearPreview() }
+        }
+        guard visible, connected, state == "running", !previewPending else { return }
+        previewPending = true
+        let generation = previewGeneration
+        request("preview.get") { [weak self] result in
+            guard let self else { return }
+            self.previewPending = false
+            guard self.previewVisible, self.state == "running", generation == self.previewGeneration else { return }
+            self.acceptPreview(result)
+        }
+    }
+
+    private func acceptPreview(_ result: Result<Any, Error>) {
+        do {
+            let value = try result.get()
+            if value is NSNull { return }
+            guard let frame = value as? [String: Any],
+                  let width = frame["width"] as? Int, (1...640).contains(width),
+                  let height = frame["height"] as? Int, (1...480).contains(height),
+                  let jpeg = frame["jpeg"] as? String, jpeg.utf8.count <= 699_052,
+                  let data = Data(base64Encoded: jpeg), data.count <= 524_288,
+                  let bitmap = NSBitmapImageRep(data: data),
+                  bitmap.pixelsWide == width, bitmap.pixelsHigh == height,
+                  let image = bitmap.cgImage else {
+                throw failure("Invalid preview frame. Reinstall app if this repeats.")
+            }
+            previewImage = NSImage(cgImage: image, size: NSSize(width: bitmap.pixelsWide, height: bitmap.pixelsHigh))
+            previewError = nil
+        } catch { previewError = error.localizedDescription }
+    }
+
     func reconnect() {
         guard process == nil, !quitting else { return }
         startGeneration += 1
@@ -343,10 +392,44 @@ final class SessionModel: ObservableObject {
         let issueBytes = Data("[{\"name\":\"Broken profile\",\"error\":\"invalid configuration\"}]".utf8)
         let issues = try JSONDecoder().decode([ProfileIssue].self, from: issueBytes)
         try check(issues[0].name == "Broken profile", "Structured profile warning decoding")
+        let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 2, pixelsHigh: 2, bitsPerSample: 8, samplesPerPixel: 3, hasAlpha: false, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+        bitmap.bitmapData?.initialize(repeating: 127, count: bitmap.bytesPerRow * bitmap.pixelsHigh)
+        let jpeg = bitmap.representation(using: .jpeg, properties: [:])!.base64EncodedString()
+        let frame: [String: Any] = ["jpeg": jpeg, "width": 2, "height": 2]
+        model.acceptPreview(.success(frame))
+        try check(model.previewImage != nil && model.previewError == nil, "Bounded JPEG preview decoding")
+        model.state = "idle"
+        try check(model.previewImage == nil, "Stopping clears preview")
+        model.error = nil
+        model.acceptPreview(.success(["jpeg": "invalid", "width": 2, "height": 2]))
+        try check(model.previewError != nil && model.error == nil, "Preview errors remain separate from session errors")
+        model.state = "running"
+        model.connected = true
+        let previewID = model.nextID + 1
+        model.pollPreview(visible: true)
+        model.pollPreview(visible: true)
+        try check(model.nextID == previewID && model.previewPending, "Only one preview request in flight")
+        model.pollPreview(visible: false)
+        let reply = try JSONSerialization.data(withJSONObject: ["id": previewID, "result": frame])
+        model.consume(reply + Data([10]))
+        try check(model.previewImage == nil && !model.previewPending, "Hidden window rejects late preview")
+        model.pollPreview(visible: true)
+        let oldID = model.nextID
+        model.state = "stopping"
+        model.state = "running"
+        let oldReply = try JSONSerialization.data(withJSONObject: ["id": oldID, "result": frame])
+        model.consume(oldReply + Data([10]))
+        try check(model.previewImage == nil, "New session rejects old preview")
+        model.pollPreview(visible: true)
+        model.expireRequest(model.nextID)
+        try check(!model.previewPending && model.previewError != nil, "Preview timeout releases in-flight request")
+        model.state = "idle"
+        model.pollPreview(visible: true)
+        try check(!model.previewPending, "Idle window does not poll frames")
         try pipe.fileHandleForWriting.close()
         try pipe.fileHandleForReading.close()
         try helperSelfTest()
-        print("Native model self-test passed (JSONL, errors, timeout, profiles, camera identity).")
+        print("Native model self-test passed (JSONL, errors, timeout, profiles, camera identity, preview lifecycle).")
     }
 
     private static func helperSelfTest() throws {
@@ -373,7 +456,8 @@ final class SessionModel: ObservableObject {
             ["id": 1, "method": "hello"],
             ["id": 2, "method": "profiles.save", "params": ["name": "Native test", "config": Configuration().json]],
             ["id": 3, "method": "profiles.list"],
-            ["id": 4, "method": "shutdown"]
+            ["id": 4, "method": "preview.get", "params": [:]],
+            ["id": 5, "method": "shutdown"]
         ]
         for request in requests {
             var bytes = try JSONSerialization.data(withJSONObject: request)
@@ -386,12 +470,13 @@ final class SessionModel: ObservableObject {
             throw NSError(domain: "WebcamModsSelfTest", code: 1, userInfo: [NSLocalizedDescriptionKey: "Real helper timed out"])
         }
         let lines = output.fileHandleForReading.readDataToEndOfFile().split(separator: 10)
-        guard helper.terminationStatus == 0, lines.count == 4 else {
+        guard helper.terminationStatus == 0, lines.count == 5 else {
             throw NSError(domain: "WebcamModsSelfTest", code: 1, userInfo: [NSLocalizedDescriptionKey: "Real helper failed"])
         }
         let messages = try lines.map { try JSONSerialization.jsonObject(with: Data($0)) as? [String: Any] }
         guard let hello = messages[0]?["result"] as? [String: Any], hello["protocol"] as? Int == 1,
-              let profiles = messages[2]?["result"] as? [[String: Any]] else {
+              let profiles = messages[2]?["result"] as? [[String: Any]],
+              messages[3]?["result"] is NSNull else {
             throw NSError(domain: "WebcamModsSelfTest", code: 1, userInfo: [NSLocalizedDescriptionKey: "Real helper response mismatch"])
         }
         let profileData = try JSONSerialization.data(withJSONObject: profiles)
@@ -489,7 +574,7 @@ final class SessionModel: ObservableObject {
                     self.error = "Camera access denied. Enable Webcam Mods in System Settings > Privacy & Security > Camera."
                     return
                 }
-                self.request("start", params: ["config": self.config.json]) { [weak self] result in
+                self.request("start", params: ["config": self.config.json, "output": self.outputMode]) { [weak self] result in
                     if case .failure(let issue) = result {
                         self?.state = "error"
                         self?.error = issue.localizedDescription
@@ -546,7 +631,6 @@ struct ControlPanel: View {
     @State private var advanced = false
     @State private var confirmDelete = false
     @State private var showError = false
-    var openControls: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -567,6 +651,12 @@ struct ControlPanel: View {
             }
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
+                    Picker("Output", selection: $model.outputMode) {
+                        Text("Preview only").tag("preview")
+                        Text("OBS Virtual Camera").tag("virtualcam")
+                    }
+                    Text(model.outputMode == "preview" ? "Test camera and effects in this window." : "Send video to OBS Virtual Camera and preview here.")
+                        .font(.caption).foregroundStyle(.secondary)
                     Picker("Camera", selection: Binding(get: { model.selectedCameraID }, set: model.selectCamera)) {
                         if model.cameraUnavailable { Text(model.cameras.isEmpty ? "No cameras found" : "Saved camera unavailable").tag(model.selectedCameraID) }
                         ForEach(model.cameras) { camera in Text(camera.name).tag(camera.id) }
@@ -651,7 +741,9 @@ struct ControlPanel: View {
                         }.padding(.top, 6)
                     }
                 }.disabled(model.active || !model.connected)
-            }.frame(height: 420)
+            }.frame(maxHeight: .infinity)
+            Text(model.active ? "Stop camera to change settings." : "Choose settings, then start camera to preview.")
+                .font(.caption).foregroundStyle(.secondary)
             if !model.connected && !model.hasWorker {
                 Button("Reconnect worker", action: model.reconnect)
             }
@@ -659,7 +751,6 @@ struct ControlPanel: View {
                 Button(model.active ? "Stop camera" : "Start camera", action: model.active ? model.stop : model.start)
                     .buttonStyle(.borderedProminent).disabled(!model.connected || model.state == "stopping" || (!model.active && model.cameraUnavailable))
                 Spacer()
-                if let openControls { Button("Open controls", action: openControls) }
                 Button("Quit", action: model.quit)
             }
             HStack {
@@ -667,7 +758,7 @@ struct ControlPanel: View {
                 Spacer()
                 Text(model.backendVersion.isEmpty ? "Worker disconnected" : "Backend \(model.backendVersion)")
             }.font(.caption2).foregroundStyle(.secondary)
-        }.padding(18).frame(width: 370)
+        }.padding(18).frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear { model.connect() }
         .onChange(of: model.config.capture) { _ in
             if model.connected && !model.active { model.refreshCameras() }
@@ -697,11 +788,66 @@ struct ControlPanel: View {
     }
 }
 
+struct PreviewPanel: View {
+    @ObservedObject var model: SessionModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Video preview").font(.headline)
+                Spacer()
+                Text(model.outputMode == "preview" ? "Preview only" : "OBS Virtual Camera")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            ZStack {
+                Color.black
+                if let image = model.previewImage {
+                    Image(nsImage: image).resizable().scaledToFit()
+                } else {
+                    VStack(spacing: 12) {
+                        Image(systemName: "video").font(.system(size: 36))
+                        Text(model.state == "starting" ? "Starting camera..." : model.state == "running" ? "Waiting for video..." : "Camera stopped")
+                            .font(.headline)
+                        Text("Start camera to see your processed video.").font(.caption)
+                    }.foregroundStyle(.white.opacity(0.7))
+                }
+            }.frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .accessibilityLabel("Processed video preview")
+            if let error = model.previewError {
+                Label(error, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange)
+            }
+            Text("Preview shows final framing and effects. Preview refreshes up to 10 FPS; output uses configured FPS.")
+                .font(.caption).foregroundStyle(.secondary)
+        }.padding(20).frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+struct MainWindow: View {
+    @ObservedObject var model: SessionModel
+    var body: some View {
+        GeometryReader { geometry in
+            if geometry.size.width >= 820 {
+                HStack(spacing: 0) {
+                    PreviewPanel(model: model).frame(maxWidth: .infinity)
+                    Divider()
+                    ControlPanel(model: model).frame(width: 370)
+                }
+            } else {
+                VStack(spacing: 0) {
+                    PreviewPanel(model: model).frame(height: min(280, geometry.size.height * 0.38))
+                    Divider()
+                    ControlPanel(model: model)
+                }
+            }
+        }
+    }
+}
+
 @main
 struct WebcamModsApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @StateObject private var model = SessionModel()
-    @Environment(\.openWindow) private var openWindow
     init() {
         if CommandLine.arguments.contains("--self-test") {
             do { try SessionModel.selfTest(); exit(0) }
@@ -713,30 +859,56 @@ struct WebcamModsApp: App {
     }
     var body: some Scene {
         MenuBarExtra("Webcam Mods", systemImage: model.state == "running" ? "video.fill" : "video") {
-            ControlPanel(model: model, openControls: { showControls() })
-        }.menuBarExtraStyle(.window)
-        Window("Webcam Mods Controls", id: "controls") {
-            ControlPanel(model: model)
-        }.windowResizability(.contentSize)
-    }
-    private func showControls() {
-        openWindow(id: "controls")
-        NSApp.activate(ignoringOtherApps: true)
+            Text("Camera: \(model.state.capitalized)")
+            Button(model.active ? "Stop camera" : "Start camera", action: model.active ? model.stop : model.start)
+                .disabled(!model.connected || model.state == "stopping" || (!model.active && model.cameraUnavailable))
+            Button("Open window") { delegate.showControls() }.keyboardShortcut("o")
+            Divider()
+            Button("Quit Webcam Mods", action: model.quit).keyboardShortcut("q")
+        }
     }
 }
 
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var controlsWindow: NSWindow?
+    private var previewTimer: Timer?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
-        guard CommandLine.arguments.contains("--show-controls"), let model = SessionModel.current else { return }
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 406, height: 640), styleMask: [.titled, .closable], backing: .buffered, defer: false)
-        window.title = "Webcam Mods Controls"
-        window.contentView = NSHostingView(rootView: ControlPanel(model: model))
-        window.center()
-        window.makeKeyAndOrderFront(nil)
-        controlsWindow = window
+        showControls()
+        previewTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                let visible = self.controlsWindow.map { $0.isVisible && !$0.isMiniaturized } ?? false
+                SessionModel.current?.pollPreview(visible: visible)
+            }
+        }
+    }
+
+    func showControls() {
+        guard let model = SessionModel.current else { return }
+        if controlsWindow == nil {
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1000, height: 700), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
+            window.title = "Webcam Mods"
+            window.contentView = NSHostingView(rootView: MainWindow(model: model))
+            window.minSize = NSSize(width: 420, height: 650)
+            window.isReleasedWhenClosed = false
+            window.setFrameAutosaveName("WebcamModsMain")
+            window.center()
+            controlsWindow = window
+        }
+        controlsWindow?.deminiaturize(nil)
+        controlsWindow?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        showControls()
+        return false
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let model = SessionModel.current, model.hasWorker else { return .terminateNow }
         model.quit()

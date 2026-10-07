@@ -34,7 +34,7 @@ cat > "$OUTPUT/Contents/Info.plist" <<PLIST
 <key>CFBundleShortVersionString</key><string>$VERSION</string>
 <key>CFBundleVersion</key><string>$VERSION</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
-<key>LSUIElement</key><true/>
+<key>LSUIElement</key><false/>
 <key>NSCameraUsageDescription</key><string>Webcam Mods uses your selected camera only when you start a camera session.</string>
 <key>BuildCommit</key><string>$COMMIT</string>
 <key>BuildDate</key><string>$BUILD_DATE</string>

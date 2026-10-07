@@ -8,6 +8,8 @@ from typing import Any, Callable
 
 from webcam_mods.profiles import Profile, ProfileStore
 from webcam_mods.protocol import RequestFailure, read_requests
+from webcam_mods.output.native_preview import NativePreview
+from webcam_mods.utils.video import Frame
 
 _STOP_TIMEOUT = 12
 from webcam_mods.input.input import FrameInput
@@ -19,12 +21,17 @@ def run_profile(
     stop: threading.Event,
     ready: Callable[[], None],
     source_ready: Callable[[FrameInput], None],
+    *,
+    output: str = "virtualcam",
+    on_frame: Callable[[Frame], None] | None = None,
 ) -> None:
     from webcam_mods.capture import camera_index_for_id, create_camera
     from webcam_mods.effects import ProfileEffect
     from webcam_mods.frame_producer import WorkerShutdownTimeout
     from webcam_mods.loopback import live_loop
 
+    if output not in ("virtualcam", "preview"):
+        raise ValueError("output must be virtualcam or preview")
     input_device = (
         camera_index_for_id(profile.camera_id, profile.capture)  # type: ignore[arg-type]
         if profile.camera_id is not None
@@ -55,12 +62,14 @@ def run_profile(
         live_loop(
             mod=effect,
             fIn=source,
+            output_backend="native-preview" if output == "preview" else "virtual-cam",
             interactive_listener=None,
             settings=settings,
             processing_cleanup=effect.close,
             should_stop=stop.is_set,
             on_ready=ready,
             strict_errors=True,
+            on_frame=on_frame,
         )
     except WorkerShutdownTimeout:
         # backend process must exit; it cannot safely start another session
@@ -79,17 +88,22 @@ class Controller:
         self,
         store: ProfileStore,
         emit: Callable[[dict[str, Any]], None],
-        runner: Callable[
-            [
-                Profile,
-                threading.Event,
-                Callable[[], None],
-                Callable[[FrameInput], None],
-            ],
-            None,
-        ] = run_profile,
+        runner: (
+            Callable[
+                [
+                    Profile,
+                    threading.Event,
+                    Callable[[], None],
+                    Callable[[FrameInput], None],
+                ],
+                None,
+            ]
+            | None
+        ) = None,
     ) -> None:
-        self.store, self.emit, self.runner = store, emit, runner
+        self.store, self.emit = store, emit
+        self.runner = run_profile if runner is None else runner
+        self._native_runner = run_profile if runner is None else None
         self.lock = threading.RLock()
         self.state = "idle"
         self.error: str | None = None
@@ -97,6 +111,12 @@ class Controller:
         self.stop_event = threading.Event()
         self.source: FrameInput | None = None
         self.poisoned = False
+        self.preview: NativePreview | None = None
+
+    def _clear_preview(self) -> None:
+        if self.preview is not None:
+            self.preview.close()
+            self.preview = None
 
     def status(self) -> dict[str, Any]:
         with self.lock:
@@ -111,6 +131,8 @@ class Controller:
             if self.poisoned:
                 return
             self.state, self.error = state, error
+            if state in ("idle", "error", "stopping"):
+                self._clear_preview()
             self.emit({"event": "status", "data": self.status()})
 
     def _poison(self, error: str) -> None:
@@ -118,13 +140,16 @@ class Controller:
             if self.poisoned:
                 return
             self.poisoned = True
+            self._clear_preview()
             self.state = "error"
             self.error = (
                 f"{error}; quit and reopen the app or restart the control worker"
             )
             self.emit({"event": "status", "data": self.status()})
 
-    def start(self, profile: Profile) -> dict[str, Any]:
+    def start(self, profile: Profile, output: str = "virtualcam") -> dict[str, Any]:
+        if output not in ("virtualcam", "preview"):
+            raise ValueError("output must be virtualcam or preview")
         with self.lock:
             if self.poisoned:
                 raise RuntimeError(
@@ -136,6 +161,8 @@ class Controller:
                 )
             self.stop_event = threading.Event()
             self.source = None
+            self._clear_preview()
+            preview = self.preview = NativePreview()
             self._state("starting")
 
             def source_ready(source: FrameInput) -> None:
@@ -151,7 +178,17 @@ class Controller:
 
             def run() -> None:
                 try:
-                    self.runner(profile, self.stop_event, ready, source_ready)
+                    if self._native_runner is not None:
+                        self._native_runner(
+                            profile,
+                            self.stop_event,
+                            ready,
+                            source_ready,
+                            output=output,
+                            on_frame=preview.publish,
+                        )
+                    else:
+                        self.runner(profile, self.stop_event, ready, source_ready)
                 except Exception as error:
                     from webcam_mods.frame_producer import WorkerShutdownTimeout
 
@@ -175,6 +212,7 @@ class Controller:
         with self.lock:
             thread = self.thread
             if thread is None or not thread.is_alive():
+                self._clear_preview()
                 return self.status()
             self._state("stopping")
             self.stop_event.set()
@@ -199,6 +237,11 @@ class Controller:
             return {"protocol": 1, "version": version("webcam-mods")}
         if method == "status":
             return self.status()
+        if method == "preview.get":
+            if params:
+                raise ValueError("preview.get params must be empty")
+            with self.lock:
+                return self.preview.get() if self.preview is not None else None
         if method == "profiles.list":
             return self.store.list()
         if method == "profiles.errors":
@@ -232,7 +275,7 @@ class Controller:
                 if "profile" in params
                 else Profile.parse(params.get("config", {}))
             )
-            return self.start(profile)
+            return self.start(profile, params.get("output", "virtualcam"))
         if method in ("stop", "shutdown"):
             return self.stop()
         raise ValueError("unknown method")

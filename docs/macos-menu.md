@@ -1,6 +1,7 @@
-# macOS menu and local control
+# macOS app and local control
 
-The optional SwiftUI menu app provides explicit controls for one camera session.
+The optional SwiftUI app provides a main window and menu bar controls for one
+camera session.
 It uses the existing Python effects and OBS Virtual Camera output. Requires macOS
 13 or newer, Xcode command-line tools and an installed Webcam Mods Python runtime.
 
@@ -17,9 +18,23 @@ both after changes; removing the uv tool makes the app's runtime unavailable.
 
 ## Controls
 
-Open the camera icon in the menu bar. Choose a camera and background effect,
-optionally enable face tracking, then adjust brightness and press Start. Camera
-permission is requested on Start. Enable Webcam Mods under System Settings >
+Launch Webcam Mods to open its resizable main window. Choose a camera and
+background effect, optionally enable face tracking, then adjust brightness and
+press Start camera. Settings and saved profiles live beside the video preview in wide windows,
+and below it in narrow windows.
+The menu bar contains status, Start/Stop, Open window and Quit; Open window or
+reopening the app brings back the same window.
+
+Output defaults to **Preview only**, which tests camera and effects without OBS.
+Choose **OBS Virtual Camera** to publish video to conferencing clients while
+previewing the same processed output in the window. Output mode is selected per
+app launch and is separate from saved effect profiles. Closing or minimizing the
+window pauses preview requests and encoding; a running camera session continues
+until Stop or Quit. Preview keeps only the latest JPEG in memory, fits within
+640x480 and refreshes up to 10 FPS. It shows final output framing and effects at
+reduced resolution; output delivery retains configured dimensions and FPS.
+
+Camera permission is requested on Start. Enable Webcam Mods under System Settings >
 Privacy & Security > Camera if access is denied. OBS extension setup is separate;
 see [installation](installation.md).
 
@@ -60,7 +75,7 @@ an identity-bound profile modified. Start remains disabled while inventory is
 refreshing; stale replies from another refresh/backend are ignored.
 
 Save named profiles to reuse settings. Saving an existing name replaces its
-configuration. Deletion asks for confirmation in the menu. Profiles are local,
+configuration. Deletion asks for confirmation in the window. Profiles are local,
 validated and stored transactionally in
 `$XDG_CONFIG_HOME/webcam_mods/profiles.sqlite3`, defaulting to
 `~/.config/webcam_mods/profiles.sqlite3`. Crop/replay settings remain separate in
@@ -155,7 +170,8 @@ the helper available.
 | profiles.errors | {} | Array of name/error objects for damaged profiles |
 | profiles.save | name, config | true |
 | profiles.delete | name | true |
-| start | config, or profile name | Current state |
+| start | config, or profile name; optional output: virtualcam (default) or preview | Current state |
+| preview.get | {} | Latest {jpeg: base64, width, height}, or null |
 | stop | {} | State after bounded shutdown |
 | status | {} | Current state and optional error |
 | shutdown | {} | Stop result, then helper exits |
@@ -168,19 +184,15 @@ replace the helper process before another session.
 
 ## Verification limits
 
-Native compilation, structured transport/model self-tests and Python protocol
-regressions pass. A real standalone-window UI check verified Advanced scrolling,
-output overrides, persistent action buttons and clean Quit without opening capture.
-These checks do not establish Camera permission inheritance, physical camera
-capture, conferencing reception or power behavior. Items 2 and 6 remain deferred.
-Controls scroll within a bounded panel; Start/Stop and Quit remain outside the
-scrolling settings. A disconnected helper exposes Reconnect after its old process
-has exited. The footer shows both app build identity and the connected backend
-package version. The same controls can open in a standalone window:
+`just menu-check` compiles and runs native transport/model tests, including JPEG
+decoding, single in-flight preview requests, stale-response rejection, stop/hide
+cleanup and timeouts. Python regressions verify final-frame routing in direct
+and repeat modes, preview-only output without OBS, bounded encoding and session
+cleanup. These checks do not establish physical-camera permission behavior,
+conferencing reception, realistic quality or power behavior.
 
-```sh
-open -n "$HOME/Applications/Webcam Mods.app" --args --show-controls
-```
-
-The menu currently has no embedded video thumbnail; use CLI `--output preview`
-when reviewing final video. Standalone distribution/notarization is future work.
+Settings scroll; Start/Stop and Quit remain outside the scrolling area. A
+disconnected helper exposes Reconnect after its old process exits. The footer
+shows app build identity and connected backend version. Launching normally opens
+the main window; the older `--show-controls` launch argument remains harmless.
+Standalone distribution/notarization is future work.

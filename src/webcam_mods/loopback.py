@@ -42,6 +42,10 @@ def default_frame_output(
         fps=out_fps,
         device=settings.video_out,
     )
+    if backend == "native-preview":
+        from webcam_mods.output.native_preview import NativePreviewOutput
+
+        return NativePreviewOutput(settings.out_width, settings.out_height, out_fps)
     if backend == "preview":
         from webcam_mods.output.gui import GUI
 
@@ -93,6 +97,7 @@ def live_loop(
     processing_cleanup: Callable[[], None] | None = None,
     should_stop: Callable[[], bool] | None = None,
     on_ready: Callable[[], None] | None = None,
+    on_frame: Callable[[Frame], None] | None = None,
 ) -> None:
     """Pass frames through a mod; bounded runs raise on missing input."""
     if max_frames is not None and max_frames < 1:
@@ -201,9 +206,12 @@ def live_loop(
                         paused = on_demand and not cam.is_in_use()
                         producer.enable(not paused)
                         completed = producer.latest()
-                        cam.send(
+                        delivered = (
                             paused_frame if paused or completed is None else completed
                         )
+                        cam.send(delivered)
+                        if on_frame is not None:
+                            on_frame(delivered)
                         if completed is not None:
                             report_ready()
                         sent_frames += 1
@@ -266,6 +274,8 @@ def live_loop(
                 # assert frame.shape[1] == fOut.width
                 # logger.debug('sending frame shape', frame.shape)
                 cam.send(frame)
+                if on_frame is not None:
+                    on_frame(frame)
                 if not paused:
                     report_ready()
                 sent_frames += 1

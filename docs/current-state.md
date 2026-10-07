@@ -1,6 +1,6 @@
 # Current state
 
-Reviewed 2026-10-06. Python 3.14 only. Portable processing and macOS/Linux adapters
+Reviewed 2026-10-07. Python 3.14 only. Portable processing and macOS/Linux adapters
 remain supported. Native macOS menu is optional; installed CLI works independently.
 
 ## Supported behavior
@@ -19,8 +19,12 @@ remain supported. Native macOS menu is optional; installed CLI works independent
   background transformation, then brightness. Tracking background inference runs at
   fixed output dimensions to avoid rebuilding models during zoom.
 - Local JSONL helper manages one session through explicit Start/Stop and status.
-  Configuration changes require a stopped session. Native menu exposes profiles,
-  camera/effect selection, settings and errors. Standalone controls, bounded
+  Configuration changes require a stopped session. Native app opens a resizable
+  main window with processed video preview, profiles, camera/effect selection,
+  settings and errors. Preview-only output tests without OBS; virtual-camera
+  output also supports preview. Preview uses a bounded latest JPEG in memory,
+  up to 640x480/10 FPS, and pauses encoding when window hides or minimizes.
+  Menu bar exposes status, Start/Stop, Open window and Quit. Bounded settings
   scrolling and helper reconnection are available. Saved macOS camera identities
   prevent substitution after enumeration changes; independent profile output
   overrides inherit capture settings when absent. Local protocol accepts bounded
@@ -58,11 +62,13 @@ pacing, native buffer handling and partial startup cleanup. `just verify` runs
 static checks and the full suite. `just e2e` writes deterministic real-model
 pipeline artifacts; it is not a camera or conferencing test.
 
-Latest local checkpoint: 381 tests, Black, configured Flake8 and strict mypy pass.
+Latest local checkpoint: 393 tests, Black, configured Flake8 and strict mypy pass.
 Native compilation, model/transport tests with a real Python helper, plist and
-signature checks pass. The standalone controls window was inspected through UI
-automation: Advanced scrolling, independent output controls, fixed Start/Quit
-buttons and clean Quit passed without starting capture. An isolated profile check
+signature checks pass, including native preview decoding and stale-frame cleanup.
+The main window was inspected through UI automation: normal launch, wide and
+narrow layouts, Advanced settings, fixed Start/Quit buttons, window reopening
+and clean Quit passed without starting capture. Narrow windows stack preview
+above settings instead of clipping controls. An isolated profile check
 confirmed corruption warnings preserve valid selection, and brightness edits mark
 the selected profile modified without saving. App Camera permission
 behavior remains unverified.
