@@ -177,8 +177,11 @@ def resize_to_box(img: Frame, tw: int, th: int) -> Frame:
     else:  # stretching image
         interp = cv2.INTER_CUBIC
 
-    new_w = max(1, min(tw, math.floor(w * scale)))
-    new_h = max(1, min(th, math.floor(h * scale)))
+    # integer ratios avoid losing a pixel at an exactly matching aspect
+    if tw * h <= th * w:
+        new_w, new_h = tw, max(1, h * tw // w)
+    else:
+        new_w, new_h = max(1, w * th // h), th
 
     # scale and pad
     scaled_img = cast(Frame, cv2.resize(img, (new_w, new_h), interpolation=interp))
