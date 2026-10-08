@@ -286,6 +286,37 @@ class RepetitionTests(unittest.TestCase):
                 self.assertTrue(failed.is_set())
                 self.assertEqual(bool(np.all(sink.frames[-1] == 1)), freeze)
 
+    def test_direct_failure_freezes_snapshot_of_reused_input(self) -> None:
+        for raises in (False, True):
+            with self.subTest(raises=raises):
+                source, sink = Source(), Sink()
+
+                def effect(frame: np.ndarray) -> np.ndarray | None:
+                    if source.calls == 2:
+                        if raises:
+                            raise ValueError("synthetic effect failure")
+                        return None
+                    return frame
+
+                live_loop(
+                    fIn=source,
+                    fOut=sink,
+                    mod=effect,
+                    interactive_listener=None,
+                    on_demand=False,
+                    freeze_on_error=True,
+                    max_frames=2,
+                    pace=False,
+                    settings=StartupSettings(repeat_frames=False),
+                )
+                self.assertEqual(source.calls, 2)
+                self.assertEqual(len(sink.frames), 2)
+                np.testing.assert_array_equal(sink.frames[0], 1)
+                np.testing.assert_array_equal(sink.frames[1], sink.frames[0])
+                np.testing.assert_array_equal(source.buffer, 2)
+                self.assertFalse(source.active)
+                self.assertFalse(sink.active)
+
     def test_strict_empty_input_is_an_error(self):
         source, sink = Source(), Sink()
         with patch.object(source, "frame", return_value=None):

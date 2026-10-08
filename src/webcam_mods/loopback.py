@@ -150,7 +150,9 @@ def live_loop(
                         return last_frame if freeze_on_error else error_frame
                     normalized = resize_and_pad(result, sw=fOut.width, sh=fOut.height)
                     last_frame = (
-                        normalized.copy() if settings.repeat_frames else normalized
+                        normalized.copy()
+                        if settings.repeat_frames or freeze_on_error
+                        else normalized
                     )
                     return last_frame
                 except Exception as error:
