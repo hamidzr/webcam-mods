@@ -105,6 +105,29 @@ class ScreenSelectionTest(unittest.TestCase):
 
 
 class ScreenBorderTest(unittest.TestCase):
+    def test_in_place_region_changes_update_published_geometry(self) -> None:
+        from webcam_mods.geometry import Rect
+
+        region = Rect(l=-100, t=20, w=400, h=300)
+        border = ScreenBorder(region)
+        self.addCleanup(border.close)
+        with (
+            patch(
+                "webcam_mods.input.screen.sharing_helper", return_value="/bin/picker"
+            ),
+            patch("webcam_mods.input.screen.subprocess.Popen") as launch,
+        ):
+            launch.return_value.poll.return_value = None
+            border.start()
+            region.left = -80
+            region.top = 30
+            border.update(region)
+            self.assertEqual(border.path.read_text(), "-80 30 400 300\n")
+            region.width = 320
+            region.height = 240
+            border.update(region)
+            self.assertEqual(border.path.read_text(), "-80 30 320 240\n")
+
     def test_border_points_update_and_idempotent_cleanup(self) -> None:
         from webcam_mods.geometry import Rect
 

@@ -91,7 +91,7 @@ class ScreenBorder:
     """Own a click-through border; geometry always uses global screen points."""
 
     def __init__(self, region: Rect) -> None:
-        self.region = region
+        self.region = Rect.from_rect(region)
         self.process: subprocess.Popen[bytes] | None = None
         self.directory: tempfile.TemporaryDirectory[str] | None = None
 
@@ -135,7 +135,7 @@ class ScreenBorder:
         temporary = self.path.with_suffix(".tmp")
         temporary.write_text(f"{region.l} {region.t} {region.w} {region.h}\n")
         temporary.replace(self.path)
-        self.region = region
+        self.region = Rect.from_rect(region)
 
     def close(self) -> None:
         process, self.process = self.process, None
