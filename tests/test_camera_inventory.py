@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from typer.testing import CliRunner
+from typer._click.utils import strip_ansi
 
 from webcam_mods.entry import app
 from webcam_mods.macos.capture import (
@@ -209,7 +210,7 @@ class CameraInventoryTest(unittest.TestCase):
         ):
             result = CliRunner().invoke(app, ["list-cameras"])
         self.assertNotEqual(result.exit_code, 0)
-        self.assertIn("uv sync --extra macos", result.output)
+        self.assertIn("uv sync --extra macos", strip_ansi(result.output))
 
     def test_non_macos_rejected_before_enumeration(self) -> None:
         with (

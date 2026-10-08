@@ -10,6 +10,8 @@ from unittest.mock import patch
 import numpy as np
 from typer.testing import CliRunner
 
+from cli_fixtures import HeadlessCliTestCase
+
 from webcam_mods import entry
 from webcam_mods.frame_producer import FrameProducer
 from webcam_mods.input.input import FrameInput, FrameOutput
@@ -83,7 +85,7 @@ class Sink(FrameOutput):
         raise AssertionError("backend must not own cadence")
 
 
-class RepetitionTests(unittest.TestCase):
+class RepetitionTests(HeadlessCliTestCase):
     def run_loop(self, source, sink, **kwargs):
         live_loop(
             fIn=source,

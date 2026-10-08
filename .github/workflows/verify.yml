@@ -20,6 +20,11 @@ jobs:
         with:
           python-version: '3.14'
           enable-cache: true
+      - name: Install Linux inference runtime libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libegl1 libgles2
       - name: Install supported platform dependencies
         run: uv sync --locked --all-extras
       - name: Check and test without desktop devices

@@ -11,12 +11,15 @@ import unittest
 from unittest.mock import Mock, patch
 
 from typer.testing import CliRunner
+from typer._click.utils import strip_ansi
+
+from cli_fixtures import HeadlessCliTestCase
 
 from webcam_mods import entry
 from webcam_mods.utils.config import Config
 
 
-class CliTests(unittest.TestCase):
+class CliTests(HeadlessCliTestCase):
     def test_import_has_no_desktop_or_persistence_side_effects(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             script = (
@@ -38,8 +41,8 @@ class CliTests(unittest.TestCase):
     def test_help_exposes_explicit_backends(self) -> None:
         result = CliRunner().invoke(entry.app, ["--help"], terminal_width=160)
         self.assertEqual(result.exit_code, 0, result.output)
-        self.assertIn("capture-backend", result.output)
-        self.assertIn("no-controls", result.output)
+        self.assertIn("capture-backend", strip_ansi(result.output))
+        self.assertIn("no-controls", strip_ansi(result.output))
         for panel in (
             "Input",
             "Output",
@@ -61,7 +64,7 @@ class CliTests(unittest.TestCase):
             )
         self.assertEqual(result.exit_code, 0, result.output)
         for option in ("--kernel-size", "--output", "--no-controls", "--input-width"):
-            self.assertIn(option, result.output)
+            self.assertIn(option, strip_ansi(result.output))
 
     def test_shared_options_work_before_after_and_mixed_with_effect_options(
         self,
@@ -459,7 +462,7 @@ class CliTests(unittest.TestCase):
                 loop.assert_not_called()
 
 
-class CliPipelineTests(unittest.TestCase):
+class CliPipelineTests(HeadlessCliTestCase):
     def test_screen_command_runs_shared_pipeline_and_output_factory(self) -> None:
         import cv2
         import numpy as np

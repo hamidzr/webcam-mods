@@ -9,6 +9,8 @@ import cv2
 import numpy as np
 from typer.testing import CliRunner
 
+from cli_fixtures import HeadlessCliTestCase
+
 from webcam_mods import entry
 from webcam_mods.effects import ProfileEffect
 from webcam_mods.mods.person_segmentation import PersonEffects
@@ -101,7 +103,7 @@ class ImageBackgroundBlurTests(unittest.TestCase):
             self.assertEqual(effects._background_blur_kernel, 3)
 
 
-class ImageBlurConfigurationTests(unittest.TestCase):
+class ImageBlurConfigurationTests(HeadlessCliTestCase):
     def test_profile_defaults_validation_and_round_trip(self) -> None:
         self.assertFalse(
             Profile.parse({"effect": "image", "image_path": "bg.jpg"}).image_blur

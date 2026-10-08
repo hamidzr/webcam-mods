@@ -6,11 +6,13 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 from typer.testing import CliRunner
 
+from cli_fixtures import HeadlessCliTestCase
+
 from webcam_mods import entry
 from webcam_mods.geometry import Rect
 
 
-class TrackFaceCliTests(unittest.TestCase):
+class TrackFaceCliTests(HeadlessCliTestCase):
     def test_options_and_missing_predictions_reach_tracker(self) -> None:
         detector = MagicMock()
         detector.predict.side_effect = [Rect(w=80, h=80), None]

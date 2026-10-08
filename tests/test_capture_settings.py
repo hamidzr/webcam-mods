@@ -7,6 +7,8 @@ import cv2
 import numpy as np
 from typer.testing import CliRunner
 
+from cli_fixtures import HeadlessCliTestCase
+
 from webcam_mods import entry
 from webcam_mods.input.input import FrameOutput
 from webcam_mods.input.video_dev import Webcam, open_video_capture
@@ -153,7 +155,7 @@ class CaptureSettingsTests(unittest.TestCase):
         self.assertEqual(self.camera.frame().shape, (24, 32, 3))
 
 
-class DeliverySettingsTests(unittest.TestCase):
+class DeliverySettingsTests(HeadlessCliTestCase):
     def test_cli_capture_and_delivery_are_independent(self) -> None:
         for input_fps, output_cap, effective_fps in ((60, 15, 15), (15, 60, 15)):
             for position in ("before", "after"):

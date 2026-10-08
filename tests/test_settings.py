@@ -8,6 +8,8 @@ from unittest.mock import patch
 
 from typer.testing import CliRunner
 
+from cli_fixtures import HeadlessCliTestCase
+
 from webcam_mods import entry
 from webcam_mods.settings import StartupSettings, load_settings
 from webcam_mods.loopback import default_frame_output
@@ -17,7 +19,7 @@ from webcam_mods.session import RunSession
 from webcam_mods.utils.config import Config
 
 
-class SettingsTests(unittest.TestCase):
+class SettingsTests(HeadlessCliTestCase):
     def test_defaults_and_environment(self) -> None:
         self.assertEqual(load_settings({}), StartupSettings())
         settings = load_settings(

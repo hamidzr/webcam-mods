@@ -7,6 +7,8 @@ from unittest.mock import Mock, patch
 import numpy as np
 from typer.testing import CliRunner
 
+from cli_fixtures import HeadlessCliTestCase
+
 from webcam_mods import entry
 from webcam_mods.effects import ProfileEffect
 from webcam_mods.frame_producer import FrameProducer
@@ -194,7 +196,7 @@ class StartupFrameTests(unittest.TestCase):
             producer.close()
 
 
-class SignalFrameTests(unittest.TestCase):
+class SignalFrameTests(HeadlessCliTestCase):
     def test_bars_cached_and_noise_refresh_is_limited_without_mutating_old_frames(self):
         for pattern in ("color-bars", "noise"):
             with self.subTest(pattern=pattern):
