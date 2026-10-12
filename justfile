@@ -56,6 +56,7 @@ alias fix := fmt
 
 # non-mutating static analysis, matching the existing Makefile checks
 check:
+    {{ uv_run }} python -m compileall -q src tests scripts
     {{ uv_run }} flake8 --select=E9,F63,F7,F821 src tests scripts
     {{ uv_run }} black --check src tests scripts
     {{ uv_run }} mypy
