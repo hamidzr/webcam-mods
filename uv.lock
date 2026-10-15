@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = "==3.14.*"
 resolution-markers = [
     "platform_machine != 'arm64' or sys_platform != 'darwin'",
@@ -1357,6 +1357,7 @@ dependencies = [
     { name = "mss" },
     { name = "numpy" },
     { name = "opencv-contrib-python" },
+    { name = "pillow" },
     { name = "pynput" },
     { name = "pyvirtualcam" },
     { name = "typer" },
@@ -1393,6 +1394,7 @@ requires-dist = [
     { name = "mss", specifier = ">=10.2.0" },
     { name = "numpy", specifier = ">=2.0" },
     { name = "opencv-contrib-python", specifier = ">=4.11" },
+    { name = "pillow", specifier = ">=12.0" },
     { name = "pynput", specifier = ">=1.8.2" },
     { name = "pyobjc-framework-avfoundation", marker = "sys_platform == 'darwin' and extra == 'macos'", specifier = ">=12.2.2" },
     { name = "pyobjc-framework-coremedia", marker = "sys_platform == 'darwin' and extra == 'macos'", specifier = ">=12.2.2" },

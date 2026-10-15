@@ -38,6 +38,8 @@ remain supported. Native macOS menu is optional; installed CLI works independent
   replaces person segmentation when chosen. Spotlight background dims
   the room and lifts the person using the segmentation mask. Looks (six built-in
   grades or a `.cube` LUT file) finish the picture with adjustable strength.
+  Overlays (name caption with a second line, logo or watermark with size and
+  opacity, each in a corner) draw last, unmirrored.
   Profiles store a manual crop edited by zoom, drag and pinch in the camera view;
   tracking stays inside it. Framing preferences (face size, head height, max zoom,
   follow time, steadiness) are profile fields that apply live.

@@ -110,7 +110,7 @@ reloading segmentation. Tracking combines
 with background and brightness. Effect order: rotation, mirror and vertical flip,
 manual crop, tracking inside
 the crop, auto light, fixed-size background processing, brightness, color, look,
-final output sizing. Mirror video flips the
+overlays, final output sizing. Mirror video flips the
 camera left to right for both preview and OBS output, so receivers see the
 mirrored view; background images stay readable. Background effects keep the
 picture orientation, so only Mirror video flips it. Flip upside down turns the picture
@@ -140,6 +140,15 @@ Look is a final color grade: None, Warm, Cool, Mono, Fade, Vivid, Film, or Custo
 which opens a `.cube` 3D lookup table (sizes 2..65, up to 16 MiB; domain headers
 honored, 1D tables rejected). Strength blends it with the picture, 0..100. Looks
 apply live; an unreadable or invalid file is refused and the current look stays.
+Overlays draw a name caption and a logo into the video calls see, after the look,
+so color settings never tint them and Mirror video never reverses them. Name and
+Title (one line each, up to 80 characters) form a lower-third panel of white text on
+translucent black in a chosen corner; Title alone draws nothing. Choose picks a
+logo picture, keeping PNG transparency; Size sets its width as 5..60 percent of
+the picture and Opacity blends it. A caption sharing the logo's corner stacks
+toward the middle, clear of it. Text scales with the output height and shrinks,
+then trims with an ellipsis, to fit the width. All overlay settings apply live; an
+unreadable logo is refused and the current overlay stays.
 Image mode includes an offline thumbnail gallery: Warm study, Quiet office and
 Soft shelves. Entering Image with no previous image selects Warm study; click a
 thumbnail to switch, or Choose your own to open an image file. Saved profiles
@@ -274,6 +283,11 @@ Profile fields and defaults:
 | look | none | none, warm, cool, mono, fade, vivid, film or custom |
 | look_path | empty | `.cube` file required for the custom look; saved as an absolute path |
 | look_strength | 100 | Look blend, 0..100 |
+| caption, caption_detail | empty | Caption name and second line, at most 80 characters, no control characters |
+| caption_position | bottom-left | top-left, top-right, bottom-left or bottom-right |
+| logo_path | empty | Logo or watermark picture; saved as an absolute path |
+| logo_position | top-right | Logo corner, as caption_position |
+| logo_scale, logo_opacity | 15, 100 | Logo width as 5..60 percent of the picture; opacity 0..100 |
 | smoothing | false | Opt-in motion-aware mask stabilization |
 
 ## Local protocol

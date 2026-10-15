@@ -10,6 +10,7 @@ import re
 import sqlite3
 import sys
 import tempfile
+import unicodedata
 from typing import Any, Iterator
 
 # fields that shape capture or output; changing them needs a session restart
@@ -34,6 +35,10 @@ RESTART_FIELDS = frozenset(
 
 # keep in step with mods/looks.py BUILTIN_LOOKS; custom reads look_path
 LOOKS = ("none", "warm", "cool", "mono", "fade", "vivid", "film", "custom")
+
+# overlay corners and caption length; keep in step with mods/overlay.py
+OVERLAY_POSITIONS = ("top-left", "top-right", "bottom-left", "bottom-right")
+MAX_CAPTION_LENGTH = 80
 
 NUMBER_RANGES: tuple[tuple[str, float, float], ...] = (
     ("track_face_height", 0.1, 0.9),
@@ -111,6 +116,15 @@ class Profile:
     look: str = "none"
     look_path: str = ""
     look_strength: int = 100
+    # drawn last: a logo or watermark picture, its width a percent of the picture,
+    # and a name caption with an optional second line, each in a corner
+    logo_path: str = ""
+    logo_position: str = "top-right"
+    logo_scale: int = 15
+    logo_opacity: int = 100
+    caption: str = ""
+    caption_detail: str = ""
+    caption_position: str = "bottom-left"
     camera_id: str | None = None
     output_width: int | None = None
     output_height: int | None = None
@@ -136,6 +150,8 @@ class Profile:
             ("key_tolerance", 0, 100),
             ("key_softness", 0, 100),
             ("key_spill", 0, 100),
+            ("logo_scale", 5, 60),
+            ("logo_opacity", 0, 100),
         ):
             value = getattr(self, key)
             if type(value) is not int or not lower <= value <= upper:
@@ -197,6 +213,8 @@ class Profile:
             ("processing", ("opencv", "coreimage")),
             ("capture", ("auto", "opencv", "avfoundation")),
             ("look", LOOKS),
+            ("logo_position", OVERLAY_POSITIONS),
+            ("caption_position", OVERLAY_POSITIONS),
         ):
             if getattr(self, key) not in choices:
                 raise ValueError(f"invalid {key}")
@@ -219,6 +237,18 @@ class Profile:
             raise ValueError("look_path must be a path string")
         if self.look == "custom" and not self.look_path:
             raise ValueError("custom look requires look_path")
+        if not isinstance(self.logo_path, str) or len(self.logo_path) > 4096:
+            raise ValueError("logo_path must be a path string")
+        for key in ("caption", "caption_detail"):
+            text = getattr(self, key)
+            if (
+                not isinstance(text, str)
+                or len(text) > MAX_CAPTION_LENGTH
+                or any(unicodedata.category(character) == "Cc" for character in text)
+            ):
+                raise ValueError(
+                    f"{key} must be one line of at most {MAX_CAPTION_LENGTH} characters"
+                )
 
     @property
     def background_bgr(self) -> tuple[int, int, int]:
@@ -345,6 +375,8 @@ class ProfileStore:
             profile = replace(profile, image_path=_absolute(profile.image_path))
         if profile.look_path:
             profile = replace(profile, look_path=_absolute(profile.look_path))
+        if profile.logo_path:
+            profile = replace(profile, logo_path=_absolute(profile.logo_path))
         with self._connect() as db:
             db.execute(
                 "INSERT INTO profiles VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET config=excluded.config",

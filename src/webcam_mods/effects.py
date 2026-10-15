@@ -1,4 +1,4 @@
-"""Owned effect composition: tracking, background, then brightness."""
+"""Owned effect composition: tracking, background, color, then overlays."""
 
 from contextlib import ExitStack
 import threading
@@ -16,6 +16,7 @@ from webcam_mods.mods.color import (
     neutral_balance,
 )
 from webcam_mods.mods.looks import ColorLook, builtin_look, load_cube
+from webcam_mods.mods.overlay import Logo, Overlay, OverlaySettings, Position, load_logo
 from webcam_mods.mods.video_background import LoopingVideo
 from webcam_mods.mods.video_mods import brighten, crop_rect, resize_and_pad
 from webcam_mods.output.native_preview import Guides
@@ -218,6 +219,18 @@ def _color_settings(profile: Profile) -> ColorSettings:
     )
 
 
+def _overlay_settings(profile: Profile) -> OverlaySettings:
+    return OverlaySettings(
+        logo_path=profile.logo_path,
+        logo_position=cast(Position, profile.logo_position),
+        logo_scale=profile.logo_scale,
+        logo_opacity=profile.logo_opacity,
+        caption=profile.caption,
+        caption_detail=profile.caption_detail,
+        caption_position=cast(Position, profile.caption_position),
+    )
+
+
 def _region_pixels(frame: Frame, region: Rect) -> Frame:
     return frame[
         region.top : region.top + region.height,
@@ -266,7 +279,7 @@ class ProfileEffect:
     """Profile pipeline whose settings can change between frames.
 
     Order: orientation, manual crop with optional tracking inside it, auto light,
-    fixed-size background, brightness, color, look. Updates are
+    fixed-size background, brightness, color, look, overlays. Updates are
     queued by any thread and applied on the processing thread before a frame.
     Source, original and mask preview frames are encoded only while the app shows
     them.
@@ -292,6 +305,8 @@ class ProfileEffect:
         self._video: LoopingVideo | None = None
         self._cube: tuple[str, ColorLook] | None = None
         self.look: ColorLook | None = None
+        self._logo: tuple[str, Logo] | None = None
+        self.overlay: Overlay | None = None
         self._initialized = False
         self._closed = False
         self.background: "BackgroundEffect | None" = None
@@ -313,6 +328,8 @@ class ProfileEffect:
             self._load_image(profile.image_path)
         if profile.look == "custom":
             self._load_cube(profile.look_path)
+        if profile.logo_path:
+            self._load_logo(profile.logo_path)
         with self._lock:
             self._pending = profile
 
@@ -340,6 +357,16 @@ class ProfileEffect:
         with self._lock:
             self._cube = (path, look)
         return look
+
+    def _load_logo(self, path: str) -> Logo:
+        with self._lock:
+            cached = self._logo
+        if cached is not None and cached[0] == path:
+            return cached[1]
+        logo = load_logo(path)
+        with self._lock:
+            self._logo = (path, logo)
+        return logo
 
     def _apply(self, profile: Profile, previous: Profile | None) -> None:
         from webcam_mods.entry import Common, BackgroundEffect
@@ -439,6 +466,12 @@ class ProfileEffect:
             self.look = self._load_cube(profile.look_path)
         else:
             self.look = builtin_look(profile.look)
+        overlay = _overlay_settings(profile)
+        if overlay.is_empty():
+            self.overlay = None
+        elif self.overlay is None or self.overlay.settings != overlay:
+            logo = self._load_logo(overlay.logo_path) if overlay.logo_path else None
+            self.overlay = Overlay(overlay, logo)
         self._profile = profile
 
     def _apply_pending(self) -> None:
@@ -504,6 +537,8 @@ class ProfileEffect:
         frame = self.color(frame)
         if self.look is not None:
             frame = self.look(frame, profile.look_strength / 100)
+        if self.overlay is not None:
+            frame = self.overlay(frame)
         self.stats.tick(time.perf_counter() - started)
         return frame
 

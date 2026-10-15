@@ -69,8 +69,32 @@ struct Configuration: Codable, Equatable {
     var look = "none"
     var look_path = ""
     var look_strength = 100
+    // drawn last: a logo picture, its width in percent of the picture, and a name
+    // caption with an optional second line; positions are corners such as top-right
+    var logo_path = ""
+    var logo_position = "top-right"
+    var logo_scale = 15
+    var logo_opacity = 100
+    var caption = ""
+    var caption_detail = ""
+    var caption_position = "bottom-left"
 
     var tracking: Bool { track || effect == "track" }
+
+    var hasOverlay: Bool { !logo_path.isEmpty || !caption.isEmpty || !caption_detail.isEmpty }
+
+    // keep in step with MAX_CAPTION_LENGTH in profiles.py, which counts code points
+    static let captionLimit = 80
+
+    // one line of at most captionLimit code points; the worker rejects control characters
+    static func captionText(_ text: String) -> String {
+        var kept = String.UnicodeScalarView()
+        for scalar in text.unicodeScalars where scalar.properties.generalCategory != .control {
+            guard kept.count < captionLimit else { break }
+            kept.append(scalar)
+        }
+        return String(kept)
+    }
 
     var colorAdjusted: Bool {
         exposure != 0 || contrast != 0 || saturation != 0 || temperature != 0 || tint != 0 || sharpness != 0 || auto_light != 0
@@ -866,6 +890,13 @@ final class SessionModel: ObservableObject {
             model.config.segmentation = "chroma"
             running(model, view: "output")
         }
+        try render("desktop-overlays", width: 1100, height: 1300) { model in
+            model.config.caption = "Ada Lovelace"
+            model.config.caption_detail = "Analytical Engines"
+            model.config.logo_path = "/Users/snapshot/Pictures/company-logo.png"
+            model.config.logo_scale = 20
+            running(model, view: "output")
+        }
         try render("narrow-camera-guides", width: 440, height: 900) { model in
             model.config.track = true
             running(model, view: "source")
@@ -1231,6 +1262,14 @@ final class SessionModel: ObservableObject {
         keyed.setKeyColor(NSColor(srgbRed: 0, green: 0.28, blue: 0.73, alpha: 1))
         keyed.key_spill = 80
         try check(keyed.key_color == "#0047BA" && keyed.json["key_spill"] as? Int == 80 && Configuration().json["key_color"] as? String == "#00B140" && !keyed.needsRestart(from: Configuration()), "Green screen settings encode and apply live")
+        var titled = Configuration()
+        titled.caption = "Ada Lovelace"
+        titled.logo_path = "/tmp/logo.png"
+        titled.logo_scale = 25
+        let titledDecoded = try JSONDecoder().decode(Configuration.self, from: JSONEncoder().encode(titled))
+        try check(titledDecoded == titled && titled.hasOverlay && !Configuration().hasOverlay && !titled.needsRestart(from: Configuration()) && Configuration().json["caption_position"] as? String == "bottom-left", "Overlays encode and apply live")
+        let longCaption = Configuration.captionText(String(repeating: "\u{1F469}\u{200D}\u{1F4BB}", count: 30))
+        try check(longCaption.unicodeScalars.count == Configuration.captionLimit && Configuration.captionText("Ada\tLove\nlace\u{00A0}\u{200D}") == "AdaLovelace\u{00A0}\u{200D}", "Captions stay one short line, counted like the worker")
         let switcher = SessionModel()
         let switchPipe = Pipe()
         switcher.input = switchPipe.fileHandleForWriting
@@ -1268,7 +1307,7 @@ final class SessionModel: ObservableObject {
         try pipe.fileHandleForWriting.close()
         try pipe.fileHandleForReading.close()
         try helperSelfTest()
-        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats, orientation, compare, color, spotlight, looks, pause, menu profiles, background color, green screen).")
+        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats, orientation, compare, color, spotlight, looks, pause, menu profiles, background color, green screen, overlays).")
     }
 
     private static func helperSelfTest() throws {
@@ -1507,6 +1546,14 @@ final class SessionModel: ObservableObject {
         config = next
     }
 
+    func chooseLogo() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.image]
+        panel.allowsMultipleSelection = false
+        panel.message = "Choose a logo or watermark picture; PNG transparency is kept"
+        if panel.runModal() == .OK, let url = panel.url { config.logo_path = url.path }
+    }
+
     func chooseImage() {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.image, .movie]
@@ -1537,13 +1584,18 @@ struct ControlPanel: View {
     @ObservedObject var model: SessionModel
     @State private var advanced = false
     @State private var colorExpanded: Bool
+    @State private var overlaysExpanded: Bool
     @State private var confirmDelete = false
     @State private var showError = false
 
     init(model: SessionModel) {
         self.model = model
         _colorExpanded = State(initialValue: model.config.colorAdjusted)
+        _overlaysExpanded = State(initialValue: model.config.hasOverlay)
     }
+
+    // keep in step with OVERLAY_POSITIONS in profiles.py
+    static let corners = [("top-left", "Top left"), ("top-right", "Top right"), ("bottom-left", "Bottom left"), ("bottom-right", "Bottom right")]
 
     // keep in step with LOOKS in profiles.py
     static let looks = ["warm", "cool", "mono", "fade", "vivid", "film"]
@@ -1712,6 +1764,38 @@ struct ControlPanel: View {
                             }
                         }.padding(.top, 4)
                     }
+                    DisclosureGroup("Overlays", isExpanded: $overlaysExpanded) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text("Name").frame(width: 75, alignment: .leading)
+                                TextField("None", text: Binding(get: { model.config.caption }, set: { model.config.caption = Configuration.captionText($0) }))
+                            }.help("Shown as a caption in a corner. Leave empty for none.")
+                            HStack {
+                                Text("Title").frame(width: 75, alignment: .leading)
+                                TextField("Optional second line", text: Binding(get: { model.config.caption_detail }, set: { model.config.caption_detail = Configuration.captionText($0) }))
+                            }.disabled(model.config.caption.isEmpty)
+                            cornerPicker(selection: $model.config.caption_position)
+                            Divider()
+                            HStack {
+                                Text("Logo").frame(width: 75, alignment: .leading)
+                                Text(model.config.logo_path.isEmpty ? "None" : URL(fileURLWithPath: model.config.logo_path).lastPathComponent)
+                                    .lineLimit(1).truncationMode(.middle).foregroundStyle(.secondary)
+                                Spacer()
+                                Button("Choose...", action: model.chooseLogo).help("A logo or watermark picture. PNG transparency is kept.")
+                                if !model.config.logo_path.isEmpty {
+                                    Button { model.config.logo_path = "" } label: { Image(systemName: "xmark.circle") }
+                                        .buttonStyle(.borderless).help("Remove logo").accessibilityLabel("Remove logo")
+                                }
+                            }
+                            if !model.config.logo_path.isEmpty {
+                                cornerPicker(selection: $model.config.logo_position)
+                                slider("Size", value: $model.config.logo_scale, range: 5...60)
+                                    .help("Logo width as a percent of the picture width.")
+                                slider("Opacity", value: $model.config.logo_opacity, range: 0...100)
+                            }
+                            Text("Overlays are drawn into the video calls see, never mirrored.").font(.caption).foregroundStyle(.secondary)
+                        }.padding(.top, 4)
+                    }
                     Toggle("Mirror video", isOn: $model.config.mirror)
                         .help("Flip left to right. Preview and OBS Virtual Camera both show the mirrored view.")
                     Toggle("Flip upside down", isOn: $model.config.flip_vertical)
@@ -1844,6 +1928,12 @@ struct ControlPanel: View {
             // two decimals keep saved profiles readable and live updates sparse
             Slider(value: Binding(get: { value.wrappedValue }, set: { value.wrappedValue = ($0 * 100).rounded() / 100 }), in: range)
             Text(text(value.wrappedValue)).monospacedDigit().frame(width: 44, alignment: .trailing)
+        }
+    }
+
+    private func cornerPicker(selection: Binding<String>) -> some View {
+        Picker("Corner", selection: selection) {
+            ForEach(Self.corners, id: \.0) { corner in Text(corner.1).tag(corner.0) }
         }
     }
 
