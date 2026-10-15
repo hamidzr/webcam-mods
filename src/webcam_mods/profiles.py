@@ -43,6 +43,9 @@ LOOKS = ("none", "warm", "cool", "mono", "fade", "vivid", "film", "custom")
 OVERLAY_POSITIONS = ("top-left", "top-right", "bottom-left", "bottom-right")
 MAX_CAPTION_LENGTH = 80
 
+# camera power line filtering; mapped to UVC values in camera_controls.py
+ANTI_FLICKER = ("off", "50hz", "60hz")
+
 NUMBER_RANGES: tuple[tuple[str, float, float], ...] = (
     ("track_face_height", 0.1, 0.9),
     ("track_target_y", 0.2, 0.8),
@@ -119,6 +122,12 @@ class Profile:
     touchup: int = 0
     # averages camera noise over frames where nothing moves, 0 off
     denoise: int = 0
+    # set on the camera itself while the profile runs and put back after: exposure
+    # time and focus as percents of the camera's range, and mains flicker
+    # filtering; null leaves the camera's own, usually automatic, setting
+    camera_exposure: int | None = None
+    camera_focus: int | None = None
+    anti_flicker: str | None = None
     # final color grade: a built-in look or a .cube LUT file, blended by strength
     look: str = "none"
     look_path: str = ""
@@ -177,6 +186,12 @@ class Profile:
             value = getattr(self, key)
             if type(value) is not int or not lower <= value <= upper:
                 raise ValueError(f"{key} must be an integer in {lower}..{upper}")
+        for key in ("camera_exposure", "camera_focus"):
+            value = getattr(self, key)
+            if value is not None and (type(value) is not int or not 0 <= value <= 100):
+                raise ValueError(f"{key} must be an integer in 0..100 or null")
+        if self.anti_flicker is not None and self.anti_flicker not in ANTI_FLICKER:
+            raise ValueError("anti_flicker must be off, 50hz, 60hz or null")
         for key in ("output_width", "output_height"):
             value = getattr(self, key)
             if value is not None and (

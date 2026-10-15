@@ -37,6 +37,8 @@ remain supported. Native macOS menu is optional; installed CLI works independent
   profiles; Pick white sets warmth and tint from a clicked camera point. Low light
   gradually brightens dark pictures before segmentation; Touch up smooths skin
   while eyes, brows and lips stay sharp; Denoise averages grain over still frames.
+  Camera hardware sets exposure, focus and anti-flicker on cameras whose drivers
+  publish them, and puts them back when the session ends.
   Solid backgrounds take any color, with a screen eyedropper; image backgrounds
   fill without stretching at a chosen position and can be looping videos. Green
   screen keying (any key color, tolerance, softness, spill) replaces person

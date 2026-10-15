@@ -10,6 +10,19 @@ struct Camera: Decodable, Identifiable {
     let id: String
 }
 
+// what a camera lets the app set, as profile values; absent controls are unsupported
+struct CameraHardware: Decodable, Equatable {
+    struct Setting: Decodable, Equatable {
+        let auto: Bool
+        let value: Int
+    }
+    let exposure: Setting?
+    let focus: Setting?
+    let anti_flicker: String?
+
+    var isEmpty: Bool { exposure == nil && focus == nil && anti_flicker == nil }
+}
+
 struct Display: Identifiable, Equatable {
     let id: String
     let name: String
@@ -95,6 +108,11 @@ struct Configuration: Codable, Equatable {
     var touchup = 0
     // averages camera noise over frames where nothing moves, 0 off
     var denoise = 0
+    // set on the camera itself while running, then put back: exposure time and focus
+    // as percents of its range, anti-flicker off/50hz/60hz; nil keeps the camera's own
+    var camera_exposure: Int?
+    var camera_focus: Int?
+    var anti_flicker: String?
     // final grade: none, a built-in look, or custom with a .cube file
     var look = "none"
     var look_path = ""
@@ -118,6 +136,8 @@ struct Configuration: Codable, Equatable {
     var tracking: Bool { track || effect == "track" }
 
     var hasOverlay: Bool { !logo_path.isEmpty || !caption.isEmpty || !caption_detail.isEmpty }
+
+    var hardwareAdjusted: Bool { camera_exposure != nil || camera_focus != nil || anti_flicker != nil }
 
     // keep in step with MAX_CAPTION_LENGTH in profiles.py, which counts code points
     static let captionLimit = 80
@@ -444,6 +464,10 @@ final class SessionModel: ObservableObject {
     @Published var recordedSeconds = 0.0
     private var recordPending = false
     @Published var snapshotPath: String?
+    // the selected camera's adjustable exposure, focus and anti-flicker
+    @Published var cameraHardware: CameraHardware?
+    @Published var hardwarePending = false
+    private var hardwareCameraID: String?
     private var statsPending = false
     private var statsRequestedAt: Date?
     private var previewPending = false
@@ -677,6 +701,26 @@ final class SessionModel: ObservableObject {
             case .failure(let issue):
                 self.error = issue.localizedDescription
             }
+        }
+    }
+
+    // asked once per camera, when its settings first show
+    func refreshCameraHardware() {
+        let id = selectedCameraID
+        guard !Self.snapshotMode, connected, !id.isEmpty, id != hardwareCameraID else { return }
+        hardwareCameraID = id
+        cameraHardware = nil
+        hardwarePending = true
+        request("cameras.controls", params: ["id": id]) { [weak self] result in
+            guard let self, self.hardwareCameraID == id else { return }
+            self.hardwarePending = false
+            guard let value = try? result.get(), let data = try? JSONSerialization.data(withJSONObject: value),
+                  let hardware = try? JSONDecoder().decode(CameraHardware.self, from: data) else {
+                // ask again next time the settings show
+                self.hardwareCameraID = nil
+                return
+            }
+            self.cameraHardware = hardware
         }
     }
 
@@ -1017,6 +1061,12 @@ final class SessionModel: ObservableObject {
             running(model, view: "output")
             model.beginWhitePick()
             model.previewImage = image
+        }
+        try render("narrow-camera-hardware", width: 440, height: 1100) { model in
+            model.config.camera_exposure = 40
+            model.config.anti_flicker = "50hz"
+            model.cameraHardware = CameraHardware(exposure: .init(auto: false, value: 40), focus: .init(auto: true, value: 16), anti_flicker: "50hz")
+            running(model, view: "output")
         }
         try render("desktop-image-background", width: 1100, height: 1000) { model in
             if let background = BuiltInBackground.catalog.first { model.selectBackground(background) }
@@ -1374,6 +1424,33 @@ final class SessionModel: ObservableObject {
         try check(snapshotRequest?["method"] as? String == "session.snapshot" && model.snapshotPath?.hasSuffix("14.03.22.png") == true, "Snapshot asks the worker and keeps the saved path")
         model.state = "idle"
         try check(model.stats == nil && model.recorder == "idle" && model.recordedSeconds == 0 && model.snapshotPath == nil, "Stopping clears stats, recording and snapshot")
+        var hardware = Configuration()
+        hardware.camera_exposure = 35
+        hardware.anti_flicker = "50hz"
+        let hardwareDecoded = try JSONDecoder().decode(Configuration.self, from: JSONEncoder().encode(hardware))
+        try check(hardwareDecoded.camera_exposure == 35 && hardwareDecoded.camera_focus == nil && hardwareDecoded.anti_flicker == "50hz" && hardware.hardwareAdjusted && !Configuration().hardwareAdjusted && !hardware.needsRestart(from: Configuration()) && Configuration().json["camera_exposure"] == nil, "Camera hardware settings encode and apply live")
+        let wasConnected = model.connected
+        model.connected = true
+        model.cameras = [Camera(index: 0, name: "C920", id: "c920")]
+        model.config.camera_id = "c920"
+        let hardwareID = model.nextID + 1
+        model.refreshCameraHardware()
+        model.refreshCameraHardware()
+        let hardwareRequest = try lastRequest()
+        try check(model.nextID == hardwareID && model.hardwarePending && hardwareRequest?["method"] as? String == "cameras.controls" && (hardwareRequest?["params"] as? [String: Any])?["id"] as? String == "c920", "Camera hardware is asked once per camera")
+        model.consume(Data("{\"id\":\(hardwareID),\"result\":{\"exposure\":{\"auto\":true,\"value\":72},\"anti_flicker\":\"60hz\"}}\n".utf8))
+        try check(!model.hardwarePending && model.cameraHardware == CameraHardware(exposure: .init(auto: true, value: 72), focus: nil, anti_flicker: "60hz"), "Camera hardware decodes")
+        model.config.camera_id = "built-in"
+        model.refreshCameraHardware()
+        model.consume(Data("{\"id\":\(hardwareID + 1),\"error\":\"camera settings require macOS\"}\n".utf8))
+        try check(model.cameraHardware == nil && !model.hardwarePending && model.error == nil, "Unreadable camera hardware stays quiet")
+        model.refreshCameraHardware()
+        try check(model.nextID == hardwareID + 2, "Unreadable camera hardware is asked again")
+        model.consume(Data("{\"id\":\(hardwareID + 2),\"result\":{}}\n".utf8))
+        try check(model.cameraHardware?.isEmpty == true, "Cameras without controls say so")
+        model.cameras = []
+        model.config.camera_id = nil
+        model.connected = wasConnected
         var tuned = Configuration()
         tuned.track_face_height = 0.3
         tuned.track_follow_seconds = 1.5
@@ -1503,7 +1580,7 @@ final class SessionModel: ObservableObject {
         try pipe.fileHandleForWriting.close()
         try pipe.fileHandleForReading.close()
         try helperSelfTest()
-        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats, orientation, compare, color, spotlight, looks, pause, menu profiles, background color, green screen, overlays, screen source, presenter, snapshot, record loop, touch-up, denoise).")
+        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats, orientation, compare, color, spotlight, looks, pause, menu profiles, background color, green screen, overlays, screen source, presenter, snapshot, record loop, touch-up, denoise, camera hardware).")
     }
 
     private static func helperSelfTest() throws {
@@ -1797,6 +1874,7 @@ struct ControlPanel: View {
     @State private var advanced = false
     @State private var colorExpanded: Bool
     @State private var overlaysExpanded: Bool
+    @State private var hardwareExpanded: Bool
     @State private var confirmDelete = false
     @State private var showError = false
 
@@ -1804,6 +1882,7 @@ struct ControlPanel: View {
         self.model = model
         _colorExpanded = State(initialValue: model.config.colorAdjusted)
         _overlaysExpanded = State(initialValue: model.config.hasOverlay)
+        _hardwareExpanded = State(initialValue: model.config.hardwareAdjusted)
     }
 
     // keep in step with OVERLAY_POSITIONS in profiles.py
@@ -2011,6 +2090,12 @@ struct ControlPanel: View {
                             }
                         }.padding(.top, 4)
                     }
+                    if model.config.usesCamera {
+                        DisclosureGroup("Camera hardware", isExpanded: $hardwareExpanded) {
+                            cameraHardware.padding(.top, 4)
+                                .task(id: model.selectedCameraID) { model.refreshCameraHardware() }
+                        }
+                    }
                     DisclosureGroup("Overlays", isExpanded: $overlaysExpanded) {
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
@@ -2177,6 +2262,45 @@ struct ControlPanel: View {
             // two decimals keep saved profiles readable and live updates sparse
             Slider(value: Binding(get: { value.wrappedValue }, set: { value.wrappedValue = ($0 * 100).rounded() / 100 }), in: range)
             Text(text(value.wrappedValue)).monospacedDigit().frame(width: 44, alignment: .trailing)
+        }
+    }
+
+    @ViewBuilder private var cameraHardware: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if let hardware = model.cameraHardware {
+                // a saved setting stays visible so it can be turned off on any camera
+                if hardware.exposure != nil || model.config.camera_exposure != nil {
+                    Toggle("Manual exposure", isOn: Binding(get: { model.config.camera_exposure != nil }, set: {
+                        model.config.camera_exposure = $0 ? hardware.exposure?.value ?? 50 : nil
+                    })).help("Fix the camera's exposure time instead of letting it adjust. Longer is brighter but blurs motion.")
+                    if let exposure = model.config.camera_exposure {
+                        slider("Exposure", value: Binding(get: { exposure }, set: { model.config.camera_exposure = $0 }), range: 0...100)
+                    }
+                }
+                if hardware.focus != nil || model.config.camera_focus != nil {
+                    Toggle("Manual focus", isOn: Binding(get: { model.config.camera_focus != nil }, set: {
+                        model.config.camera_focus = $0 ? hardware.focus?.value ?? 50 : nil
+                    })).help("Stop autofocus from hunting when you move or hold something up.")
+                    if let focus = model.config.camera_focus {
+                        slider("Focus", value: Binding(get: { focus }, set: { model.config.camera_focus = $0 }), range: 0...100)
+                    }
+                }
+                if hardware.anti_flicker != nil || model.config.anti_flicker != nil {
+                    Picker("Anti-flicker", selection: $model.config.anti_flicker) {
+                        Text("Camera setting").tag(String?.none)
+                        Text("Off").tag(String?("off"))
+                        Text("50 Hz").tag(String?("50hz"))
+                        Text("60 Hz").tag(String?("60hz"))
+                    }.help("Match your mains power to stop lights flickering or banding: 50 Hz in most of Europe, Africa and Asia, 60 Hz in most of the Americas.")
+                }
+                Text(hardware.isEmpty
+                     ? "This camera has no adjustable exposure, focus or anti-flicker."
+                     : "Set on the camera itself while Webcam Mods runs, then put back.")
+                    .font(.caption).foregroundStyle(.secondary)
+            } else {
+                Text(model.hardwarePending ? "Checking camera..." : "Choose a connected camera to see its settings.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
         }
     }
 

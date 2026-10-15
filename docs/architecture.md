@@ -62,6 +62,7 @@ Root help lists frequent grouped options; command help exposes all common option
 | `frame_producer.py` | Worker-owned capture/effects, latest snapshot, bounded shutdown |
 | `effects.py` | Live profile pipeline: orientation, denoise, crop, tracking, auto light, touch-up, background, brightness, color, look, presenter, overlays; preview views and white-balance sampling |
 | `profiles.py` | Validated launch profiles and transactional SQLite persistence |
+| `camera_controls.py` | Profile exposure, focus and anti-flicker set on the camera from the first frame, live updates, restored when the run ends |
 | `control.py` | One-session lifecycle controller and local JSONL request/event protocol |
 | `macos/MenuBar/WebcamMods.swift` | Native menu, managed helper transport and settings UI |
 | `mediapipe_delegate.py` | Isolated CPU/Metal probes and persistent identity-scoped cache |
@@ -70,6 +71,7 @@ Root help lists frequent grouped options; command help exposes all common option
 | `input/screen.py` | Typed MSS screen-region capture and complete adapter metadata |
 | `input/presenter.py` | Screen input that runs the presenter camera on its own thread, newest frame only |
 | `macos/capture.py` | Optional AVFoundation callback capture and newest-frame mailbox |
+| `macos/cmio.py` | ctypes CoreMediaIO camera control discovery, property reads and writes |
 | `macos/vision.py` | Optional instance-owned Vision person masks |
 | `macos/core_image.py` | Optional Core Image background compositing/Gaussian blur |
 | `output/pyvirtcam.py` | OBS virtual camera and idempotent cleanup |

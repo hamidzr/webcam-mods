@@ -173,6 +173,19 @@ restarts it; moving areas and scene changes pass through without ghosts. It cost
 about 4 ms per 720p frame (9 ms at 1080p) and applies live; turning it off drops
 the history. Camera view and white balance use the raw picture; Compare keeps
 noise reduction on.
+Camera hardware sets exposure time, focus and anti-flicker on the camera itself
+through CoreMediaIO, for cameras whose driver publishes those controls (most USB
+webcams, such as the Logitech C920; built-in Mac cameras publish none, and the
+section says so). Manual exposure and Manual focus fix the setting at a slider
+position, 0..100 across the camera's range; exposure steps through it in even
+stops. Anti-flicker filters 50 Hz or 60 Hz mains lighting, or turns filtering
+off; Camera setting leaves it alone. Settings apply once the first frame arrives
+and change live; turning one off, or ending the session, puts that control back
+how the session found it, so a crash can leave a manual setting on the camera
+until it is unplugged or another app changes it. The app asks the worker which
+controls a camera has when the section first shows for it. Elsewhere than macOS,
+or without a chosen camera, a set control warns instead; a shared screen without
+the camera leaves camera hardware alone.
 Look is a final color grade: None, Warm, Cool, Mono, Fade, Vivid, Film, or Custom LUT,
 which opens a `.cube` 3D lookup table (sizes 2..65, up to 16 MiB; domain headers
 honored, 1D tables rejected). Strength blends it with the picture, 0..100. Looks
@@ -325,6 +338,8 @@ Profile fields and defaults:
 | auto_light | 0 | Low-light lift strength, 0..100; 0 off, never darkens |
 | touchup | 0 | Skin smoothing strength, 0..100; 0 off |
 | denoise | 0 | Temporal noise reduction strength, 0..100; 0 off |
+| camera_exposure, camera_focus | null | Exposure time and focus set on the camera, 0..100 across its range (exposure in even stops); null keeps the camera's own, usually automatic, setting. macOS with camera_id |
+| anti_flicker | null | Mains flicker filter set on the camera: off, 50hz or 60hz; null keeps the camera's setting |
 | look | none | none, warm, cool, mono, fade, vivid, film or custom |
 | look_path | empty | `.cube` file required for the custom look; saved as an absolute path |
 | look_strength | 100 | Look blend, 0..100 |
@@ -362,6 +377,7 @@ the helper available.
 | --- | --- | --- |
 | hello | {} | protocol and package version |
 | cameras.list | capture backend, optional | Array of id/index/name objects; macOS only |
+| cameras.controls | {id} from cameras.list | Read-only {exposure, focus: {auto, value 0..100}, anti_flicker: off, 50hz, 60hz, auto or other}, each present only when the camera can set it; macOS only |
 | profiles.list | {} | Array of valid name/config objects |
 | profiles.seed_defaults | {} | Save starter pack once without replacing existing names; true |
 | profiles.errors | {} | Array of name/error objects for damaged profiles |

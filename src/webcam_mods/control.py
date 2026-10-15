@@ -20,6 +20,7 @@ from webcam_mods.input.input import AdapterMetadata, FrameInput
 from webcam_mods.settings import StartupSettings
 
 if TYPE_CHECKING:
+    from webcam_mods.camera_controls import CameraControls
     from webcam_mods.effects import PreviewSink, ProfileEffect
 
 
@@ -33,10 +34,12 @@ def run_profile(
     on_frame: Callable[[Frame], None] | None = None,
     on_output_ready: Callable[[AdapterMetadata], None] | None = None,
     on_effect: Callable[["ProfileEffect"], None] | None = None,
+    on_controls: Callable[["CameraControls"], None] | None = None,
     on_warning: Callable[[str], None] | None = None,
     preview: "PreviewSink | None" = None,
     should_pause: Callable[[], bool] | None = None,
 ) -> None:
+    from webcam_mods.camera_controls import CameraControls
     from webcam_mods.capture import camera_index_for_id, create_camera
     from webcam_mods.effects import ProfileEffect
     from webcam_mods.frame_producer import WorkerShutdownTimeout
@@ -64,10 +67,24 @@ def run_profile(
         processing_fps=profile.processing_fps,
         signal_pattern=profile.signal_pattern,  # type: ignore[arg-type]
     )
+    # hardware settings wait for the first frame and are put back when the run ends
+    controls = (
+        CameraControls(profile.camera_id, profile, on_warning=on_warning)
+        if screen is None or profile.presenting
+        else None
+    )
+    if controls is not None and on_controls is not None:
+        on_controls(controls)
     # the effect owns orientation; flips change while running, rotation restarts
     effect = ProfileEffect(profile, settings, on_warning=on_warning, preview=preview)
     if on_effect is not None:
         on_effect(effect)
+
+    def streaming() -> None:
+        if controls is not None:
+            controls.start()
+        ready()
+
     transferred = False
     closed = False
     try:
@@ -106,7 +123,7 @@ def run_profile(
             settings=settings,
             processing_cleanup=effect.close,
             should_stop=stop.is_set,
-            on_ready=ready,
+            on_ready=streaming,
             strict_errors=True,
             on_frame=on_frame,
             on_output_ready=on_output_ready,
@@ -122,6 +139,8 @@ def run_profile(
     finally:
         if not transferred and not closed:
             effect.close()
+        if controls is not None:
+            controls.close()
 
 
 class Controller:
@@ -156,6 +175,7 @@ class Controller:
         self.output_fps: float | None = None
         self.profile: Profile | None = None
         self.effect: ProfileEffect | None = None
+        self.controls: CameraControls | None = None
         self.sent = RateMeter()
         # last frame sent to the output, for snapshots
         self.delivered: Frame | None = None
@@ -165,6 +185,7 @@ class Controller:
     def _clear_preview(self) -> None:
         self.output_fps = None
         self.effect = None
+        self.controls = None
         self.delivered = None
         if self.preview is not None:
             self.preview.close()
@@ -235,6 +256,11 @@ class Controller:
                     if self.preview is preview and not self.stop_event.is_set():
                         self.effect = effect
 
+            def controls_ready(controls: "CameraControls") -> None:
+                with self.lock:
+                    if self.preview is preview and not self.stop_event.is_set():
+                        self.controls = controls
+
             def warning(message: str) -> None:
                 self.emit({"event": "warning", "data": {"message": message}})
 
@@ -278,6 +304,7 @@ class Controller:
                             on_frame=deliver,
                             on_output_ready=output_ready,
                             on_effect=effect_ready,
+                            on_controls=controls_ready,
                             on_warning=warning,
                             preview=preview,
                             should_pause=paused.is_set,
@@ -321,6 +348,8 @@ class Controller:
             if changed:
                 raise ValueError(f"restart required to change {', '.join(changed)}")
             effect.update(profile)
+            if self.controls is not None:
+                self.controls.update(profile)
             self.profile = profile
             return self.status()
 
@@ -485,6 +514,14 @@ class Controller:
                 for camera in camera_inventory(capture)
                 if not camera.excluded_reason
             ]
+        if method == "cameras.controls":
+            if set(params) != {"id"} or not isinstance(params["id"], str):
+                raise ValueError("cameras.controls needs a camera id")
+            if sys.platform != "darwin":
+                raise RuntimeError("camera settings require macOS")
+            from webcam_mods.camera_controls import CameraControls
+
+            return CameraControls(params["id"], Profile()).describe()
         if method == "start":
             profile = (
                 self.store.get(params["profile"])
