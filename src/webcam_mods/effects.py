@@ -22,6 +22,7 @@ from webcam_mods.mods.looks import ColorLook, builtin_look, load_cube
 from webcam_mods.mods.overlay import Logo, Overlay, OverlaySettings, Position, load_logo
 from webcam_mods.mods.perspective import PerspectiveView
 from webcam_mods.mods.presenter import Alpha, bubble, cutout, place
+from webcam_mods.mods.reactions import Reactions
 from webcam_mods.mods.record_replay import Recorder
 from webcam_mods.mods.touchup import smooth_skin
 from webcam_mods.mods.video_background import LoopingVideo
@@ -293,13 +294,14 @@ class ProfileEffect:
 
     Order: orientation, noise reduction, desk view straightening or manual crop
     with optional tracking inside it, auto light, eye contact, skin touch-up,
-    fixed-size background, brightness, color, look, overlays. A screen source skips orientation, noise reduction, tracking and
-    background; with the presenter on, the camera picture is oriented, cleaned, lit
-    and graded, then placed over the output-sized screen before overlays. The
-    recorder keeps finished frames; while it replays, they replace the whole
-    pipeline. Updates are queued by any thread and applied on the processing thread
-    before a frame. Source, original and mask preview frames are encoded only while
-    the app shows them.
+    fixed-size background, brightness, color, look, overlays, gesture reactions.
+    Gestures are read from the lit camera picture. A screen source skips
+    orientation, noise reduction, tracking and background; with the presenter on,
+    the camera picture is oriented, cleaned, lit and graded, then placed over the
+    output-sized screen before overlays. The recorder keeps finished frames; while
+    it replays, they replace the whole pipeline. Updates are queued by any thread
+    and applied on the processing thread before a frame. Source, original and mask
+    preview frames are encoded only while the app shows them.
     """
 
     def __init__(
@@ -340,6 +342,8 @@ class ProfileEffect:
         self.denoiser = TemporalDenoiser(0)
         # face mesh for eye contact, made while a profile uses it
         self.landmarks: FaceLandmarks | None = None
+        # gesture reactions, made while a profile uses them
+        self.reactions: Reactions | None = None
         # latest oriented camera frame, sampled for click-to-white-balance
         self._source: Frame | None = None
         # output loop for stepping away; commands arrive from the control thread
@@ -531,15 +535,19 @@ class ProfileEffect:
         self.auto_light.configure(profile.auto_light)
         if previous is None or profile.denoise != previous.denoise:
             self.denoiser.configure(profile.denoise)
-        # shared screens without the presenter have no camera eyes to correct
-        gaze = profile.eye_contact and (
-            profile.source == "camera" or profile.presenting
-        )
+        # shared screens without the presenter have no camera picture to read
+        camera = profile.source == "camera" or profile.presenting
+        gaze = profile.eye_contact and camera
         if gaze and self.landmarks is None:
             self.landmarks = FaceLandmarks()
         elif not gaze and self.landmarks is not None:
             landmarks, self.landmarks = self.landmarks, None
             landmarks.close()
+        if profile.reactions and camera and self.reactions is None:
+            self.reactions = Reactions(on_warning=self._on_warning)
+        elif not (profile.reactions and camera) and self.reactions is not None:
+            reactions, self.reactions = self.reactions, None
+            reactions.close()
         if profile.look == "none" or profile.look_strength == 0:
             self.look = None
         elif profile.look == "custom":
@@ -645,9 +653,11 @@ class ProfileEffect:
             frame = self._present(frame, profile)
             if self.overlay is not None:
                 frame = self.overlay(frame)
-            return frame
+            return self._react(frame)
         # before segmentation so masks see the lifted picture; images stay as chosen
         frame = self._light(frame, profile)
+        if self.reactions is not None:
+            self.reactions.detect(frame, time.monotonic())
         if self.background is not None:
             # fixed segmentation dimensions avoid rebuilding models on crop changes
             frame = resize_and_pad(
@@ -662,7 +672,13 @@ class ProfileEffect:
         frame = self._grade(frame, profile)
         if self.overlay is not None:
             frame = self.overlay(frame)
-        return frame
+        return self._react(frame)
+
+    def _react(self, frame: Frame) -> Frame:
+        """The playing gesture reaction over the finished picture."""
+        if self.reactions is None:
+            return frame
+        return self.reactions.draw(frame, time.monotonic())
 
     def _denoise(self, frame: Frame, profile: Profile) -> Frame:
         return self.denoiser(frame) if profile.denoise else frame
@@ -701,6 +717,8 @@ class ProfileEffect:
         else:
             picture = self._denoise(_orient(camera, profile), profile)
             picture = self._light(picture, profile)
+            if self.reactions is not None:
+                self.reactions.detect(picture, time.monotonic())
             size = max(2, round(height * profile.presenter_size / 100))
             if self.presenter_effects is not None:
                 # segmentation flips once for legacy CLI commands; pre-flip cancels it
@@ -757,6 +775,7 @@ class ProfileEffect:
         video, self._video = self._video, None
         presenter, self.presenter_effects = self.presenter_effects, None
         landmarks, self.landmarks = self.landmarks, None
+        reactions, self.reactions = self.reactions, None
         self._presented = None
         try:
             if tracking is not None:
@@ -774,8 +793,12 @@ class ProfileEffect:
                         if presenter is not None:
                             presenter.close()
                     finally:
-                        if landmarks is not None:
-                            landmarks.close()
+                        try:
+                            if landmarks is not None:
+                                landmarks.close()
+                        finally:
+                            if reactions is not None:
+                                reactions.close()
 
     def close(self) -> None:
         self._closed = True

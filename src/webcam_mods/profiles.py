@@ -135,6 +135,9 @@ class Profile:
     # experimental: slides both irises up so eyes on the screen meet a camera
     # above it, 0 off
     eye_contact: int = 0
+    # holding thumbs up or down, a peace sign or an I-love-you sign to the camera
+    # sets off an animation over the picture; two thumbs up throw confetti
+    reactions: bool = False
     # set on the camera itself while the profile runs and put back after: exposure
     # time and focus as percents of the camera's range, and mains flicker
     # filtering; null leaves the camera's own, usually automatic, setting
@@ -260,6 +263,7 @@ class Profile:
             "mirror",
             "flip_vertical",
             "presenter",
+            "reactions",
         ):
             if type(getattr(self, key)) is not bool:
                 raise ValueError(f"{key} must be a boolean")

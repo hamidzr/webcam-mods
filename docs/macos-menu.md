@@ -68,7 +68,8 @@ standing on the bottom edge, using the profile's segmentation (Green screen keys
 backdrop instead). Corner and Size (camera height, 10..80 percent of the picture)
 apply live; turning it on or off restarts. Mirror, flip, rotation, denoise, low
 light, eye contact, touch up, brightness, color and look apply to the camera
-picture, never to the screen. The camera opens and closes with the session, so Pause turns it off.
+picture, never to the screen; gesture reactions read the camera and play over the
+whole picture. The camera opens and closes with the session, so Pause turns it off.
 
 Zoom (1x..4x) crops the camera to what calls see. The crop keeps the output aspect,
 so output fills without bars. In Camera view the crop is a white box with the rest
@@ -146,8 +147,8 @@ curve set by Lift you, where black and white stay put; both apply live without
 reloading segmentation. Tracking combines
 with background and brightness. Effect order: rotation, mirror and vertical flip,
 denoise, desk view or manual crop with tracking inside the crop, auto light, eye
-contact, touch up, fixed-size background processing, brightness, color, look, overlays, final
-output sizing. Mirror video flips the
+contact, touch up, fixed-size background processing, brightness, color, look,
+overlays, gesture reactions, final output sizing. Mirror video flips the
 camera left to right for both preview and OBS output, so receivers see the
 mirrored view; background images stay readable. Background effects keep the
 picture orientation, so only Mirror video flips it. Flip upside down turns the picture
@@ -188,7 +189,17 @@ still, right after orientation and before framing, so zooming or tracking never
 restarts it; moving areas and scene changes pass through without ghosts. It costs
 about 4 ms per 720p frame (9 ms at 1080p) and applies live; turning it off drops
 the history. Camera view and white balance use the raw picture; Compare keeps
-noise reduction on.
+noise reduction on. Gesture reactions watch the lit camera picture about ten
+times a second with the MediaPipe gesture recognizer (8.4 MB, downloaded on first
+use; about 5 ms per look at 720p). Holding a thumbs up, thumbs down, peace sign
+or I-love-you sign for 0.4 s sets off a thumbs-up or thumbs-down bubble at the
+upper right, rising balloons or rising hearts; two thumbs up throw confetti. One
+reaction plays at a time for 2 to 3.2 s, and a gesture fires again only after the
+hand drops or changes. Reactions are drawn last, over overlays, so calls and
+recordings see them and Mirror never flips them. Emoji come from the system color
+emoji font (Apple Color Emoji, or Noto Color Emoji on Linux); without one, only
+confetti shows and the app warns once. Two hands showing different reaction
+gestures set off nothing.
 Camera hardware sets exposure time, focus and anti-flicker on the camera itself
 through CoreMediaIO, for cameras whose driver publishes those controls (most USB
 webcams, such as the Logitech C920; built-in Mac cameras publish none, and the
@@ -355,6 +366,7 @@ Profile fields and defaults:
 | auto_light | 0 | Low-light lift strength, 0..100; 0 off, never darkens |
 | eye_contact | 0 | Experimental iris lift toward a camera above the screen, 0..100; 0 off. Camera picture only |
 | touchup | 0 | Skin smoothing strength, 0..100; 0 off |
+| reactions | false | Held hand gestures set off animations drawn over the finished picture. Camera picture only |
 | denoise | 0 | Temporal noise reduction strength, 0..100; 0 off |
 | camera_exposure, camera_focus | null | Exposure time and focus set on the camera, 0..100 across its range (exposure in even stops); null keeps the camera's own, usually automatic, setting. macOS with camera_id |
 | anti_flicker | null | Mains flicker filter set on the camera: off, 50hz or 60hz; null keeps the camera's setting |

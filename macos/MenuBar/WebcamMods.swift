@@ -113,6 +113,8 @@ struct Configuration: Codable, Equatable {
     var denoise = 0
     // experimental: slides irises up toward a camera above the screen, 0 off
     var eye_contact = 0
+    // held hand gestures set off animations over the picture
+    var reactions = false
     // set on the camera itself while running, then put back: exposure time and focus
     // as percents of its range, anti-flicker off/50hz/60hz; nil keeps the camera's own
     var camera_exposure: Int?
@@ -1099,9 +1101,10 @@ final class SessionModel: ObservableObject {
             model.config.perspective = [[0.22, 0.35], [0.78, 0.33], [0.92, 0.9], [0.08, 0.92]]
             running(model, view: "source")
         }
-        try render("narrow-camera-hardware", width: 440, height: 1100) { model in
+        try render("narrow-camera-hardware", width: 440, height: 1250) { model in
             model.config.camera_exposure = 40
             model.config.anti_flicker = "50hz"
+            model.config.reactions = true
             model.cameraHardware = CameraHardware(exposure: .init(auto: false, value: 40), focus: .init(auto: true, value: 16), anti_flicker: "50hz")
             running(model, view: "output")
         }
@@ -1416,8 +1419,9 @@ final class SessionModel: ObservableObject {
         smoothed.touchup = 40
         smoothed.denoise = 60
         smoothed.eye_contact = 70
+        smoothed.reactions = true
         let smoothedDecoded = try JSONDecoder().decode(Configuration.self, from: JSONEncoder().encode(smoothed))
-        try check(smoothedDecoded.touchup == 40 && smoothedDecoded.denoise == 60 && smoothedDecoded.eye_contact == 70 && !smoothed.needsRestart(from: Configuration()) && Configuration().json["touchup"] as? Int == 0 && Configuration().json["denoise"] as? Int == 0 && Configuration().json["eye_contact"] as? Int == 0, "Touch-up, denoise and eye contact encode and apply live")
+        try check(smoothedDecoded.touchup == 40 && smoothedDecoded.denoise == 60 && smoothedDecoded.eye_contact == 70 && smoothedDecoded.reactions && !smoothed.needsRestart(from: Configuration()) && Configuration().json["touchup"] as? Int == 0 && Configuration().json["denoise"] as? Int == 0 && Configuration().json["eye_contact"] as? Int == 0 && Configuration().json["reactions"] as? Bool == false, "Touch-up, denoise, eye contact and reactions encode and apply live")
         model.previewView = "output"
         model.beginWhitePick()
         try check(model.pickingWhite && model.previewView == "source", "White pick switches to Camera view")
@@ -1631,7 +1635,7 @@ final class SessionModel: ObservableObject {
         try pipe.fileHandleForWriting.close()
         try pipe.fileHandleForReading.close()
         try helperSelfTest()
-        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats, orientation, compare, color, spotlight, looks, pause, menu profiles, background color, green screen, overlays, screen source, presenter, snapshot, record loop, touch-up, denoise, eye contact, camera hardware, desk view).")
+        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats, orientation, compare, color, spotlight, looks, pause, menu profiles, background color, green screen, overlays, screen source, presenter, snapshot, record loop, touch-up, denoise, eye contact, reactions, camera hardware, desk view).")
     }
 
     private static func helperSelfTest() throws {
@@ -2107,6 +2111,12 @@ struct ControlPanel: View {
                             .help("Experimental. Moves your irises up so you seem to look into a camera above the screen while you read it. Downloads a face model on first use. 0 is off.")
                         slider("Denoise", value: $model.config.denoise, range: 0...100)
                             .help("Averages grain over frames where nothing moves; moving parts stay sharp. Helps in dim rooms. 0 is off.")
+                        Toggle("Gesture reactions", isOn: $model.config.reactions)
+                            .help("Downloads a hand model on first use. Calls see the animations.")
+                        if model.config.reactions {
+                            Text("Hold up a thumbs up or down, a peace sign or an I-love-you sign for half a second. Two thumbs up throw confetti.")
+                                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                     Picker("Look", selection: Binding(get: { model.config.look }, set: { look in
                         if look == "custom" { model.chooseLook() } else { model.config.look = look }
