@@ -44,7 +44,15 @@ shows the full camera picture after mirroring but before framing and effects; wi
 tracking on, a yellow box marks the detected face and green dashes mark the auto
 framing crop. **Mask** appears with blur, color or image backgrounds and shows the
 segmentation confidence aligned with the output: white is kept, black is replaced.
-Guides are drawn by the app over the preview and never enter the video. Only the
+Guides are drawn by the app over the preview and never enter the video.
+
+Zoom (1x..4x) crops the camera to what calls see. The crop keeps the output aspect,
+so output fills without bars. In Camera view the crop is a white box with the rest
+dimmed: drag to move it or pinch to zoom. Center recenters it; Show whole camera
+removes it. Crop is saved per profile as frame fractions and applies live. With face
+tracking on, tracking frames you inside the crop; detection still sees the whole
+frame, so moving the crop never reloads the face model. Interactive CLI crop in
+`~/.webcam-mods.conf` is separate. Only the
 selected view is encoded. Below the preview, stats refresh about once a second:
 processed frames per second, sent frames per second and mean effect time.
 
@@ -72,8 +80,8 @@ starts with the edited settings.
 The menu does not automatically activate when another application opens a camera.
 
 Background choices are original, blur, solid gray and image. Tracking combines
-with background and brightness. Effect order: mirror, track/crop, fixed-size
-background processing, brightness, final output sizing. Mirror video flips the
+with background and brightness. Effect order: mirror, manual crop, tracking inside
+the crop, fixed-size background processing, brightness, final output sizing. Mirror video flips the
 camera left to right for both preview and OBS output, so receivers see the
 mirrored view; background images stay readable. Tracking uses standard framing
 controls; advanced CLI tracking options remain available through `track-face`.
@@ -188,6 +196,7 @@ Profile fields and defaults:
 | processing_fps | 30 | Fresh-frame cap in repeat mode |
 | signal_pattern | color-bars | Loading/paused picture: color-bars or noise |
 | mirror | false | Flip camera left to right before effects |
+| crop | null | Manual crop `[x, y, width, height]` as fractions of the mirrored camera frame; each size at least 0.02 and inside the frame |
 | smoothing | false | Opt-in motion-aware mask stabilization |
 
 ## Local protocol
@@ -239,8 +248,8 @@ components and emits `{"event":"warning","data":{"message":...}}`.
 
 `preview.get` encodes only the requested view; requesting a different view drops the
 held frame. Source frames carry `guides`, a map of name to normalized
-`[x, y, width, height]` boxes in source-frame fractions: `face` and `framing` while
-tracking. Mask frames exist only while a background effect runs. Stats cover the
+`[x, y, width, height]` boxes in source-frame fractions: `crop` for the applied manual
+crop, `face` and `framing` while tracking. Mask frames exist only while a background effect runs. Stats cover the
 last two seconds: `processed_fps` counts frames through the effect pipeline,
 `sent_fps` counts frames delivered to output, `effect_ms` is mean pipeline time.
 

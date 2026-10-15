@@ -83,7 +83,7 @@ class ProfileEffectPreviewTests(unittest.TestCase):
         sink = Sink("source")
         with patch("webcam_mods.effects.TrackingEffect") as tracking:
             tracker = tracking.return_value
-            tracker.side_effect = lambda frame: frame[12:36, 16:48]
+            tracker.side_effect = lambda frame, region: frame[12:36, 16:48]
             tracker.face = Rect(w=16, h=12, t=12, l=24)
             tracker.crop = Rect(w=32, h=24, t=12, l=16)
             output = self.effect(Profile(track=True, mirror=True), sink)(self.frame)

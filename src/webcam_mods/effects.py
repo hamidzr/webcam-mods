@@ -95,16 +95,38 @@ class TrackingEffect:
             self.resources.close()
             raise
 
-    def __call__(self, frame: Frame) -> Frame | None:
+    def __call__(self, frame: Frame, region: Rect | None = None) -> Frame | None:
+        """Frame the face; with a region, framing stays inside that part.
+
+        Detection always sees the whole frame, so region changes never reload it.
+        """
         now = time.monotonic()
         prediction = self.detector.predict(frame, now=now)
-        height, width = frame.shape[:2]
+        left, top = (0, 0) if region is None else (region.left, region.top)
+        area = frame if region is None else _region_pixels(frame, region)
+        height, width = area.shape[:2]
+        local = prediction
+        if region is not None and prediction is not None:
+            local = Rect(
+                w=prediction.w,
+                h=prediction.h,
+                t=prediction.t - top,
+                l=prediction.l - left,
+            )
+            if (
+                local.left + local.width <= 0
+                or local.top + local.height <= 0
+                or local.left >= width
+                or local.top >= height
+            ):
+                local = None
         crop = self.tracker.generate_crop(
-            prediction, self.padding, frame_size=(width, height), now=now
+            local, self.padding, frame_size=(width, height), now=now
         )
         # last face and crop in input pixels, for preview guides
-        self.face, self.crop = prediction, crop
-        result = crop_rect(frame, crop)
+        self.face = prediction
+        self.crop = Rect(w=crop.w, h=crop.h, t=crop.t + top, l=crop.l + left)
+        result = crop_rect(area, crop)
         if result is None:
             return None
         # fixed segmentation dimensions avoid rebuilding models on each zoom step
@@ -115,6 +137,28 @@ class TrackingEffect:
 
     def close(self) -> None:
         self.resources.close()
+
+
+def _crop_region(
+    crop: tuple[float, float, float, float], width: int, height: int
+) -> Rect:
+    """Pixel rectangle for a fractional crop, kept inside the frame."""
+    x, y, w, h = crop
+    crop_width = max(2, min(width, round(w * width)))
+    crop_height = max(2, min(height, round(h * height)))
+    return Rect(
+        w=crop_width,
+        h=crop_height,
+        t=min(max(0, round(y * height)), height - crop_height),
+        l=min(max(0, round(x * width)), width - crop_width),
+    )
+
+
+def _region_pixels(frame: Frame, region: Rect) -> Frame:
+    return frame[
+        region.top : region.top + region.height,
+        region.left : region.left + region.width,
+    ]
 
 
 def _mask_frame(mask: "Mask") -> Frame:
@@ -151,7 +195,8 @@ _SEGMENTATION_FIELDS = ("segmentation", "processing", "smoothing")
 class ProfileEffect:
     """Profile pipeline whose settings can change between frames.
 
-    Order: orientation, tracking, fixed-size background, brightness. Updates are
+    Order: orientation, manual crop with optional tracking inside it, fixed-size
+    background, brightness. Updates are
     queued by any thread and applied on the processing thread before a frame.
     Source and mask preview frames are encoded only while the app shows them.
     """
@@ -272,14 +317,20 @@ class ProfileEffect:
         if profile.mirror:
             frame = cast(Frame, cv2.flip(frame, 1))
         source = frame
+        height, width = frame.shape[:2]
+        region = (
+            None if profile.crop is None else _crop_region(profile.crop, width, height)
+        )
         if self.tracking is not None:
-            tracked = self.tracking(frame)
+            tracked = self.tracking(frame, region)
             if tracked is None:
                 return None
             frame = tracked
+        elif region is not None:
+            frame = _region_pixels(frame, region)
         preview = self._preview
         if preview is not None and preview.wants("source"):
-            preview.publish(source, "source", self._guides(source))
+            preview.publish(source, "source", self._guides(source, region))
         if self.background is not None:
             # fixed segmentation dimensions avoid rebuilding models on crop changes
             frame = resize_and_pad(
@@ -294,10 +345,12 @@ class ProfileEffect:
         self.stats.tick(time.perf_counter() - started)
         return frame
 
-    def _guides(self, source: Frame) -> Guides:
-        """Tracking face and framing boxes as fractions of the source frame."""
+    def _guides(self, source: Frame, region: Rect | None) -> Guides:
+        """Crop, face and framing boxes as fractions of the source frame."""
         height, width = source.shape[:2]
         guides: Guides = {}
+        if region is not None:
+            guides["crop"] = _normalized(region, width, height)
         if self.tracking is not None:
             if self.tracking.face is not None:
                 guides["face"] = _normalized(self.tracking.face, width, height)

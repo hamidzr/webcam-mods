@@ -135,7 +135,7 @@ class ProfileEffectLiveTests(unittest.TestCase):
 
     def test_tracking_toggles_without_restart(self) -> None:
         with patch("webcam_mods.effects.TrackingEffect") as tracking:
-            tracking.return_value.side_effect = lambda frame: frame[:24, :32]
+            tracking.return_value.side_effect = lambda frame, region: frame[:24, :32]
             effect = self.effect(Profile())
             self.assertEqual(effect(self.frame).shape, (48, 64, 3))
             effect.update(Profile(track=True))

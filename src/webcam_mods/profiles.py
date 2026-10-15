@@ -51,6 +51,8 @@ class Profile:
     smoothing: bool = False
     signal_pattern: str = "color-bars"
     mirror: bool = False
+    # manual crop as [x, y, width, height] fractions of the mirrored camera frame
+    crop: tuple[float, float, float, float] | None = None
     camera_id: str | None = None
     output_width: int | None = None
     output_height: int | None = None
@@ -81,6 +83,9 @@ class Profile:
             or any(ord(character) < 32 for character in self.camera_id)
         ):
             raise ValueError("camera_id must be a nonempty identity string or null")
+        if self.crop is not None:
+            # JSON lists become tuples so profiles stay hashable and comparable
+            object.__setattr__(self, "crop", _crop(self.crop))
         if self.blur_kernel % 2 == 0:
             raise ValueError("blur_kernel must be odd")
         for key in ("fps", "processing_fps", "output_fps"):
@@ -119,6 +124,31 @@ class Profile:
         if unknown:
             raise ValueError(f"unknown settings: {', '.join(sorted(unknown))}")
         return cls(**config)
+
+
+def _crop(value: object) -> tuple[float, float, float, float]:
+    if not isinstance(value, (list, tuple)) or len(value) != 4:
+        raise ValueError("crop must be [x, y, width, height] or null")
+    numbers = []
+    for number in value:
+        if (
+            isinstance(number, bool)
+            or not isinstance(number, (int, float))
+            or not math.isfinite(number)
+        ):
+            raise ValueError("crop values must be finite numbers")
+        numbers.append(float(number))
+    x, y, width, height = numbers
+    if (
+        not 0.02 <= width <= 1
+        or not 0.02 <= height <= 1
+        or x < 0
+        or y < 0
+        or x + width > 1.0001
+        or y + height > 1.0001
+    ):
+        raise ValueError("crop must be fractions inside the frame, at least 0.02 wide")
+    return x, y, width, height
 
 
 MAX_STORED_CONFIG_BYTES = 65536

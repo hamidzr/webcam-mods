@@ -32,6 +32,8 @@ struct Configuration: Codable, Equatable {
     var smoothing = false
     var signal_pattern = "color-bars"
     var mirror = false
+    // [x, y, width, height] fractions of the mirrored camera frame; nil shows it all
+    var crop: [Double]?
 
     var json: [String: Any] {
         (try? JSONSerialization.jsonObject(with: JSONEncoder().encode(self))) as? [String: Any] ?? [:]
@@ -77,6 +79,37 @@ struct SessionStats: Equatable {
             number.map { "\($0.formatted(.number.precision(.fractionLength(0...1)))) \(unit)" } ?? "--"
         }
         return "Processed \(value(processedFPS, "fps")), sent \(value(sentFPS, "fps")), effects \(value(effectMS, "ms"))"
+    }
+}
+
+extension Configuration {
+    // largest crop with the output aspect, as fractions of the camera frame
+    var fullCropSize: CGSize {
+        let source = Double(width) / Double(max(height, 1))
+        let output = Double(output_width ?? width) / Double(max(output_height ?? height, 1))
+        guard source.isFinite, output.isFinite, source > 0, output > 0 else { return CGSize(width: 1, height: 1) }
+        return source > output ? CGSize(width: output / source, height: 1) : CGSize(width: 1, height: source / output)
+    }
+
+    var cropZoom: Double {
+        guard let crop, crop.count == 4, crop[3] > 0 else { return 1 }
+        return min(max(fullCropSize.height / crop[3], 1), 4)
+    }
+
+    var cropCenter: CGPoint {
+        guard let crop, crop.count == 4 else { return CGPoint(x: 0.5, y: 0.5) }
+        return CGPoint(x: crop[0] + crop[2] / 2, y: crop[1] + crop[3] / 2)
+    }
+
+    // keeps the output aspect and the whole crop inside the frame
+    mutating func setCrop(zoom: Double, center: CGPoint) {
+        let full = fullCropSize
+        let scale = min(max(zoom, 1), 4)
+        let width = max(full.width / scale, 0.02), height = max(full.height / scale, 0.02)
+        let x = min(max(center.x - width / 2, 0), 1 - width)
+        let y = min(max(center.y - height / 2, 0), 1 - height)
+        func rounded(_ value: Double) -> Double { (value * 10_000).rounded() / 10_000 }
+        crop = [rounded(x), rounded(y), rounded(width), rounded(height)]
     }
 }
 
@@ -289,7 +322,7 @@ final class SessionModel: ObservableObject {
             return
         }
         func number(_ key: String) -> Double? {
-            (data[key] as? Double).flatMap { $0.isFinite && $0 >= 0 ? $0 : nil }
+            (data[key] as? NSNumber).map(\.doubleValue).flatMap { $0.isFinite && $0 >= 0 ? $0 : nil }
         }
         stats = SessionStats(processedFPS: number("processed_fps"), sentFPS: number("sent_fps"), effectMS: number("effect_ms"))
     }
@@ -315,7 +348,8 @@ final class SessionModel: ObservableObject {
                     throw failure("Invalid preview guides. Reinstall app if this repeats.")
                 }
                 for (name, value) in boxes {
-                    guard let box = value as? [Double], box.count == 4,
+                    // long decimals decode as NSDecimalNumber, which does not cast to Double
+                    guard let box = (value as? [NSNumber])?.map(\.doubleValue), box.count == 4,
                           box.allSatisfy({ $0.isFinite && (-1...2).contains($0) }) else {
                         throw failure("Invalid preview guides. Reinstall app if this repeats.")
                     }
@@ -514,7 +548,7 @@ final class SessionModel: ObservableObject {
             }
             if message["event"] as? String == "status", let data = message["data"] as? [String: Any] {
                 state = data["state"] as? String ?? "idle"
-                outputFPS = data["output_fps"] as? Double
+                outputFPS = (data["output_fps"] as? NSNumber)?.doubleValue
                 error = data["error"] as? String
             } else if message["event"] as? String == "warning", let data = message["data"] as? [String: Any] {
                 error = data["message"] as? String
@@ -595,6 +629,12 @@ final class SessionModel: ObservableObject {
             model.config.track = true
             running(model, view: "source")
             model.previewGuides = ["face": CGRect(x: 0.36, y: 0.12, width: 0.26, height: 0.34), "framing": CGRect(x: 0.2, y: 0.02, width: 0.6, height: 0.6)]
+        }
+        try render("desktop-camera-crop", width: 1100, height: 720) { model in
+            model.config.track = true
+            model.config.setCrop(zoom: 1.6, center: CGPoint(x: 0.45, y: 0.4))
+            running(model, view: "source")
+            model.previewGuides = ["face": CGRect(x: 0.36, y: 0.12, width: 0.26, height: 0.34), "framing": CGRect(x: 0.2, y: 0.08, width: 0.52, height: 0.52)]
         }
         try render("narrow-camera-guides", width: 440, height: 900) { model in
             model.config.track = true
@@ -780,6 +820,8 @@ final class SessionModel: ObservableObject {
         try check(model.previewInterval == 1 / 30.0, "Direct preview respects capture cadence before negotiation")
         model.consume(Data("{\"event\":\"status\",\"data\":{\"state\":\"running\",\"output_fps\":29.97}}\n".utf8))
         try check(model.previewInterval == 1 / 29.97, "Preview follows negotiated output FPS")
+        model.consume(Data("{\"event\":\"status\",\"data\":{\"state\":\"running\",\"output_fps\":29.970029970029969}}\n".utf8))
+        try check(abs(model.previewInterval - 1001 / 30000.0) < 1e-9, "Long decimal output FPS still decodes")
         model.consume(Data("{\"event\":\"status\",\"data\":{\"state\":\"idle\"}}\n".utf8))
         try check(model.outputFPS == nil, "Idle clears negotiated output cadence")
         _ = pipe.fileHandleForReading.availableData
@@ -824,9 +866,9 @@ final class SessionModel: ObservableObject {
         model.pollPreview(visible: true)
         let viewRequest = try lastRequest()
         try check((viewRequest?["params"] as? [String: Any])?["view"] as? String == "source", "Preview requests the chosen view")
-        let guided: [String: Any] = ["jpeg": jpeg, "width": 2, "height": 2, "view": "source", "guides": ["face": [0.25, 0.5, 0.25, 0.25]]]
+        let guided: [String: Any] = ["jpeg": jpeg, "width": 2, "height": 2, "view": "source", "guides": ["face": [0.25, 0.5, 0.25, 0.25], "crop": [0.1, 0.2, 0.30000000000000004, 0.4]]]
         model.consume(try JSONSerialization.data(withJSONObject: ["id": model.nextID, "result": guided]) + Data([10]))
-        try check(model.previewImage != nil && model.previewGuides["face"] == CGRect(x: 0.25, y: 0.5, width: 0.25, height: 0.25), "Source view decodes normalized guides")
+        try check(model.previewImage != nil && model.previewGuides["face"] == CGRect(x: 0.25, y: 0.5, width: 0.25, height: 0.25) && model.previewGuides["crop"] != nil, "Source view decodes normalized guides, including long decimals")
         model.previewView = "output"
         try check(model.previewImage == nil && model.previewGuides.isEmpty, "Changing view clears the previous picture and guides")
         model.acceptPreview(.success(guided))
@@ -850,6 +892,23 @@ final class SessionModel: ObservableObject {
         try check(model.nextID == statsID, "Stats poll at most once a second")
         model.state = "idle"
         try check(model.stats == nil, "Stopping clears stats")
+        var framing = Configuration()
+        try check(framing.fullCropSize == CGSize(width: 1, height: 1) && framing.cropZoom == 1, "Matching aspect uses the whole frame")
+        framing.output_width = 1280
+        framing.output_height = 720
+        framing.setCrop(zoom: 2, center: CGPoint(x: 0.5, y: 0.5))
+        try check(framing.crop == [0.25, 0.3125, 0.5, 0.375] && abs(framing.cropZoom - 2) < 0.001, "Crop keeps output aspect at the requested zoom")
+        framing.setCrop(zoom: 8, center: CGPoint(x: -1, y: 2))
+        try check(framing.crop == [0, 0.8125, 0.25, 0.1875] && framing.cropZoom == 4, "Crop clamps zoom and position inside the frame")
+        let framingDecoded = try JSONDecoder().decode(Configuration.self, from: JSONEncoder().encode(framing))
+        try check(framingDecoded.crop == framing.crop && Configuration().json["crop"] == nil, "Crop survives profile encoding and stays absent by default")
+        model.state = "running"
+        model.sessionConfig = model.config
+        model.config.setCrop(zoom: 1.5, center: CGPoint(x: 0.4, y: 0.5))
+        let cropUpdate = ((try lastRequest())?["params"] as? [String: Any])?["config"] as? [String: Any]
+        let sentCrop = (cropUpdate?["crop"] as? [NSNumber])?.map(\.doubleValue) ?? []
+        try check(sentCrop.count == 4 && zip(sentCrop, model.config.crop ?? []).allSatisfy { abs($0 - $1) < 1e-9 } && !model.restartRequired, "Crop applies live")
+        model.state = "idle"
         try pipe.fileHandleForWriting.close()
         try pipe.fileHandleForReading.close()
         try helperSelfTest()
@@ -1160,6 +1219,23 @@ struct ControlPanel: View {
                     slider("Brightness", value: $model.config.brightness, range: 0...255)
                     Toggle("Mirror video", isOn: $model.config.mirror)
                         .help("Flip left to right. Preview and OBS Virtual Camera both show the mirrored view.")
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("Zoom").frame(width: 75, alignment: .leading)
+                            Slider(value: Binding(get: { model.config.cropZoom }, set: { model.config.setCrop(zoom: $0, center: model.config.cropCenter) }), in: 1...4)
+                            Text("\(model.config.cropZoom.formatted(.number.precision(.fractionLength(1))))x").monospacedDigit().frame(width: 36, alignment: .trailing)
+                        }
+                        HStack {
+                            Button("Center") { model.config.setCrop(zoom: model.config.cropZoom, center: CGPoint(x: 0.5, y: 0.5)) }
+                            Button("Show whole camera") { model.config.crop = nil }.disabled(model.config.crop == nil)
+                        }
+                        Text(model.config.crop == nil
+                             ? "Zoom in to crop. Drag the box in Camera view to choose what calls see."
+                             : model.config.track || model.config.effect == "track"
+                             ? "Face tracking stays inside the crop. Drag the box in Camera view to move it."
+                             : "Drag the box in Camera view, or pinch it, to adjust the crop.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                     DisclosureGroup("Advanced", isExpanded: $advanced) {
                         VStack(spacing: 9) {
                             HStack {
@@ -1321,7 +1397,11 @@ struct PreviewPanel: View {
                 Color.black
                 if let image = model.previewImage {
                     Image(nsImage: image).resizable().scaledToFit()
-                        .overlay { GuideOverlay(guides: model.previewGuides) }
+                        .overlay {
+                            // the app draws its own crop so dragging needs no round trip
+                            GuideOverlay(guides: model.previewGuides.filter { $0.key != "crop" })
+                            if model.previewView == "source" { CropEditor(model: model) }
+                        }
                 } else {
                     VStack(spacing: 12) {
                         Image(systemName: "video").font(.system(size: 36))
@@ -1378,6 +1458,44 @@ struct GuideOverlay: View {
         case "face": return .yellow
         case "framing": return .green
         default: return .white
+        }
+    }
+}
+
+struct CropEditor: View {
+    @ObservedObject var model: SessionModel
+    @State private var dragStart: CGPoint?
+    @State private var zoomStart: Double?
+
+    var body: some View {
+        GeometryReader { geometry in
+            let size = geometry.size
+            if let crop = model.config.crop, crop.count == 4 {
+                let box = CGRect(x: crop[0] * size.width, y: crop[1] * size.height, width: crop[2] * size.width, height: crop[3] * size.height)
+                Path { path in
+                    // dim everything calls will not see
+                    path.addRect(CGRect(x: 0, y: 0, width: size.width, height: box.minY))
+                    path.addRect(CGRect(x: 0, y: box.maxY, width: size.width, height: size.height - box.maxY))
+                    path.addRect(CGRect(x: 0, y: box.minY, width: box.minX, height: box.height))
+                    path.addRect(CGRect(x: box.maxX, y: box.minY, width: size.width - box.maxX, height: box.height))
+                }.fill(Color.black.opacity(0.5))
+                Path(box).stroke(Color.white, lineWidth: 2)
+                Color.clear.contentShape(Rectangle())
+                    .gesture(DragGesture(minimumDistance: 1).onChanged { value in
+                        let start = dragStart ?? model.config.cropCenter
+                        dragStart = start
+                        model.config.setCrop(zoom: model.config.cropZoom, center: CGPoint(
+                            x: start.x + value.translation.width / max(size.width, 1),
+                            y: start.y + value.translation.height / max(size.height, 1)))
+                    }.onEnded { _ in dragStart = nil })
+                    .simultaneousGesture(MagnificationGesture().onChanged { scale in
+                        let start = zoomStart ?? model.config.cropZoom
+                        zoomStart = start
+                        model.config.setCrop(zoom: start * scale, center: model.config.cropCenter)
+                    }.onEnded { _ in zoomStart = nil })
+                    .accessibilityLabel("Crop area")
+                    .accessibilityHint("Drag to move what calls see")
+            }
         }
     }
 }
