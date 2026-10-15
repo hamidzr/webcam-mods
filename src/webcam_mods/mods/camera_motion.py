@@ -103,9 +103,16 @@ class CropTracker:
         lost_after: float = 1.0,
     ) -> None:
         fps = load_settings().max_out_fps if fps is None else fps
-        values = dict(
-            fps=fps,
-            aspect_ratio=aspect_ratio,
+        if any(not math.isfinite(value) for value in (fps, aspect_ratio, lost_after)):
+            raise ValueError("Tracking settings must be finite")
+        if fps <= 0 or aspect_ratio <= 0:
+            raise ValueError("FPS and aspect ratio must be positive")
+        if lost_after < 0:
+            raise ValueError("Loss timeout must be nonnegative")
+        self.fps = fps
+        self.aspect_ratio = aspect_ratio
+        self.lost_after = lost_after
+        self.configure(
             face_height=face_height,
             max_zoom=max_zoom,
             target_x=target_x,
@@ -114,32 +121,7 @@ class CropTracker:
             zoom_deadzone=zoom_deadzone,
             pan_seconds=pan_seconds,
             zoom_seconds=zoom_seconds,
-            lost_after=lost_after,
         )
-        if any(not math.isfinite(value) for value in values.values()):
-            raise ValueError("Tracking settings must be finite")
-        if fps <= 0 or aspect_ratio <= 0 or not 0 < face_height <= 1:
-            raise ValueError(
-                "FPS, aspect ratio and face height must be positive; face height <= 1"
-            )
-        if max_zoom < 1:
-            raise ValueError("Maximum zoom must be at least 1")
-        if not 0 <= target_x <= 1 or not 0 <= target_y <= 1:
-            raise ValueError("Target position must be between 0 and 1")
-        if not 0 <= pan_deadzone < 1 or not 0 <= zoom_deadzone < 1:
-            raise ValueError("Deadzones must be between 0 and 1, excluding 1")
-        if pan_seconds <= 0 or zoom_seconds <= 0 or lost_after < 0:
-            raise ValueError(
-                "Response times must be positive; loss timeout nonnegative"
-            )
-        self.fps = fps
-        self.aspect_ratio = aspect_ratio
-        self.face_height = face_height
-        self.max_zoom = max_zoom
-        self.target_x, self.target_y = target_x, target_y
-        self.pan_deadzone, self.zoom_deadzone = pan_deadzone, zoom_deadzone
-        self.pan_seconds, self.zoom_seconds = pan_seconds, zoom_seconds
-        self.lost_after = lost_after
         self.cur_crop: Rect | None = None
         self._state: tuple[float, float, float] | None = None
         self._focus: tuple[float, float] | None = None
@@ -147,6 +129,47 @@ class CropTracker:
         self._seen_at: float | None = None
         self._last_time: float | None = None
         self._frame_size: tuple[int, int] | None = None
+
+    def configure(
+        self,
+        *,
+        face_height: float = 0.4,
+        max_zoom: float = 2.0,
+        target_x: float = 0.5,
+        target_y: float = 0.42,
+        pan_deadzone: float = 0.08,
+        zoom_deadzone: float = 0.08,
+        pan_seconds: float = 0.25,
+        zoom_seconds: float = 0.6,
+    ) -> None:
+        """Change framing preferences; motion continues from the current crop."""
+        values = (
+            face_height,
+            max_zoom,
+            target_x,
+            target_y,
+            pan_deadzone,
+            zoom_deadzone,
+            pan_seconds,
+            zoom_seconds,
+        )
+        if any(not math.isfinite(value) for value in values):
+            raise ValueError("Tracking settings must be finite")
+        if not 0 < face_height <= 1:
+            raise ValueError("Face height must be positive and at most 1")
+        if max_zoom < 1:
+            raise ValueError("Maximum zoom must be at least 1")
+        if not 0 <= target_x <= 1 or not 0 <= target_y <= 1:
+            raise ValueError("Target position must be between 0 and 1")
+        if not 0 <= pan_deadzone < 1 or not 0 <= zoom_deadzone < 1:
+            raise ValueError("Deadzones must be between 0 and 1, excluding 1")
+        if pan_seconds <= 0 or zoom_seconds <= 0:
+            raise ValueError("Response times must be positive")
+        self.face_height = face_height
+        self.max_zoom = max_zoom
+        self.target_x, self.target_y = target_x, target_y
+        self.pan_deadzone, self.zoom_deadzone = pan_deadzone, zoom_deadzone
+        self.pan_seconds, self.zoom_seconds = pan_seconds, zoom_seconds
 
     def generate_crop(
         self,

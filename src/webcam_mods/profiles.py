@@ -30,6 +30,15 @@ RESTART_FIELDS = frozenset(
 )
 
 
+TRACKING_RANGES: tuple[tuple[str, float, float], ...] = (
+    ("track_face_height", 0.1, 0.9),
+    ("track_target_y", 0.2, 0.8),
+    ("track_max_zoom", 1, 4),
+    ("track_follow_seconds", 0.05, 3),
+    ("track_deadzone", 0, 0.4),
+)
+
+
 @dataclass(frozen=True)
 class Profile:
     input_device: int = 0
@@ -53,6 +62,13 @@ class Profile:
     mirror: bool = False
     # manual crop as [x, y, width, height] fractions of the mirrored camera frame
     crop: tuple[float, float, float, float] | None = None
+    # auto-framing: face height and head center as output fractions, zoom limit,
+    # follow time constant in seconds, and ignored drift as a crop fraction
+    track_face_height: float = 0.4
+    track_target_y: float = 0.42
+    track_max_zoom: float = 2.0
+    track_follow_seconds: float = 0.25
+    track_deadzone: float = 0.08
     camera_id: str | None = None
     output_width: int | None = None
     output_height: int | None = None
@@ -99,6 +115,15 @@ class Profile:
                 or not math.isfinite(value)
             ):
                 raise ValueError(f"{key} must be finite in 1..240")
+        for key, low, high in TRACKING_RANGES:
+            value = getattr(self, key)
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(value)
+                or not low <= value <= high
+            ):
+                raise ValueError(f"{key} must be a number in {low}..{high}")
         for key in ("track", "repeat_frames", "smoothing", "image_blur", "mirror"):
             if type(getattr(self, key)) is not bool:
                 raise ValueError(f"{key} must be a boolean")

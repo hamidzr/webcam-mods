@@ -34,6 +34,22 @@ struct Configuration: Codable, Equatable {
     var mirror = false
     // [x, y, width, height] fractions of the mirrored camera frame; nil shows it all
     var crop: [Double]?
+    var track_face_height = 0.4
+    var track_target_y = 0.42
+    var track_max_zoom = 2.0
+    var track_follow_seconds = 0.25
+    var track_deadzone = 0.08
+
+    var tracking: Bool { track || effect == "track" }
+
+    mutating func resetFramingPreferences() {
+        let defaults = Configuration()
+        track_face_height = defaults.track_face_height
+        track_target_y = defaults.track_target_y
+        track_max_zoom = defaults.track_max_zoom
+        track_follow_seconds = defaults.track_follow_seconds
+        track_deadzone = defaults.track_deadzone
+    }
 
     var json: [String: Any] {
         (try? JSONSerialization.jsonObject(with: JSONEncoder().encode(self))) as? [String: Any] ?? [:]
@@ -630,7 +646,7 @@ final class SessionModel: ObservableObject {
             running(model, view: "source")
             model.previewGuides = ["face": CGRect(x: 0.36, y: 0.12, width: 0.26, height: 0.34), "framing": CGRect(x: 0.2, y: 0.02, width: 0.6, height: 0.6)]
         }
-        try render("desktop-camera-crop", width: 1100, height: 720) { model in
+        try render("desktop-camera-crop", width: 1100, height: 820) { model in
             model.config.track = true
             model.config.setCrop(zoom: 1.6, center: CGPoint(x: 0.45, y: 0.4))
             running(model, view: "source")
@@ -892,6 +908,14 @@ final class SessionModel: ObservableObject {
         try check(model.nextID == statsID, "Stats poll at most once a second")
         model.state = "idle"
         try check(model.stats == nil, "Stopping clears stats")
+        var tuned = Configuration()
+        tuned.track_face_height = 0.3
+        tuned.track_follow_seconds = 1.5
+        let tunedDecoded = try JSONDecoder().decode(Configuration.self, from: JSONEncoder().encode(tuned))
+        try check(tunedDecoded.track_face_height == 0.3 && tunedDecoded.track_follow_seconds == 1.5 && tuned.json["track_deadzone"] as? Double == 0.08, "Framing preferences survive profile encoding")
+        tuned.resetFramingPreferences()
+        try check(tuned == Configuration(), "Default framing restores tracking preferences")
+        try check(!tuned.withRestartFields(from: Configuration()).needsRestart(from: tunedDecoded), "Framing preferences apply live")
         var framing = Configuration()
         try check(framing.fullCropSize == CGSize(width: 1, height: 1) && framing.cropZoom == 1, "Matching aspect uses the whole frame")
         framing.output_width = 1280
@@ -1216,6 +1240,20 @@ struct ControlPanel: View {
                         Toggle("Blur image background", isOn: $model.config.image_blur)
                     }
                     Toggle("Track face", isOn: $model.config.track).disabled(model.config.effect == "track")
+                    if model.config.tracking {
+                        VStack(alignment: .leading, spacing: 4) {
+                            decimalSlider("Face size", value: $model.config.track_face_height, range: 0.1...0.9, text: { "\(Int(($0 * 100).rounded()))%" })
+                                .help("Face height as a share of the picture.")
+                            decimalSlider("Head height", value: $model.config.track_target_y, range: 0.2...0.8, text: { "\(Int(($0 * 100).rounded()))%" })
+                                .help("Where your face sits, measured from the top of the picture.")
+                            decimalSlider("Max zoom", value: $model.config.track_max_zoom, range: 1...4, text: { "\($0.formatted(.number.precision(.fractionLength(1))))x" })
+                            decimalSlider("Follow", value: $model.config.track_follow_seconds, range: 0.05...3, text: { "\($0.formatted(.number.precision(.fractionLength(2)))) s" })
+                                .help("How long framing takes to catch up. Shorter follows faster.")
+                            decimalSlider("Steadiness", value: $model.config.track_deadzone, range: 0...0.4, text: { "\(Int(($0 * 100).rounded()))%" })
+                                .help("Movement ignored before framing follows, as a share of the picture.")
+                            Button("Default framing") { model.config.resetFramingPreferences() }
+                        }.padding(.leading, 20)
+                    }
                     slider("Brightness", value: $model.config.brightness, range: 0...255)
                     Toggle("Mirror video", isOn: $model.config.mirror)
                         .help("Flip left to right. Preview and OBS Virtual Camera both show the mirrored view.")
@@ -1323,6 +1361,15 @@ struct ControlPanel: View {
                 }
                 Button("Done") { showError = false }
             }.padding(18).frame(width: 480, height: 360)
+        }
+    }
+
+    private func decimalSlider(_ title: String, value: Binding<Double>, range: ClosedRange<Double>, text: (Double) -> String) -> some View {
+        HStack {
+            Text(title).frame(width: 75, alignment: .leading)
+            // two decimals keep saved profiles readable and live updates sparse
+            Slider(value: Binding(get: { value.wrappedValue }, set: { value.wrappedValue = ($0 * 100).rounded() / 100 }), in: range)
+            Text(text(value.wrappedValue)).monospacedDigit().frame(width: 44, alignment: .trailing)
         }
     }
 

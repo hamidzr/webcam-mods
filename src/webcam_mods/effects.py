@@ -3,7 +3,7 @@
 from contextlib import ExitStack
 import threading
 import time
-from typing import TYPE_CHECKING, Callable, Literal, Protocol, cast
+from typing import TYPE_CHECKING, Callable, Literal, Protocol, TypedDict, cast
 
 import cv2
 from loguru import logger
@@ -135,8 +135,36 @@ class TrackingEffect:
             return self.background(result)
         return result
 
+    def configure(self, **options: float) -> None:
+        """Change framing preferences without resetting motion or the detector."""
+        self.tracker.configure(**options)
+
     def close(self) -> None:
         self.resources.close()
+
+
+class TrackingOptions(TypedDict):
+    face_height: float
+    target_y: float
+    max_zoom: float
+    pan_seconds: float
+    zoom_seconds: float
+    pan_deadzone: float
+    zoom_deadzone: float
+
+
+def _tracking_options(profile: Profile) -> TrackingOptions:
+    """Map profile framing fields to CropTracker settings."""
+    return {
+        "face_height": profile.track_face_height,
+        "target_y": profile.track_target_y,
+        "max_zoom": profile.track_max_zoom,
+        "pan_seconds": profile.track_follow_seconds,
+        # keep the CLI's default zoom-to-pan response ratio of 0.6 / 0.25
+        "zoom_seconds": profile.track_follow_seconds * 2.4,
+        "pan_deadzone": profile.track_deadzone,
+        "zoom_deadzone": profile.track_deadzone,
+    }
 
 
 def _crop_region(
@@ -284,8 +312,15 @@ class ProfileEffect:
         if self.tracking is not None and not tracked:
             tracking, self.tracking = self.tracking, None
             tracking.close()
+        options = _tracking_options(profile)
         if tracked and self.tracking is None:
-            self.tracking = TrackingEffect(self._settings)
+            self.tracking = TrackingEffect(self._settings, **options)
+        elif (
+            self.tracking is not None
+            and previous is not None
+            and _tracking_options(previous) != options
+        ):
+            self.tracking.configure(**options)
         self._profile = profile
 
     def _apply_pending(self) -> None:

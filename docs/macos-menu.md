@@ -83,8 +83,12 @@ Background choices are original, blur, solid gray and image. Tracking combines
 with background and brightness. Effect order: mirror, manual crop, tracking inside
 the crop, fixed-size background processing, brightness, final output sizing. Mirror video flips the
 camera left to right for both preview and OBS output, so receivers see the
-mirrored view; background images stay readable. Tracking uses standard framing
-controls; advanced CLI tracking options remain available through `track-face`.
+mirrored view; background images stay readable. With tracking on, framing
+controls tune face size, head height, maximum zoom, follow time and steadiness live
+without reloading the face model; Default framing restores them. Follow time sets the
+pan response; zoom responds 2.4 times slower, matching the CLI defaults. Steadiness
+is the drift ignored before framing moves, for both pan and zoom. Legacy padding,
+horizontal target and loss timeout remain CLI-only through `track-face`.
 Image mode includes an offline thumbnail gallery: Warm study, Quiet office and
 Soft shelves. Entering Image with no previous image selects Warm study; click a
 thumbnail to switch, or Choose your own to open an image file. Saved profiles
@@ -196,6 +200,11 @@ Profile fields and defaults:
 | processing_fps | 30 | Fresh-frame cap in repeat mode |
 | signal_pattern | color-bars | Loading/paused picture: color-bars or noise |
 | mirror | false | Flip camera left to right before effects |
+| track_face_height | 0.4 | Target face height as an output fraction, 0.1..0.9 (`--face-height`) |
+| track_target_y | 0.42 | Face center from the top as an output fraction, 0.2..0.8 (`--target-y`) |
+| track_max_zoom | 2.0 | Maximum zoom over the widest view, 1..4 (`--max-zoom`) |
+| track_follow_seconds | 0.25 | Pan time constant, 0.05..3; zoom uses 2.4 times this |
+| track_deadzone | 0.08 | Ignored pan and zoom drift as a crop fraction, 0..0.4 |
 | crop | null | Manual crop `[x, y, width, height]` as fractions of the mirrored camera frame; each size at least 0.02 and inside the frame |
 | smoothing | false | Opt-in motion-aware mask stabilization |
 

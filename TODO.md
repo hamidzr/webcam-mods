@@ -37,7 +37,7 @@ Phase 0, foundation:
 Phase 1, framing:
 
 4. Manual crop, zoom, pan and recenter in the preview (M). Done.
-5. Auto-framing tuning: face size, max zoom, eye line, follow speed, steadiness (S).
+5. Auto-framing tuning: face size, max zoom, eye line, follow speed, steadiness (S). Done.
 6. Vertical flip, rotate 90/180/270 and output shape presets such as 9:16 (M).
 
 Phase 2, image look:
