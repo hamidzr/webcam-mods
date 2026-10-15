@@ -13,6 +13,7 @@ remain supported. Native macOS menu is optional; installed CLI works independent
   Keyboard/stdin adapters start explicitly; import/help starts no listeners.
 - Stable face selection/framing with bounded zoom and independent pan/zoom response.
 - MediaPipe segmentation, optional Vision/Core Image and opt-in motion-aware smoothing.
+- Opt-in horizontal mirror of camera input before crop and effects (CLI, env, profiles).
 - Independent capture/output sizing and FPS; optional repeat mode keeps latest-frame
   delivery independent of processing. See [frame delivery](frame-delivery.md).
 - SQLite saved launch profiles shared by CLI and menu. Composition orders tracking,

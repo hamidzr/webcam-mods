@@ -127,9 +127,12 @@ def _run(
                 frame = session.prepare(frame)
                 if border is not None and isinstance(source, Screen):
                     crop = session.settings
+                    left = crop.crop_pos[0]
+                    if settings.mirror:
+                        left = source.width - left - crop.crop_dims[0]
                     border.update(
                         Rect(
-                            l=source.left + crop.crop_pos[0],
+                            l=source.left + left,
                             t=source.top + crop.crop_pos[1],
                             w=crop.crop_dims[0],
                             h=crop.crop_dims[1],
@@ -575,6 +578,12 @@ def common(
         help="Loading/paused frames: color-bars or noise; shared by all outputs.",
         rich_help_panel="Output",
     ),
+    mirror: bool | None = typer.Option(
+        None,
+        "--mirror/--no-mirror",
+        help="Flip camera left to right before effects; receivers see the mirrored view.",
+        rich_help_panel="Input",
+    ),
     input_device: int | None = typer.Option(
         None,
         min=0,
@@ -671,6 +680,7 @@ def common(
             max_out_fps=output_fps,
             repeat_frames=repeat_frames,
             signal_pattern=signal_pattern.value if signal_pattern is not None else None,
+            mirror=mirror,
             processing_fps=processing_fps,
             video_out=output_device,
             on_demand=on_demand,

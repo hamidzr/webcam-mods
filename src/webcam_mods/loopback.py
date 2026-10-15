@@ -143,6 +143,9 @@ def live_loop(
             def produce(frame: Frame) -> Frame:
                 nonlocal last_frame
                 try:
+                    # mirror source pixels so crop, tracking and backgrounds stay upright
+                    if settings.mirror:
+                        frame = cast(Frame, cv2.flip(frame, 1))
                     result = mod(frame) if mod else frame
                     if result is None:
                         if strict_errors:

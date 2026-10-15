@@ -56,8 +56,10 @@ another session starts. Edit settings while stopped; changes do not apply live.
 The menu does not automatically activate when another application opens a camera.
 
 Background choices are original, blur, solid gray and image. Tracking combines
-with background and brightness. Effect order: track/crop, fixed-size background
-processing, brightness, final output sizing. Tracking uses standard framing
+with background and brightness. Effect order: mirror, track/crop, fixed-size
+background processing, brightness, final output sizing. Mirror video flips the
+camera left to right for both preview and OBS output, so receivers see the
+mirrored view; background images stay readable. Tracking uses standard framing
 controls; advanced CLI tracking options remain available through `track-face`.
 Image mode includes an offline thumbnail gallery: Warm study, Quiet office and
 Soft shelves. Entering Image with no previous image selects Warm study; click a
@@ -169,6 +171,7 @@ Profile fields and defaults:
 | repeat_frames | true | Repeat latest frame at output cadence |
 | processing_fps | 30 | Fresh-frame cap in repeat mode |
 | signal_pattern | color-bars | Loading/paused picture: color-bars or noise |
+| mirror | false | Flip camera left to right before effects |
 | smoothing | false | Opt-in motion-aware mask stabilization |
 
 ## Local protocol

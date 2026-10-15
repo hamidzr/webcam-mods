@@ -31,6 +31,7 @@ struct Configuration: Codable, Equatable {
     var processing_fps = 30.0
     var smoothing = false
     var signal_pattern = "color-bars"
+    var mirror = false
 
     var json: [String: Any] {
         (try? JSONSerialization.jsonObject(with: JSONEncoder().encode(self))) as? [String: Any] ?? [:]
@@ -519,6 +520,10 @@ final class SessionModel: ObservableObject {
         noiseConfig.signal_pattern = "noise"
         let noiseDecoded = try JSONDecoder().decode(Configuration.self, from: JSONEncoder().encode(noiseConfig))
         try check(noiseDecoded.signal_pattern == "noise", "Loading picture survives profile encoding")
+        var mirrorConfig = Configuration()
+        mirrorConfig.mirror = true
+        let mirrorDecoded = try JSONDecoder().decode(Configuration.self, from: JSONEncoder().encode(mirrorConfig))
+        try check(mirrorDecoded.mirror && mirrorDecoded != Configuration(), "Mirror survives profile encoding")
         let previewID = model.nextID + 1
         model.pollPreview(visible: true)
         model.pollPreview(visible: true)
@@ -863,6 +868,8 @@ struct ControlPanel: View {
                     }
                     Toggle("Track face", isOn: $model.config.track).disabled(model.config.effect == "track")
                     slider("Brightness", value: $model.config.brightness, range: 0...255)
+                    Toggle("Mirror video", isOn: $model.config.mirror)
+                        .help("Flip left to right. Preview and OBS Virtual Camera both show the mirrored view.")
                     DisclosureGroup("Advanced", isExpanded: $advanced) {
                         VStack(spacing: 9) {
                             HStack {

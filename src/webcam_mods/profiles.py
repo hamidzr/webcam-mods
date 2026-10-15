@@ -32,6 +32,7 @@ class Profile:
     processing_fps: float = 30
     smoothing: bool = False
     signal_pattern: str = "color-bars"
+    mirror: bool = False
     camera_id: str | None = None
     output_width: int | None = None
     output_height: int | None = None
@@ -75,7 +76,7 @@ class Profile:
                 or not math.isfinite(value)
             ):
                 raise ValueError(f"{key} must be finite in 1..240")
-        for key in ("track", "repeat_frames", "smoothing", "image_blur"):
+        for key in ("track", "repeat_frames", "smoothing", "image_blur", "mirror"):
             if type(getattr(self, key)) is not bool:
                 raise ValueError(f"{key} must be a boolean")
         for key, choices in (

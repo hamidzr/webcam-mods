@@ -98,6 +98,9 @@ requested dimensions. CLI frame preparation retains valid crops or resets invali
 crops when actual input dimensions change. Adapter setup sits inside cleanup scope;
 context entry attempts teardown even when setup partially fails. Input and controls
 are stopped in `finally`; output context teardown closes output.
+With `mirror`, the loop flips each captured frame before the mod, so crop state,
+tracking, recording and segmentation all use mirrored coordinates. Screen border
+placement converts the crop back to screen coordinates.
 
 Effect exceptions and `None` results produce an error image or, with
 `freeze_on_error`, the last successful resized frame. The initial frozen frame is

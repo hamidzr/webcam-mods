@@ -23,6 +23,7 @@ class StartupSettings:
     processing_fps: float = 30
     repeat_frames: bool = False
     signal_pattern: SignalPattern = "color-bars"
+    mirror: bool = False
     on_demand: bool = False
     pan_control: bool = True
     padding_control: bool = True
@@ -49,7 +50,13 @@ class StartupSettings:
             raise ValueError("IN_FORMAT must contain exactly four characters")
         if not isinstance(self.video_out, str) or not self.video_out:
             raise ValueError("VIDEO_OUT must not be empty")
-        for name in ("on_demand", "pan_control", "padding_control", "repeat_frames"):
+        for name in (
+            "on_demand",
+            "pan_control",
+            "padding_control",
+            "repeat_frames",
+            "mirror",
+        ):
             if type(getattr(self, name)) is not bool:
                 raise ValueError(f"{name.upper()} must be a boolean")
 

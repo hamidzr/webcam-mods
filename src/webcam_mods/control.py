@@ -49,6 +49,7 @@ def run_profile(
         repeat_frames=profile.repeat_frames,
         processing_fps=profile.processing_fps,
         signal_pattern=profile.signal_pattern,  # type: ignore[arg-type]
+        mirror=profile.mirror,
     )
     effect = ProfileEffect(profile, settings)
     transferred = False

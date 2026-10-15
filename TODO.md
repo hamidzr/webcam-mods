@@ -13,13 +13,13 @@ Current supported behavior: [current state](docs/current-state.md).
 ## Feature ideas
 
 - Camera/screen switching and window-following screen capture.
-- Orientation controls and video overlays.
+- Rotation/vertical flip controls and video overlays.
 - Eye tracking, webcam stitching and animation, pending concrete demand.
 - Native-frame processing, pending measured end-to-end benefit.
 
 ## Existing features
 
-Zoom, brightness, bounded recording/replay, CLI capture/output settings,
+Zoom, brightness, horizontal mirror, bounded recording/replay, CLI capture/output settings,
 screen input, stable face framing and optional segmentation smoothing are implemented.
 The native menu, local session control and saved profiles are documented separately
 in [macOS menu](docs/macos-menu.md). Avoid duplicating completed work as open tasks.

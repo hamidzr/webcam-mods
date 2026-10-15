@@ -80,6 +80,10 @@ blur is box blur; Core Image blur is Gaussian. These are behavioral choices,
 not a demonstrated general performance advantage. `--mask-smoothing` enables
 motion-aware segmentation smoothing; it remains opt-in.
 
+`--mirror` (or `MIRROR=true`) flips camera input left to right before crop,
+tracking and effects. Receivers see the mirrored view; background images and
+loading pictures stay unmirrored. The native app exposes this as Mirror video.
+
 Face tracking follows the nearest compatible face after initially choosing the
 largest. This is geometric continuity, not identity recognition. Defaults target
 40% face height, horizontal center, vertical position 42%, and at most 2x digital
@@ -141,8 +145,9 @@ without opening a camera or changing calibration caches.
 
 Interactive sessions open output before capture/model startup. Both preview and
 virtual camera receive TV color bars until the first processed frame. Loading
-frames are picture-only; status text stays in the terminal or app window. Choose animated TV static with `--signal-pattern noise` (or
-`SIGNAL_PATTERN=noise`); native profiles expose Loading picture in Advanced.
+frames are picture-only; status text stays in the terminal or app window. Choose
+animated TV static with `--signal-pattern noise` (or `SIGNAL_PATTERN=noise`);
+native profiles expose Loading picture in Advanced.
 Color bars are cached; static refreshes at most 8 times/second and stops when
 live video arrives. Bounded capture/export runs contain only live frames.
 
