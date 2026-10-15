@@ -181,10 +181,11 @@ class BackgroundEffect:
         self,
         common: Common,
         mode: BackgroundMode,
-        value: int | Frame,
+        value: int | Frame | tuple[int, int, int],
         brightness: int = 0,
         *,
         image_blur_kernel: int = 1,
+        image_anchor: tuple[float, float] | None = None,
         lift: int = 0,
     ) -> None:
         from webcam_mods.mods.person_segmentation import PersonEffects
@@ -196,7 +197,13 @@ class BackgroundEffect:
             smoothing=common.mask_smoothing,
         )
         try:
-            self.configure(mode, value, image_blur_kernel=image_blur_kernel, lift=lift)
+            self.configure(
+                mode,
+                value,
+                image_blur_kernel=image_blur_kernel,
+                image_anchor=image_anchor,
+                lift=lift,
+            )
         except BaseException:
             self.effects.close()
             raise
@@ -205,32 +212,40 @@ class BackgroundEffect:
     def configure(
         self,
         mode: BackgroundMode,
-        value: int | Frame,
+        value: int | Frame | tuple[int, int, int],
         *,
         image_blur_kernel: int = 1,
+        image_anchor: tuple[float, float] | None = None,
         lift: int = 0,
     ) -> None:
         """Switch background treatment while keeping the loaded segmentation model.
 
-        value is the blur kernel, gray level or image; spotlight takes the background
-        dim percent as value and the person lift percent as lift.
+        value is the blur kernel, gray level or BGR color, or image; spotlight takes
+        the background dim percent as value and the person lift percent as lift.
+        An image anchor fills the frame keeping that image point in view; without
+        one the image stretches to the frame.
         """
         if mode == "swap_bg":
             if not isinstance(value, np.ndarray):
                 raise TypeError("background replacement requires an image")
-            self.effects.set_background(value, blur_kernel=image_blur_kernel)
+            self.effects.set_background(
+                value, blur_kernel=image_blur_kernel, anchor=image_anchor
+            )
             self.transform: Callable[[Frame], Frame] = self.effects.swap_bg
+        elif mode == "color_bg":
+            if not isinstance(value, (int, tuple)):
+                raise TypeError("background color needs a gray level or BGR color")
+            color = value
+            self.transform = lambda frame: self.effects.color_bg(frame, color)
         else:
             if not isinstance(value, int):
-                raise TypeError("background color, blur and spotlight need an integer")
+                raise TypeError("background blur and spotlight need an integer")
             if mode == "blur_bg":
                 self.transform = lambda frame: self.effects.blur_bg(frame, value)
-            elif mode == "spotlight_bg":
+            else:
                 self.transform = lambda frame: self.effects.spotlight(
                     frame, value, lift
                 )
-            else:
-                self.transform = lambda frame: self.effects.color_bg(frame, value)
 
     def __call__(self, frame: Frame) -> Frame:
         result = self.transform(frame)

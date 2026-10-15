@@ -23,8 +23,13 @@ struct Configuration: Codable, Equatable {
     var brightness = 0
     var blur_kernel = 31
     var color = 192
+    // solid background as #RRGGBB; nil uses the gray level above
+    var background_color: String?
     var image_path = ""
     var image_blur = false
+    // point of the background image kept in view when it fills a different shape
+    var image_x = 0.5
+    var image_y = 0.5
     var spotlight_dim = 60
     var spotlight_lift = 20
     var track = false
@@ -75,6 +80,18 @@ struct Configuration: Codable, Equatable {
         tint = defaults.tint
         sharpness = defaults.sharpness
         auto_light = defaults.auto_light
+    }
+
+    var backgroundColor: NSColor {
+        let hex = background_color ?? String(format: "#%02X%02X%02X", color, color, color)
+        let value = Int(hex.dropFirst(), radix: 16) ?? 0
+        return NSColor(srgbRed: CGFloat(value >> 16 & 255) / 255, green: CGFloat(value >> 8 & 255) / 255, blue: CGFloat(value & 255) / 255, alpha: 1)
+    }
+
+    mutating func setBackgroundColor(_ picked: NSColor) {
+        guard let rgb = picked.usingColorSpace(.sRGB) else { return }
+        func byte(_ component: CGFloat) -> Int { Int((min(max(component, 0), 1) * 255).rounded()) }
+        background_color = String(format: "#%02X%02X%02X", byte(rgb.redComponent), byte(rgb.greenComponent), byte(rgb.blueComponent))
     }
 
     mutating func resetFramingPreferences() {
@@ -821,6 +838,17 @@ final class SessionModel: ObservableObject {
             model.beginWhitePick()
             model.previewImage = image
         }
+        try render("desktop-image-background", width: 1100, height: 1000) { model in
+            if let background = BuiltInBackground.catalog.first { model.selectBackground(background) }
+            model.config.effect = "image"
+            model.config.image_x = 0.3
+            running(model, view: "output")
+        }
+        try render("narrow-color-background", width: 440, height: 900) { model in
+            model.config.effect = "color"
+            model.config.background_color = "#2E6B5A"
+            running(model, view: "output")
+        }
         try render("narrow-camera-guides", width: 440, height: 900) { model in
             model.config.track = true
             running(model, view: "source")
@@ -1174,6 +1202,13 @@ final class SessionModel: ObservableObject {
         trackedShape.output_width = 1000
         trackedShape.output_height = 500
         try check(trackedShape.outputShape == "custom", "Typed output size shows as custom")
+        var painted = Configuration()
+        let defaultGray = painted.backgroundColor.usingColorSpace(.sRGB)
+        try check(abs((defaultGray?.greenComponent ?? 0) - 192 / 255) < 0.001, "Gray level shows as the starting background color")
+        painted.setBackgroundColor(NSColor(srgbRed: 0, green: 0.5, blue: 1, alpha: 1))
+        try check(painted.background_color == "#0080FF" && painted.json["background_color"] as? String == "#0080FF" && Configuration().json["background_color"] == nil, "Background color encodes as hex and stays absent by default")
+        painted.image_x = 0.2
+        try check(!painted.needsRestart(from: Configuration()) && painted.json["image_x"] as? Double == 0.2, "Background color and image position apply live")
         let switcher = SessionModel()
         let switchPipe = Pipe()
         switcher.input = switchPipe.fileHandleForWriting
@@ -1211,7 +1246,7 @@ final class SessionModel: ObservableObject {
         try pipe.fileHandleForWriting.close()
         try pipe.fileHandleForReading.close()
         try helperSelfTest()
-        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats, orientation, compare, color, spotlight, looks, pause, menu profiles).")
+        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats, orientation, compare, color, spotlight, looks, pause, menu profiles, background color).")
     }
 
     private static func helperSelfTest() throws {
@@ -1426,6 +1461,14 @@ final class SessionModel: ObservableObject {
         }
     }
 
+    // system eyedropper: any pixel on screen, such as the wall in the camera preview
+    func sampleBackgroundColor() {
+        NSColorSampler().show { [weak self] picked in
+            guard let picked else { return }
+            Task { @MainActor in self?.config.setBackgroundColor(picked) }
+        }
+    }
+
     // sets path and look together so the worker never sees custom without a file
     func chooseLook() {
         let panel = NSOpenPanel()
@@ -1544,7 +1587,7 @@ struct ControlPanel: View {
                     Picker("Background", selection: $model.config.effect) {
                         Text("Original").tag("plain")
                         Text("Blur").tag("blur")
-                        Text("Solid gray").tag("color")
+                        Text("Solid color").tag("color")
                         Text("Image").tag("image")
                         Text("Spotlight").tag("spotlight")
                         Text("Face tracking").tag("track")
@@ -1553,7 +1596,12 @@ struct ControlPanel: View {
                         Stepper("Blur: \(model.config.blur_kernel)", value: $model.config.blur_kernel, in: 1...151, step: 2)
                     }
                     if model.config.effect == "color" {
-                        slider("Gray", value: $model.config.color, range: 0...255)
+                        HStack {
+                            ColorPicker("Color", selection: Binding(get: { Color(nsColor: model.config.backgroundColor) }, set: { model.config.setBackgroundColor(NSColor($0)) }), supportsOpacity: false)
+                            Button { model.sampleBackgroundColor() } label: { Image(systemName: "eyedropper") }
+                                .help("Pick a color from anywhere on screen, such as your wall in the preview")
+                                .accessibilityLabel("Pick color from screen")
+                        }
                     }
                     if model.config.effect == "spotlight" {
                         slider("Dim room", value: $model.config.spotlight_dim, range: 0...100)
@@ -1563,6 +1611,10 @@ struct ControlPanel: View {
                     }
                     if model.config.effect == "image" {
                         BackgroundGallery(model: model)
+                        decimalSlider("Horizontal", value: $model.config.image_x, range: 0...1, text: { "\(Int(($0 * 100).rounded()))%" })
+                            .help("Which part of the image shows when its shape differs from the video, from left to right.")
+                        decimalSlider("Vertical", value: $model.config.image_y, range: 0...1, text: { "\(Int(($0 * 100).rounded()))%" })
+                            .help("Which part of the image shows when its shape differs from the video, from top to bottom.")
                         Toggle("Blur image background", isOn: $model.config.image_blur)
                     }
                     Toggle("Track face", isOn: $model.config.track).disabled(model.config.effect == "track")
@@ -1806,18 +1858,22 @@ struct PreviewPanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Video preview").font(.headline)
-                Spacer()
-                Picker("View", selection: $model.previewView) {
-                    Text("Output").tag("output")
-                    Text("Camera").tag("source")
-                    if model.maskAvailable { Text("Mask").tag("mask") }
-                }.pickerStyle(.segmented).labelsHidden().fixedSize()
-                    .help("Output: what calls receive. Camera: full camera picture before framing and effects. Mask: what background effects keep.")
-                if model.previewView == "output" && model.previewing { CompareButton(model: model) }
-                Text(model.outputMode == "preview" ? "Preview only" : "OBS Virtual Camera")
-                    .font(.caption).foregroundStyle(.secondary)
+            // narrow windows move the view controls below the title
+            ViewThatFits(in: .horizontal) {
+                HStack {
+                    title
+                    Spacer()
+                    viewControls
+                    destination
+                }
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        title
+                        Spacer()
+                        destination
+                    }
+                    HStack { viewControls }
+                }
             }
             ZStack {
                 Color.black
@@ -1861,6 +1917,23 @@ struct PreviewPanel: View {
 }
 
 extension PreviewPanel {
+    var title: some View { Text("Video preview").font(.headline).lineLimit(1) }
+
+    var destination: some View {
+        Text(model.outputMode == "preview" ? "Preview only" : "OBS Virtual Camera")
+            .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+    }
+
+    @ViewBuilder var viewControls: some View {
+        Picker("View", selection: $model.previewView) {
+            Text("Output").tag("output")
+            Text("Camera").tag("source")
+            if model.maskAvailable { Text("Mask").tag("mask") }
+        }.pickerStyle(.segmented).labelsHidden().fixedSize()
+            .help("Output: what calls receive. Camera: full camera picture before framing and effects. Mask: what background effects keep.")
+        if model.previewView == "output" && model.previewing { CompareButton(model: model).fixedSize() }
+    }
+
     var caption: String {
         if model.paused { return "Paused: calls see the loading picture and the camera is off." }
         switch model.previewView {

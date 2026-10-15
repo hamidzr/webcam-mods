@@ -120,7 +120,7 @@ class ProfileEffectLiveTests(unittest.TestCase):
             configure = background.return_value.configure
             self.assertEqual(
                 [call.args[:2] for call in configure.call_args_list[:1]],
-                [("color_bg", 80)],
+                [("color_bg", (80, 80, 80))],
             )
             self.assertEqual(configure.call_args_list[1].args[0], "swap_bg")
             self.assertIs(configure.call_args_list[1].args[1], image)

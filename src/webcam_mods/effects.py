@@ -245,9 +245,11 @@ def _background_key(profile: Profile) -> tuple[object, ...] | None:
     return (
         profile.effect,
         profile.blur_kernel,
-        profile.color,
+        profile.background_bgr,
         profile.image_path,
         profile.image_blur,
+        profile.image_x,
+        profile.image_y,
         profile.spotlight_dim,
         profile.spotlight_lift,
     )
@@ -350,7 +352,7 @@ class ProfileEffect:
             background.close()
         if key is not None:
             mode: "BackgroundMode"
-            value: int | Frame
+            value: int | Frame | tuple[int, int, int]
             if profile.effect == "image":
                 mode, value = "swap_bg", self._load_image(profile.image_path)
             elif profile.effect == "blur":
@@ -358,8 +360,9 @@ class ProfileEffect:
             elif profile.effect == "spotlight":
                 mode, value = "spotlight_bg", profile.spotlight_dim
             else:
-                mode, value = "color_bg", profile.color
+                mode, value = "color_bg", profile.background_bgr
             kernel = profile.blur_kernel if profile.image_blur else 1
+            anchor = (profile.image_x, profile.image_y)
             if self.background is None:
                 common = Common(
                     segmentation=profile.segmentation,  # type: ignore[arg-type]
@@ -371,11 +374,16 @@ class ProfileEffect:
                     mode,
                     value,
                     image_blur_kernel=kernel,
+                    image_anchor=anchor,
                     lift=profile.spotlight_lift,
                 )
             elif previous is not None and _background_key(previous) != key:
                 self.background.configure(
-                    mode, value, image_blur_kernel=kernel, lift=profile.spotlight_lift
+                    mode,
+                    value,
+                    image_blur_kernel=kernel,
+                    image_anchor=anchor,
+                    lift=profile.spotlight_lift,
                 )
         tracked = profile.track or profile.effect == "track"
         if self.tracking is not None and not tracked:

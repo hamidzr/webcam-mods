@@ -58,7 +58,8 @@ a single-channel float mask. Color management is disabled for numeric BGR blendi
 parity. Crop/padding, final resize, brightness and replay remain portable CPU
 operations. Core Image blur is Gaussian; OpenCV blur remains box blur. The kernel
 option maps to native radius `(kernel_size - 1) / 2`, not an equivalence between
-filters. Background images stretch to current prepared frame dimensions.
+filters. CLI `bg-image` backgrounds stretch to current prepared frame dimensions;
+profile image backgrounds fill them without distortion at `image_x`/`image_y`.
 
 This implementation preserves BGR NumPy interfaces. It is not a zero-copy pipeline:
 capture, Vision, Core Image and pyvirtualcam still cross CPU/native boundaries.

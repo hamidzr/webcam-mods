@@ -6,6 +6,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import sqlite3
 import sys
 import tempfile
@@ -41,7 +42,11 @@ NUMBER_RANGES: tuple[tuple[str, float, float], ...] = (
     ("track_follow_seconds", 0.05, 3),
     ("track_deadzone", 0, 0.4),
     ("exposure", -2, 2),
+    ("image_x", 0, 1),
+    ("image_y", 0, 1),
 )
+
+_HEX_COLOR = re.compile(r"#[0-9a-fA-F]{6}")
 
 
 @dataclass(frozen=True)
@@ -54,8 +59,14 @@ class Profile:
     brightness: int = 0
     blur_kernel: int = 31
     color: int = 192
+    # solid background as #RRGGBB; when absent the gray level above applies
+    background_color: str | None = None
     image_path: str = ""
     image_blur: bool = False
+    # image backgrounds fill the picture; this point of the image stays in view,
+    # as fractions from the left and top
+    image_x: float = 0.5
+    image_y: float = 0.5
     # spotlight background: percent darker background and percent lifted person
     spotlight_dim: int = 60
     spotlight_lift: int = 20
@@ -180,6 +191,12 @@ class Profile:
         ):
             if getattr(self, key) not in choices:
                 raise ValueError(f"invalid {key}")
+        if self.background_color is not None:
+            if not isinstance(self.background_color, str) or not _HEX_COLOR.fullmatch(
+                self.background_color
+            ):
+                raise ValueError("background_color must be #RRGGBB or null")
+            object.__setattr__(self, "background_color", self.background_color.upper())
         if not isinstance(self.image_path, str) or len(self.image_path) > 4096:
             raise ValueError("image_path must be a path string")
         if self.effect == "image" and not self.image_path:
@@ -188,6 +205,14 @@ class Profile:
             raise ValueError("look_path must be a path string")
         if self.look == "custom" and not self.look_path:
             raise ValueError("custom look requires look_path")
+
+    @property
+    def background_bgr(self) -> tuple[int, int, int]:
+        """Solid background color as OpenCV BGR."""
+        if self.background_color is None:
+            return self.color, self.color, self.color
+        value = int(self.background_color[1:], 16)
+        return value & 255, (value >> 8) & 255, value >> 16
 
     @property
     def oriented_size(self) -> tuple[int, int]:

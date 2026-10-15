@@ -56,7 +56,7 @@ Phase 3, call controls:
 
 Phase 4, backgrounds:
 
-14. Any background color, eyedropper, background image position (S).
+14. Any background color, eyedropper, background image position (S). Done.
 15. Green screen keying as a segmentation choice (M).
 16. Looping video backgrounds (M).
 

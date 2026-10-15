@@ -91,7 +91,11 @@ sends the loading picture at output FPS. Resume video reopens the camera; Stop
 ends the pause. The menu bar icon shows a crossed-out camera while paused. The
 shortcut is registered when the app launches; if macOS refuses it, use the menu bar.
 
-Background choices are original, blur, solid gray, image and spotlight. Spotlight
+Background choices are original, blur, solid color, image and spotlight. Solid
+color takes any color from the color picker; the eyedropper button samples any
+pixel on screen, such as your wall in the camera preview. Image backgrounds fill
+the picture without stretching; Horizontal and Vertical choose which part of the
+image shows when its shape differs from the video. Both apply live. Spotlight
 keeps the room but darkens it by Dim room percent and brightens you with a gentle
 curve set by Lift you, where black and white stay put; both apply live without
 reloading segmentation. Tracking combines
@@ -229,9 +233,11 @@ Profile fields and defaults:
 | track | false | Combine tracking with selected background |
 | brightness | 0 | Added HSV value, 0..255 |
 | blur_kernel | 31 | Positive odd box-blur kernel or Core Image radius mapping |
-| color | 192 | Gray background, 0..255 |
+| color | 192 | Gray background, 0..255, used when background_color is absent |
+| background_color | absent | Solid background as #RRGGBB; stored uppercase |
 | image_path | empty | Image required for image effect |
 | image_blur | false | Cache image background blur using blur_kernel |
+| image_x, image_y | 0.5 | Image point kept in view while the image fills the picture, fractions from left and top |
 | spotlight_dim | 60 | Spotlight background darkening percent, 0..100 |
 | spotlight_lift | 20 | Spotlight person brightening, 0..100; black and white stay put |
 | capture | auto | auto, opencv, avfoundation; menu defaults avfoundation |

@@ -119,6 +119,7 @@ class PersonEffects:
         self._background_source: Frame | None = None
         self._background: Frame | None = None
         self._background_blur_kernel = 1
+        self._background_anchor: tuple[float, float] | None = None
         # latest mask, aligned with the effect output, for the mask preview
         self.last_mask: Mask | None = None
 
@@ -173,15 +174,28 @@ class PersonEffects:
             )
         return apply_alpha_mask(foreground, background, mask)
 
-    def set_background(self, bg_image: Frame, *, blur_kernel: int = 1) -> None:
-        """Own a background snapshot for repeated calls without a background argument."""
+    def set_background(
+        self,
+        bg_image: Frame,
+        *,
+        blur_kernel: int = 1,
+        anchor: tuple[float, float] | None = None,
+    ) -> None:
+        """Own a background snapshot for repeated calls without a background argument.
+
+        With an anchor, the image fills the frame without distortion and keeps that
+        point, as fractions from the left and top, in view; otherwise it stretches.
+        """
         if self._closed:
             raise RuntimeError("person effects are closed")
         validate_frame(bg_image)
         if type(blur_kernel) is not int or blur_kernel <= 0 or blur_kernel % 2 == 0:
             raise ValueError("blur kernel size must be a positive odd number")
+        if anchor is not None and not all(0 <= value <= 1 for value in anchor):
+            raise ValueError("background anchor must be fractions in 0..1")
         self._background_source = bg_image.copy()
         self._background_blur_kernel = blur_kernel
+        self._background_anchor = anchor
         self._background = None
 
     def swap_bg(self, frame: Frame, bg_image: Frame | None = None) -> Frame:
@@ -192,9 +206,13 @@ class PersonEffects:
         image, mask = self.mask(frame)
         # background tracks the prepared crop, padding and replay dimensions
         if self._background is None or self._background.shape != image.shape:
+            source = self._background_source
+            if self._background_anchor is not None:
+                source = _fill_crop(
+                    source, image.shape[1], image.shape[0], self._background_anchor
+                )
             background = cast(
-                Frame,
-                cv2.resize(self._background_source, (image.shape[1], image.shape[0])),
+                Frame, cv2.resize(source, (image.shape[1], image.shape[0]))
             )
             if self._background_blur_kernel > 1:
                 background = cast(
@@ -221,6 +239,21 @@ class PersonEffects:
         finally:
             if self.processor is not None:
                 self.processor.close()
+
+
+def _fill_crop(
+    image: Frame, width: int, height: int, anchor: tuple[float, float]
+) -> Frame:
+    """Largest part of image with the target aspect, slid toward anchor."""
+    source_height, source_width = image.shape[:2]
+    if source_width * height > width * source_height:
+        crop_width, crop_height = round(source_height * width / height), source_height
+    else:
+        crop_width, crop_height = source_width, round(source_width * height / width)
+    crop_width, crop_height = max(crop_width, 1), max(crop_height, 1)
+    left = round((source_width - crop_width) * anchor[0])
+    top = round((source_height - crop_height) * anchor[1])
+    return image[top : top + crop_height, left : left + crop_width]
 
 
 @lru_cache(maxsize=8)
