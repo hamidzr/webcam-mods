@@ -114,6 +114,18 @@ class ProfileEffectPreviewTests(unittest.TestCase):
         effect(self.frame)
         self.assertEqual(len(sink.published), 1)
 
+    def test_original_view_keeps_framing_without_effects(self) -> None:
+        sink = Sink("original")
+        effect = self.effect(Profile(crop=(0, 0, 0.5, 0.5), brightness=40), sink)
+        output = effect(self.frame)
+        assert output is not None
+        [(original, view, guides)] = sink.published
+        self.assertEqual(
+            (view, guides, original.shape), ("original", None, (24, 32, 3))
+        )
+        np.testing.assert_array_equal(original, self.frame[:24, :32])
+        self.assertGreater(int(output.max()), int(original.max()))
+
     def test_effect_records_processed_rate_and_time(self) -> None:
         effect = self.effect(Profile(brightness=3), Sink("output"))
         for _ in range(3):

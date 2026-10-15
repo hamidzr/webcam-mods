@@ -243,7 +243,8 @@ class ProfileEffect:
     Order: orientation, manual crop with optional tracking inside it, fixed-size
     background, brightness. Updates are
     queued by any thread and applied on the processing thread before a frame.
-    Source and mask preview frames are encoded only while the app shows them.
+    Source, original and mask preview frames are encoded only while the app shows
+    them.
     """
 
     def __init__(
@@ -382,6 +383,9 @@ class ProfileEffect:
         preview = self._preview
         if preview is not None and preview.wants("source"):
             preview.publish(source, "source", self._guides(source, region))
+        if preview is not None and preview.wants("original"):
+            # same framing as output without image effects, for hold-to-compare
+            preview.publish(frame, "original")
         if self.background is not None:
             # fixed segmentation dimensions avoid rebuilding models on crop changes
             frame = resize_and_pad(

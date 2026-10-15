@@ -44,7 +44,9 @@ shows the full camera picture after rotation and flips but before framing and ef
 tracking on, a yellow box marks the detected face and green dashes mark the auto
 framing crop. **Mask** appears with blur, color or image backgrounds and shows the
 segmentation confidence aligned with the output: white is kept, black is replaced.
-Guides are drawn by the app over the preview and never enter the video.
+Guides are drawn by the app over the preview and never enter the video. In Output
+view, press and hold Compare to see the same framing without background or image
+effects, marked Original; release to return. VoiceOver toggles it instead.
 
 Zoom (1x..4x) crops the camera to what calls see. The crop keeps the output aspect,
 so output fills without bars. In Camera view the crop is a white box with the rest
@@ -254,7 +256,7 @@ the helper available.
 | profiles.save | name, config | true |
 | profiles.delete | name | true |
 | start | config, or profile name; optional output: virtualcam (default) or preview | Current state |
-| preview.get | optional view: output (default), source or mask | Latest {jpeg: base64, width, height, view, optional guides}, or null |
+| preview.get | optional view: output (default), source, mask or original | Latest {jpeg: base64, width, height, view, optional guides}, or null |
 | session.update | config | Current state; applies live fields to the running session |
 | session.stats | {} | {processed_fps, sent_fps, effect_ms}, each null until measured; null when idle |
 | stop | {} | State after bounded shutdown |
@@ -271,7 +273,9 @@ components and emits `{"event":"warning","data":{"message":...}}`.
 `preview.get` encodes only the requested view; requesting a different view drops the
 held frame. Source frames carry `guides`, a map of name to normalized
 `[x, y, width, height]` boxes in source-frame fractions: `crop` for the applied manual
-crop, `face` and `framing` while tracking. Mask frames exist only while a background effect runs. Stats cover the
+crop, `face` and `framing` while tracking. Mask frames exist only while a background
+effect runs. Original frames use the output framing before background and image
+effects, unpadded at the framed size. Stats cover the
 last two seconds: `processed_fps` counts frames through the effect pipeline,
 `sent_fps` counts frames delivered to output, `effect_ms` is mean pipeline time.
 

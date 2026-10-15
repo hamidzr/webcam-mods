@@ -29,6 +29,7 @@ remain supported. Native macOS menu is optional; installed CLI works independent
   up to 640x480/10 FPS, and pauses encoding when window hides or minimizes.
   Preview switches between output, camera (with face and framing guides drawn by
   the app) and segmentation mask views, and shows processed/sent FPS and effect time.
+  Hold Compare to see the output framing without background or image effects.
   Profiles store a manual crop edited by zoom, drag and pinch in the camera view;
   tracking stays inside it. Framing preferences (face size, head height, max zoom,
   follow time, steadiness) are profile fields that apply live.

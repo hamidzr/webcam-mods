@@ -12,8 +12,9 @@ from webcam_mods.timing import FramePacer
 from webcam_mods.utils.video import Frame
 
 # output: final frames; source: oriented camera frames before framing and
-# effects; mask: segmentation confidence aligned with the output
-VIEWS = ("output", "source", "mask")
+# effects; mask: segmentation confidence aligned with the output; original:
+# output framing before background and image effects
+VIEWS = ("output", "source", "mask", "original")
 Guides = dict[str, list[float]]
 
 

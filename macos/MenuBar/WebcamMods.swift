@@ -263,7 +263,10 @@ final class SessionModel: ObservableObject {
     @Published var state = "idle" {
         didSet {
             if !previewing || (state == "starting" && oldValue != "starting") { clearPreview() }
-            if !previewing { stats = nil }
+            if !previewing {
+                stats = nil
+                comparing = false
+            }
             if !active { endLiveSession() }
         }
     }
@@ -274,8 +277,16 @@ final class SessionModel: ObservableObject {
     @Published var previewError: String?
     // output, source (camera before framing and effects) or mask
     @Published var previewView = "output" {
-        didSet { if previewView != oldValue { clearPreview() } }
+        didSet {
+            guard previewView != oldValue else { return }
+            comparing = false
+            clearPreview()
+        }
     }
+    // while held, Output shows the same framing without background or image effects;
+    // the last picture stays up until the other view's first frame arrives
+    @Published var comparing = false
+    var requestedView: String { comparing && previewView == "output" ? "original" : previewView }
     // normalized boxes drawn over the preview, never into the video
     @Published var previewGuides: [String: CGRect] = [:]
     @Published var stats: SessionStats?
@@ -374,7 +385,7 @@ final class SessionModel: ObservableObject {
         guard visible, connected, previewing, !previewPending else { return }
         previewPending = true
         let generation = previewGeneration
-        request("preview.get", params: ["view": previewView]) { [weak self] result in
+        request("preview.get", params: ["view": requestedView]) { [weak self] result in
             guard let self else { return }
             self.previewPending = false
             guard self.previewVisible, self.previewing, generation == self.previewGeneration else { return }
@@ -421,7 +432,7 @@ final class SessionModel: ObservableObject {
                   let image = bitmap.cgImage else {
                 throw failure("Invalid preview frame. Reinstall app if this repeats.")
             }
-            if let view = frame["view"] as? String, view != previewView { return }
+            if let view = frame["view"] as? String, view != requestedView { return }
             var guides: [String: CGRect] = [:]
             if let raw = frame["guides"] {
                 guard let boxes = raw as? [String: Any], boxes.count <= 8 else {
@@ -716,6 +727,11 @@ final class SessionModel: ObservableObject {
             running(model, view: "source")
             model.previewGuides = ["face": CGRect(x: 0.36, y: 0.12, width: 0.26, height: 0.34), "framing": CGRect(x: 0.2, y: 0.08, width: 0.52, height: 0.52)]
         }
+        try render("desktop-compare", width: 1100, height: 720) { model in
+            model.config.effect = "blur"
+            running(model, view: "output")
+            model.comparing = true
+        }
         try render("narrow-camera-guides", width: 440, height: 900) { model in
             model.config.track = true
             running(model, view: "source")
@@ -960,6 +976,23 @@ final class SessionModel: ObservableObject {
         model.previewView = "mask"
         model.config.effect = "plain"
         try check(model.previewView == "output" && !model.maskAvailable, "Mask view falls back when segmentation turns off")
+        model.acceptPreview(.success(["jpeg": jpeg, "width": 2, "height": 2, "view": "output"]))
+        let processed = model.previewImage
+        model.comparing = true
+        model.pollPreview(visible: true)
+        let compareRequest = try lastRequest()
+        try check((compareRequest?["params"] as? [String: Any])?["view"] as? String == "original" && processed != nil && model.previewImage === processed, "Compare requests the original view and keeps the last picture")
+        model.acceptPreview(.success(["jpeg": jpeg, "width": 2, "height": 2, "view": "output"]))
+        try check(model.previewImage === processed, "Late output frames are ignored while comparing")
+        model.consume(try JSONSerialization.data(withJSONObject: ["id": model.nextID, "result": ["jpeg": jpeg, "width": 2, "height": 2, "view": "original"]]) + Data([10]))
+        try check(model.previewImage != nil && model.previewImage !== processed, "Original frames show while comparing")
+        model.previewView = "source"
+        try check(!model.comparing && model.requestedView == "source", "Switching view ends compare")
+        model.previewView = "output"
+        model.comparing = true
+        model.state = "idle"
+        try check(!model.comparing, "Stopping ends compare")
+        model.state = "running"
         let statsID = model.nextID + 1
         let statsTime = Date()
         model.pollStats(visible: true, now: statsTime)
@@ -1021,7 +1054,7 @@ final class SessionModel: ObservableObject {
         try pipe.fileHandleForWriting.close()
         try pipe.fileHandleForReading.close()
         try helperSelfTest()
-        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats, orientation).")
+        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats, orientation, compare).")
     }
 
     private static func helperSelfTest() throws {
@@ -1535,6 +1568,7 @@ struct PreviewPanel: View {
                     if model.maskAvailable { Text("Mask").tag("mask") }
                 }.pickerStyle(.segmented).labelsHidden().fixedSize()
                     .help("Output: what calls receive. Camera: full camera picture before framing and effects. Mask: what background effects keep.")
+                if model.previewView == "output" && model.previewing { CompareButton(model: model) }
                 Text(model.outputMode == "preview" ? "Preview only" : "OBS Virtual Camera")
                     .font(.caption).foregroundStyle(.secondary)
             }
@@ -1546,6 +1580,12 @@ struct PreviewPanel: View {
                             // the app draws its own crop so dragging needs no round trip
                             GuideOverlay(guides: model.previewGuides.filter { $0.key != "crop" })
                             if model.previewView == "source" { CropEditor(model: model) }
+                        }
+                        .overlay(alignment: .topLeading) {
+                            if model.comparing {
+                                Text("Original").font(.caption.bold()).padding(.horizontal, 8).padding(.vertical, 3)
+                                    .background(Capsule().fill(.black.opacity(0.6))).foregroundStyle(.white).padding(8)
+                            }
                         }
                 } else {
                     VStack(spacing: 12) {
@@ -1579,8 +1619,28 @@ extension PreviewPanel {
         case "mask":
             return "Mask view: white is kept as you, black gets the background effect."
         default:
-            return "Preview shows final framing and effects at the output frame rate."
+            return model.comparing
+                ? "Original: same framing without background or image effects. Release to see the output."
+                : "Preview shows final framing and effects at the output frame rate."
         }
+    }
+}
+
+// press and hold; VoiceOver toggles instead
+struct CompareButton: View {
+    @ObservedObject var model: SessionModel
+
+    var body: some View {
+        Label("Compare", systemImage: "square.split.2x1")
+            .padding(.horizontal, 8).padding(.vertical, 3)
+            .background(RoundedRectangle(cornerRadius: 6).fill(model.comparing ? Color.accentColor.opacity(0.4) : Color.secondary.opacity(0.15)))
+            .contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 0)
+                .onChanged { _ in if !model.comparing { model.comparing = true } }
+                .onEnded { _ in model.comparing = false })
+            .help("Hold to see the same framing without background or image effects.")
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { model.comparing.toggle() }
     }
 }
 
