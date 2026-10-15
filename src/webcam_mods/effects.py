@@ -19,6 +19,7 @@ from webcam_mods.mods.looks import ColorLook, builtin_look, load_cube
 from webcam_mods.mods.overlay import Logo, Overlay, OverlaySettings, Position, load_logo
 from webcam_mods.mods.presenter import Alpha, bubble, cutout, place
 from webcam_mods.mods.record_replay import Recorder
+from webcam_mods.mods.touchup import smooth_skin
 from webcam_mods.mods.video_background import LoopingVideo
 from webcam_mods.mods.video_mods import brighten, crop_rect, resize_and_pad
 from webcam_mods.output.native_preview import Guides
@@ -287,7 +288,7 @@ class ProfileEffect:
     """Profile pipeline whose settings can change between frames.
 
     Order: orientation, manual crop with optional tracking inside it, auto light,
-    fixed-size background, brightness, color, look, overlays. A screen source
+    skin touch-up, fixed-size background, brightness, color, look, overlays. A screen source
     skips orientation, tracking and background; with the presenter on, the camera
     picture is oriented, lit and graded, then placed over the output-sized screen
     before overlays. The recorder keeps finished frames; while it replays, they
@@ -608,7 +609,7 @@ class ProfileEffect:
                 frame = self.overlay(frame)
             return frame
         # before segmentation so masks see the lifted picture; images stay as chosen
-        frame = self.auto_light(frame, time.monotonic())
+        frame = self._light(frame, profile)
         if self.background is not None:
             # fixed segmentation dimensions avoid rebuilding models on crop changes
             frame = resize_and_pad(
@@ -623,6 +624,13 @@ class ProfileEffect:
         frame = self._grade(frame, profile)
         if self.overlay is not None:
             frame = self.overlay(frame)
+        return frame
+
+    def _light(self, frame: Frame, profile: Profile) -> Frame:
+        """Auto light and skin touch-up, on the camera picture only."""
+        frame = self.auto_light(frame, time.monotonic())
+        if profile.touchup:
+            frame = smooth_skin(frame, profile.touchup)
         return frame
 
     def _grade(self, frame: Frame, profile: Profile) -> Frame:
@@ -646,7 +654,7 @@ class ProfileEffect:
             # the camera runs slower than the screen; reuse the graded layer
             layer, alpha = presented[2], presented[3]
         else:
-            picture = self.auto_light(_orient(camera, profile), time.monotonic())
+            picture = self._light(_orient(camera, profile), profile)
             size = max(2, round(height * profile.presenter_size / 100))
             if self.presenter_effects is not None:
                 # segmentation flips once for legacy CLI commands; pre-flip cancels it

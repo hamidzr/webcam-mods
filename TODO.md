@@ -69,7 +69,7 @@ Phase 5, composition:
 
 Phase 6, enhancement:
 
-21. Skin touch-up (M).
+21. Skin touch-up (M). Done.
 22. Temporal noise reduction (M).
 
 Phase 7, large or research:

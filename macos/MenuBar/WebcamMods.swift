@@ -91,6 +91,8 @@ struct Configuration: Codable, Equatable {
     var sharpness = 0
     // lifts dark pictures gradually, 0 off
     var auto_light = 0
+    // skin smoothing that keeps eyes, brows and lips sharp, 0 off
+    var touchup = 0
     // final grade: none, a built-in look, or custom with a .cube file
     var look = "none"
     var look_path = ""
@@ -1321,6 +1323,10 @@ final class SessionModel: ObservableObject {
         try check(gradedDecoded.look == "film" && gradedDecoded.look_strength == 70 && gradedDecoded.look_path.isEmpty && !graded.needsRestart(from: Configuration()) && (Configuration().json["look"] as? String) == "none", "Looks encode and apply live")
         try check(ControlPanel.looks.allSatisfy { !["none", "custom"].contains($0) } && ControlPanel.looks.count == 6, "Built-in looks list")
         try check(spotlightDecoded.spotlight_dim == 80 && spotlightDecoded.spotlight_lift == 20 && !spotlight.needsRestart(from: Configuration()), "Spotlight settings encode and apply live")
+        var smoothed = Configuration()
+        smoothed.touchup = 40
+        let smoothedDecoded = try JSONDecoder().decode(Configuration.self, from: JSONEncoder().encode(smoothed))
+        try check(smoothedDecoded.touchup == 40 && !smoothed.needsRestart(from: Configuration()) && Configuration().json["touchup"] as? Int == 0, "Touch-up encodes and applies live")
         model.previewView = "output"
         model.beginWhitePick()
         try check(model.pickingWhite && model.previewView == "source", "White pick switches to Camera view")
@@ -1494,7 +1500,7 @@ final class SessionModel: ObservableObject {
         try pipe.fileHandleForWriting.close()
         try pipe.fileHandleForReading.close()
         try helperSelfTest()
-        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats, orientation, compare, color, spotlight, looks, pause, menu profiles, background color, green screen, overlays, screen source, presenter, snapshot, record loop).")
+        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats, orientation, compare, color, spotlight, looks, pause, menu profiles, background color, green screen, overlays, screen source, presenter, snapshot, record loop, touch-up).")
     }
 
     private static func helperSelfTest() throws {
@@ -1961,6 +1967,10 @@ struct ControlPanel: View {
                         }
                     }
                     slider("Brightness", value: $model.config.brightness, range: 0...255)
+                    if model.config.usesCamera {
+                        slider("Touch up", value: $model.config.touchup, range: 0...100)
+                            .help("Smooths skin while eyes, brows and lips stay sharp. 0 is off.")
+                    }
                     Picker("Look", selection: Binding(get: { model.config.look }, set: { look in
                         if look == "custom" { model.chooseLook() } else { model.config.look = look }
                     })) {

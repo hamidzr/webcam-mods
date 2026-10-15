@@ -115,6 +115,8 @@ class Profile:
     sharpness: int = 0
     # lifts dark pictures toward a target brightness over about a second, 0 off
     auto_light: int = 0
+    # smooths skin while eyes, brows and lips stay sharp, 0 off
+    touchup: int = 0
     # final color grade: a built-in look or a .cube LUT file, blended by strength
     look: str = "none"
     look_path: str = ""
@@ -158,6 +160,7 @@ class Profile:
             ("tint", -100, 100),
             ("sharpness", 0, 100),
             ("auto_light", 0, 100),
+            ("touchup", 0, 100),
             ("spotlight_dim", 0, 100),
             ("spotlight_lift", 0, 100),
             ("look_strength", 0, 100),
