@@ -95,7 +95,13 @@ Background choices are original, blur, solid color, image and spotlight. Solid
 color takes any color from the color picker; the eyedropper button samples any
 pixel on screen, such as your wall in the camera preview. Image backgrounds fill
 the picture without stretching; Horizontal and Vertical choose which part of the
-image shows when its shape differs from the video. Both apply live. Spotlight
+image shows when its shape differs from the video. Both apply live. With a
+background effect on, Green screen keys out a solid backdrop instead of detecting
+you: pick its Screen color (the eyedropper can sample the backdrop in the camera
+preview), widen the keyed range with Tolerance and its soft edge with Softness,
+and remove backdrop color reflected onto hair and edges with Spill. Key settings
+apply live without rebuilding segmentation; Green screen is also the Segmentation
+choice under advanced settings. Spotlight
 keeps the room but darkens it by Dim room percent and brightens you with a gentle
 curve set by Lift you, where black and white stay put; both apply live without
 reloading segmentation. Tracking combines
@@ -241,7 +247,10 @@ Profile fields and defaults:
 | spotlight_dim | 60 | Spotlight background darkening percent, 0..100 |
 | spotlight_lift | 20 | Spotlight person brightening, 0..100; black and white stay put |
 | capture | auto | auto, opencv, avfoundation; menu defaults avfoundation |
-| segmentation | mediapipe | mediapipe or vision |
+| segmentation | mediapipe | mediapipe, vision or chroma (green screen keying) |
+| key_color | #00B140 | Green screen backdrop as #RRGGBB; stored uppercase |
+| key_tolerance, key_softness | 40, 30 | 0..100: keyed color range and soft edge width |
+| key_spill | 50 | 0..100: backdrop color removed from edges near the backdrop |
 | processing | opencv | opencv or coreimage |
 | repeat_frames | true | Repeat latest frame at output cadence |
 | processing_fps | 30 | Fresh-frame cap in repeat mode |

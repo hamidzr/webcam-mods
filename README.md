@@ -77,8 +77,10 @@ one Python worker session. Existing CLI commands remain available.
 Background modes use MediaPipe by default; optional `--segmentation-backend vision`
 and `--processing-backend coreimage` select native macOS implementations. OpenCV
 blur is box blur; Core Image blur is Gaussian. These are behavioral choices,
-not a demonstrated general performance advantage. `--mask-smoothing` enables
-motion-aware segmentation smoothing; it remains opt-in.
+not a demonstrated general performance advantage. `--segmentation-backend chroma`
+keys a green screen instead of detecting the person (profiles can set any key
+color). `--mask-smoothing` enables motion-aware segmentation smoothing; it
+remains opt-in.
 
 `--mirror` (or `MIRROR=true`) flips camera input left to right before crop,
 tracking and effects. Receivers see the mirrored view; background images and

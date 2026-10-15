@@ -72,6 +72,12 @@ class Profile:
     spotlight_lift: int = 20
     track: bool = False
     segmentation: str = "mediapipe"
+    # chroma segmentation keys this backdrop color; tolerance and softness widen
+    # the keyed range and its edge, spill removes the color reflected onto you
+    key_color: str = "#00B140"
+    key_tolerance: int = 40
+    key_softness: int = 30
+    key_spill: int = 50
     processing: str = "opencv"
     capture: str = "auto"
     repeat_frames: bool = True
@@ -127,6 +133,9 @@ class Profile:
             ("spotlight_dim", 0, 100),
             ("spotlight_lift", 0, 100),
             ("look_strength", 0, 100),
+            ("key_tolerance", 0, 100),
+            ("key_softness", 0, 100),
+            ("key_spill", 0, 100),
         ):
             value = getattr(self, key)
             if type(value) is not int or not lower <= value <= upper:
@@ -184,7 +193,7 @@ class Profile:
         for key, choices in (
             ("signal_pattern", ("color-bars", "noise")),
             ("effect", ("plain", "blur", "color", "image", "spotlight", "track")),
-            ("segmentation", ("mediapipe", "vision")),
+            ("segmentation", ("mediapipe", "vision", "chroma")),
             ("processing", ("opencv", "coreimage")),
             ("capture", ("auto", "opencv", "avfoundation")),
             ("look", LOOKS),
@@ -197,6 +206,11 @@ class Profile:
             ):
                 raise ValueError("background_color must be #RRGGBB or null")
             object.__setattr__(self, "background_color", self.background_color.upper())
+        if not isinstance(self.key_color, str) or not _HEX_COLOR.fullmatch(
+            self.key_color
+        ):
+            raise ValueError("key_color must be #RRGGBB")
+        object.__setattr__(self, "key_color", self.key_color.upper())
         if not isinstance(self.image_path, str) or len(self.image_path) > 4096:
             raise ValueError("image_path must be a path string")
         if self.effect == "image" and not self.image_path:
@@ -211,8 +225,12 @@ class Profile:
         """Solid background color as OpenCV BGR."""
         if self.background_color is None:
             return self.color, self.color, self.color
-        value = int(self.background_color[1:], 16)
-        return value & 255, (value >> 8) & 255, value >> 16
+        return _bgr(self.background_color)
+
+    @property
+    def key_bgr(self) -> tuple[int, int, int]:
+        """Green screen key color as OpenCV BGR."""
+        return _bgr(self.key_color)
 
     @property
     def oriented_size(self) -> tuple[int, int]:
@@ -254,6 +272,11 @@ def _crop(value: object) -> tuple[float, float, float, float]:
     ):
         raise ValueError("crop must be fractions inside the frame, at least 0.02 wide")
     return x, y, width, height
+
+
+def _bgr(color: str) -> tuple[int, int, int]:
+    value = int(color[1:], 16)
+    return value & 255, (value >> 8) & 255, value >> 16
 
 
 def _absolute(path: str) -> str:

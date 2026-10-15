@@ -34,6 +34,11 @@ struct Configuration: Codable, Equatable {
     var spotlight_lift = 20
     var track = false
     var segmentation = "mediapipe"
+    // green screen (chroma segmentation): backdrop color as #RRGGBB, the rest 0..100
+    var key_color = "#00B140"
+    var key_tolerance = 40
+    var key_softness = 30
+    var key_spill = 50
     var processing = "opencv"
     var capture = "avfoundation"
     var repeat_frames = true
@@ -82,16 +87,27 @@ struct Configuration: Codable, Equatable {
         auto_light = defaults.auto_light
     }
 
-    var backgroundColor: NSColor {
-        let hex = background_color ?? String(format: "#%02X%02X%02X", color, color, color)
+    static func color(hex: String) -> NSColor {
         let value = Int(hex.dropFirst(), radix: 16) ?? 0
         return NSColor(srgbRed: CGFloat(value >> 16 & 255) / 255, green: CGFloat(value >> 8 & 255) / 255, blue: CGFloat(value & 255) / 255, alpha: 1)
     }
 
-    mutating func setBackgroundColor(_ picked: NSColor) {
-        guard let rgb = picked.usingColorSpace(.sRGB) else { return }
+    static func hex(_ picked: NSColor) -> String? {
+        guard let rgb = picked.usingColorSpace(.sRGB) else { return nil }
         func byte(_ component: CGFloat) -> Int { Int((min(max(component, 0), 1) * 255).rounded()) }
-        background_color = String(format: "#%02X%02X%02X", byte(rgb.redComponent), byte(rgb.greenComponent), byte(rgb.blueComponent))
+        return String(format: "#%02X%02X%02X", byte(rgb.redComponent), byte(rgb.greenComponent), byte(rgb.blueComponent))
+    }
+
+    var backgroundColor: NSColor { Self.color(hex: background_color ?? String(format: "#%02X%02X%02X", color, color, color)) }
+
+    mutating func setBackgroundColor(_ picked: NSColor) {
+        if let hex = Self.hex(picked) { background_color = hex }
+    }
+
+    var keyColor: NSColor { Self.color(hex: key_color) }
+
+    mutating func setKeyColor(_ picked: NSColor) {
+        if let hex = Self.hex(picked) { key_color = hex }
     }
 
     mutating func resetFramingPreferences() {
@@ -844,9 +860,10 @@ final class SessionModel: ObservableObject {
             model.config.image_x = 0.3
             running(model, view: "output")
         }
-        try render("narrow-color-background", width: 440, height: 900) { model in
+        try render("narrow-color-background", width: 440, height: 1000) { model in
             model.config.effect = "color"
             model.config.background_color = "#2E6B5A"
+            model.config.segmentation = "chroma"
             running(model, view: "output")
         }
         try render("narrow-camera-guides", width: 440, height: 900) { model in
@@ -1209,6 +1226,11 @@ final class SessionModel: ObservableObject {
         try check(painted.background_color == "#0080FF" && painted.json["background_color"] as? String == "#0080FF" && Configuration().json["background_color"] == nil, "Background color encodes as hex and stays absent by default")
         painted.image_x = 0.2
         try check(!painted.needsRestart(from: Configuration()) && painted.json["image_x"] as? Double == 0.2, "Background color and image position apply live")
+        var keyed = Configuration()
+        keyed.segmentation = "chroma"
+        keyed.setKeyColor(NSColor(srgbRed: 0, green: 0.28, blue: 0.73, alpha: 1))
+        keyed.key_spill = 80
+        try check(keyed.key_color == "#0047BA" && keyed.json["key_spill"] as? Int == 80 && Configuration().json["key_color"] as? String == "#00B140" && !keyed.needsRestart(from: Configuration()), "Green screen settings encode and apply live")
         let switcher = SessionModel()
         let switchPipe = Pipe()
         switcher.input = switchPipe.fileHandleForWriting
@@ -1246,7 +1268,7 @@ final class SessionModel: ObservableObject {
         try pipe.fileHandleForWriting.close()
         try pipe.fileHandleForReading.close()
         try helperSelfTest()
-        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats, orientation, compare, color, spotlight, looks, pause, menu profiles, background color).")
+        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats, orientation, compare, color, spotlight, looks, pause, menu profiles, background color, green screen).")
     }
 
     private static func helperSelfTest() throws {
@@ -1462,10 +1484,13 @@ final class SessionModel: ObservableObject {
     }
 
     // system eyedropper: any pixel on screen, such as the wall in the camera preview
-    func sampleBackgroundColor() {
+    func sampleColor(_ apply: @escaping (inout Configuration, NSColor) -> Void) {
         NSColorSampler().show { [weak self] picked in
             guard let picked else { return }
-            Task { @MainActor in self?.config.setBackgroundColor(picked) }
+            Task { @MainActor in
+                guard let self else { return }
+                apply(&self.config, picked)
+            }
         }
     }
 
@@ -1598,7 +1623,7 @@ struct ControlPanel: View {
                     if model.config.effect == "color" {
                         HStack {
                             ColorPicker("Color", selection: Binding(get: { Color(nsColor: model.config.backgroundColor) }, set: { model.config.setBackgroundColor(NSColor($0)) }), supportsOpacity: false)
-                            Button { model.sampleBackgroundColor() } label: { Image(systemName: "eyedropper") }
+                            Button { model.sampleColor { $0.setBackgroundColor($1) } } label: { Image(systemName: "eyedropper") }
                                 .help("Pick a color from anywhere on screen, such as your wall in the preview")
                                 .accessibilityLabel("Pick color from screen")
                         }
@@ -1616,6 +1641,24 @@ struct ControlPanel: View {
                         decimalSlider("Vertical", value: $model.config.image_y, range: 0...1, text: { "\(Int(($0 * 100).rounded()))%" })
                             .help("Which part of the image shows when its shape differs from the video, from top to bottom.")
                         Toggle("Blur image background", isOn: $model.config.image_blur)
+                    }
+                    if model.maskAvailable {
+                        Toggle("Green screen", isOn: Binding(get: { model.config.segmentation == "chroma" }, set: { model.config.segmentation = $0 ? "chroma" : "mediapipe" }))
+                            .help("Key out a solid backdrop color instead of detecting you.")
+                        if model.config.segmentation == "chroma" {
+                            HStack {
+                                ColorPicker("Screen color", selection: Binding(get: { Color(nsColor: model.config.keyColor) }, set: { model.config.setKeyColor(NSColor($0)) }), supportsOpacity: false)
+                                Button { model.sampleColor { $0.setKeyColor($1) } } label: { Image(systemName: "eyedropper") }
+                                    .help("Pick the backdrop color, for example from the camera preview")
+                                    .accessibilityLabel("Pick screen color from screen")
+                            }
+                            slider("Tolerance", value: $model.config.key_tolerance, range: 0...100)
+                                .help("How far from the screen color still counts as backdrop.")
+                            slider("Softness", value: $model.config.key_softness, range: 0...100)
+                                .help("Width of the soft edge between you and the backdrop.")
+                            slider("Spill", value: $model.config.key_spill, range: 0...100)
+                                .help("Removes backdrop color reflected onto your hair and edges.")
+                        }
                     }
                     Toggle("Track face", isOn: $model.config.track).disabled(model.config.effect == "track")
                     if model.config.tracking {
@@ -1727,7 +1770,7 @@ struct ControlPanel: View {
                             }
                             Stepper("Processing FPS: \(model.config.processing_fps.formatted(.number.precision(.fractionLength(0...2))))", value: $model.config.processing_fps, in: 1...60)
                             Picker("Segmentation", selection: $model.config.segmentation) {
-                                Text("MediaPipe").tag("mediapipe"); Text("Apple Vision").tag("vision")
+                                Text("MediaPipe").tag("mediapipe"); Text("Apple Vision").tag("vision"); Text("Green screen").tag("chroma")
                             }
                             Picker("Processing", selection: $model.config.processing) {
                                 Text("OpenCV").tag("opencv"); Text("Core Image").tag("coreimage")

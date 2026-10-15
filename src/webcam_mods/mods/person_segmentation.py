@@ -6,6 +6,7 @@ from typing import Any, Literal, cast
 from numpy.typing import NDArray
 
 from webcam_mods.utils.video import Frame, validate_frame
+from webcam_mods.mods.chroma import ChromaKeySegmenter
 from webcam_mods.mods.mask_stabilizer import MaskStabilizer
 from webcam_mods.macos.vision import Quality, VisionSegmenter
 from webcam_mods.macos.core_image import CoreImageProcessor
@@ -96,16 +97,19 @@ class MediaPipeSegmenter:
 class PersonEffects:
     def __init__(
         self,
-        backend: Literal["mediapipe", "vision"] = "mediapipe",
+        backend: Literal["mediapipe", "vision", "chroma"] = "mediapipe",
         processing: Literal["opencv", "coreimage"] = "opencv",
         quality: Quality = "balanced",
         smoothing: bool = False,
     ) -> None:
-        self.segmenter: MediaPipeSegmenter | VisionSegmenter
+        self.segmenter: MediaPipeSegmenter | VisionSegmenter | ChromaKeySegmenter
         if backend == "mediapipe":
             self.segmenter = MediaPipeSegmenter()
         elif backend == "vision":
             self.segmenter = VisionSegmenter(quality=quality)
+        elif backend == "chroma":
+            # green screen: keys a backdrop color instead of finding the person
+            self.segmenter = ChromaKeySegmenter()
         else:
             raise ValueError(f"unknown segmentation backend: {backend}")
         self.processor: CoreImageProcessor | None = None
@@ -135,8 +139,19 @@ class PersonEffects:
             result = sigmoid(result)
         if self.stabilizer is not None:
             result = self.stabilizer.apply(image, result)
+        if isinstance(self.segmenter, ChromaKeySegmenter):
+            # backdrop color reflected onto hair and edges would survive compositing
+            image = self.segmenter.despill(image, result)
         self.last_mask = result
         return image, result[:, :, None]
+
+    def configure_key(
+        self, color: tuple[int, int, int], tolerance: int, softness: int, spill: int
+    ) -> None:
+        """Retune green screen keying in place; BGR color, the rest 0..100."""
+        if not isinstance(self.segmenter, ChromaKeySegmenter):
+            raise RuntimeError("key settings need chroma segmentation")
+        self.segmenter.configure(color, tolerance, softness, spill)
 
     def color_bg(self, frame: Frame, color: Color = BG_COLOR) -> Frame:
         channels = ensure_rgb_color(color)

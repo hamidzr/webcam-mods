@@ -385,6 +385,13 @@ class ProfileEffect:
                     image_anchor=anchor,
                     lift=profile.spotlight_lift,
                 )
+            if profile.segmentation == "chroma":
+                self.background.effects.configure_key(
+                    profile.key_bgr,
+                    profile.key_tolerance,
+                    profile.key_softness,
+                    profile.key_spill,
+                )
         tracked = profile.track or profile.effect == "track"
         if self.tracking is not None and not tracked:
             tracking, self.tracking = self.tracking, None

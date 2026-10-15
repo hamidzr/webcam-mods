@@ -76,9 +76,10 @@ Root help lists frequent grouped options; command help exposes all common option
 | `output/gui.py` | Bare final-frame preview, paced events and close/Escape shutdown |
 | `mods/video_mods.py` | Portable geometry, resize and HSV brightness |
 | `mods/mp_face.py` | Lazy instance-owned MediaPipe face detector with automatic CPU/Metal selection |
-| `mods/person_segmentation.py` | Instance-owned MediaPipe/Vision effects (blur, color, image, spotlight) and float32 blending |
+| `mods/person_segmentation.py` | Instance-owned MediaPipe/Vision/chroma effects (blur, color, image, spotlight) and float32 blending |
 | `mods/camera_motion.py` | Instance-owned crop interpolation |
 | `mods/record_replay.py` | Bounded recorder and looping replay |
+| `mods/chroma.py` | Lighting-robust chroma key segmenter (CrCb distance) and edge despill for green screen |
 | `mods/looks.py` | `.cube` 3D LUT parsing, built-in looks and 7-bit table application with strength |
 | `mods/color.py` | Exposure/contrast/white balance lookup tables, saturation, sharpening, neutral-balance solver, auto light |
 | `stats.py` | Thread-safe sliding-window frame rate and duration meters |

@@ -58,6 +58,7 @@ class SignalPattern(str, Enum):
 class SegmentationBackend(str, Enum):
     mediapipe = "mediapipe"
     vision = "vision"
+    chroma = "chroma"
 
 
 class ProcessingBackend(str, Enum):
@@ -81,7 +82,7 @@ class VisionQuality(str, Enum):
 class Common:
     freeze_on_error: bool = False
     controls: bool = True
-    segmentation: Literal["mediapipe", "vision"] = "mediapipe"
+    segmentation: Literal["mediapipe", "vision", "chroma"] = "mediapipe"
     processing: Literal["opencv", "coreimage"] = "opencv"
     capture: CaptureMode = "auto"
     quality: Quality = "balanced"
@@ -590,7 +591,7 @@ def common(
         SegmentationBackend.mediapipe,
         rich_help_panel="Effects",
         metavar="BACKEND",
-        help="mediapipe or vision.",
+        help="mediapipe, vision or chroma (green screen keying).",
     ),
     processing_backend: ProcessingBackend = typer.Option(
         ProcessingBackend.opencv,
