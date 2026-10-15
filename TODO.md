@@ -78,7 +78,7 @@ Phase 7, large or research:
 24. Desk or whiteboard view: perspective correction of a chosen area. Done.
 25. Eye-contact correction (experimental). Done.
 26. Gesture reactions. Done.
-27. Makeup filters.
+27. Makeup filters: lip color and blush. Done.
 
 ## Other ideas
 

@@ -67,8 +67,8 @@ shows the middle of the camera picture in a circle; Cutout shows only the person
 standing on the bottom edge, using the profile's segmentation (Green screen keys a
 backdrop instead). Corner and Size (camera height, 10..80 percent of the picture)
 apply live; turning it on or off restarts. Mirror, flip, rotation, denoise, low
-light, eye contact, touch up, brightness, color and look apply to the camera
-picture, never to the screen; gesture reactions read the camera and play over the
+light, eye contact, touch up, makeup, brightness, color and look apply to the
+camera picture, never to the screen; gesture reactions read the camera and play over the
 whole picture. The camera opens and closes with the session, so Pause turns it off.
 
 Zoom (1x..4x) crops the camera to what calls see. The crop keeps the output aspect,
@@ -147,8 +147,8 @@ curve set by Lift you, where black and white stay put; both apply live without
 reloading segmentation. Tracking combines
 with background and brightness. Effect order: rotation, mirror and vertical flip,
 denoise, desk view or manual crop with tracking inside the crop, auto light, eye
-contact, touch up, fixed-size background processing, brightness, color, look,
-overlays, gesture reactions, final output sizing. Mirror video flips the
+contact, touch up, makeup, fixed-size background processing, brightness, color,
+look, overlays, gesture reactions, final output sizing. Mirror video flips the
 camera left to right for both preview and OBS output, so receivers see the
 mirrored view; background images stay readable. Background effects keep the
 picture orientation, so only Mirror video flips it. Flip upside down turns the picture
@@ -183,9 +183,16 @@ slides under the upper lid while the sclera below stretches. It costs about 4 ms
 per 720p frame, downloads the MediaPipe face landmarker (3.8 MB) on first use and
 applies live. Touch up (0..100, 0 off) smooths skin tones with an edge-preserving
 filter after eye contact; strong edges such as eyes, brows and lips keep their
-detail, and non-skin colors stay untouched. It costs about 7 ms per 720p frame and applies live. Denoise
-(0..100, 0 off) averages each pixel over recent frames where the picture holds
-still, right after orientation and before framing, so zooming or tracking never
+detail, and non-skin colors stay untouched. It costs about 7 ms per 720p frame
+and applies live. Makeup (Lips and Blush, each 0..100 with 0 off, and a color)
+tints the lips and the apples of the cheeks after touch up, placed with the same
+face mesh as eye contact (one detection serves both). Colors replace hue and
+saturation in Lab while the picture's shading stays, so lips keep their texture
+and highlights, teeth or an open mouth keep their own color, and blush fades out
+from each cheek. Lips also move most of the way to the chosen color's lightness.
+Makeup costs about 2 ms per 720p frame on top of the face mesh and applies live.
+Denoise (0..100, 0 off) averages each pixel over recent frames where the picture
+holds still, right after orientation and before framing, so zooming or tracking never
 restarts it; moving areas and scene changes pass through without ghosts. It costs
 about 4 ms per 720p frame (9 ms at 1080p) and applies live; turning it off drops
 the history. Camera view and white balance use the raw picture; Compare keeps
@@ -366,6 +373,8 @@ Profile fields and defaults:
 | auto_light | 0 | Low-light lift strength, 0..100; 0 off, never darkens |
 | eye_contact | 0 | Experimental iris lift toward a camera above the screen, 0..100; 0 off. Camera picture only |
 | touchup | 0 | Skin smoothing strength, 0..100; 0 off |
+| lip_color, blush_color | #B23A48, #E8828C | Makeup colors as `#RRGGBB`, saved uppercase |
+| lip_strength, blush_strength | 0 | Lip color and blush strength, 0..100; 0 off. Camera picture only |
 | reactions | false | Held hand gestures set off animations drawn over the finished picture. Camera picture only |
 | denoise | 0 | Temporal noise reduction strength, 0..100; 0 off |
 | camera_exposure, camera_focus | null | Exposure time and focus set on the camera, 0..100 across its range (exposure in even stops); null keeps the camera's own, usually automatic, setting. macOS with camera_id |

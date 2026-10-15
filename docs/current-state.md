@@ -37,7 +37,8 @@ remain supported. Native macOS menu is optional; installed CLI works independent
   profiles; Pick white sets warmth and tint from a clicked camera point. Low light
   gradually brightens dark pictures before segmentation; experimental Eye contact
   lifts irises toward a camera above the screen; Touch up smooths skin while eyes,
-  brows and lips stay sharp; Denoise averages grain over still frames.
+  brows and lips stay sharp; Makeup tints lips and cheeks in chosen colors;
+  Denoise averages grain over still frames.
   Camera hardware sets exposure, focus and anti-flicker on cameras whose drivers
   publish them, and puts them back when the session ends. Gesture reactions turn a
   held thumbs up or down, peace or I-love-you sign into an animation over the

@@ -19,6 +19,7 @@ from webcam_mods.mods.denoise import TemporalDenoiser
 from webcam_mods.mods.eye_contact import correct_gaze
 from webcam_mods.mods.face_landmarks import FaceLandmarks
 from webcam_mods.mods.looks import ColorLook, builtin_look, load_cube
+from webcam_mods.mods.makeup import Makeup, apply_makeup
 from webcam_mods.mods.overlay import Logo, Overlay, OverlaySettings, Position, load_logo
 from webcam_mods.mods.perspective import PerspectiveView
 from webcam_mods.mods.presenter import Alpha, bubble, cutout, place
@@ -227,6 +228,15 @@ def _color_settings(profile: Profile) -> ColorSettings:
     )
 
 
+def _makeup(profile: Profile) -> Makeup:
+    return Makeup(
+        lip_color=profile.lip_bgr,
+        lip_strength=profile.lip_strength,
+        blush_color=profile.blush_bgr,
+        blush_strength=profile.blush_strength,
+    )
+
+
 def _overlay_settings(profile: Profile) -> OverlaySettings:
     return OverlaySettings(
         logo_path=profile.logo_path,
@@ -294,11 +304,11 @@ class ProfileEffect:
 
     Order: orientation, noise reduction, desk view straightening or manual crop
     with optional tracking inside it, auto light, eye contact, skin touch-up,
-    fixed-size background, brightness, color, look, overlays, gesture reactions.
-    Gestures are read from the lit camera picture. A screen source skips
-    orientation, noise reduction, tracking and background; with the presenter on,
-    the camera picture is oriented, cleaned, lit and graded, then placed over the
-    output-sized screen before overlays. The recorder keeps finished frames; while
+    makeup, fixed-size background, brightness, color, look, overlays, gesture
+    reactions. Gestures are read from the lit camera picture. A screen source
+    skips orientation, noise reduction, tracking and background; with the
+    presenter on, the camera picture is oriented, cleaned, lit and graded, then
+    placed over the output-sized screen before overlays. The recorder keeps finished frames; while
     it replays, they replace the whole pipeline. Updates are queued by any thread
     and applied on the processing thread before a frame. Source, original and mask
     preview frames are encoded only while the app shows them.
@@ -340,7 +350,7 @@ class ProfileEffect:
         self.color = ColorAdjuster()
         self.auto_light = AutoLight(0)
         self.denoiser = TemporalDenoiser(0)
-        # face mesh for eye contact, made while a profile uses it
+        # face mesh for eye contact and makeup, made while a profile uses either
         self.landmarks: FaceLandmarks | None = None
         # gesture reactions, made while a profile uses them
         self.reactions: Reactions | None = None
@@ -537,10 +547,12 @@ class ProfileEffect:
             self.denoiser.configure(profile.denoise)
         # shared screens without the presenter have no camera picture to read
         camera = profile.source == "camera" or profile.presenting
-        gaze = profile.eye_contact and camera
-        if gaze and self.landmarks is None:
+        face = camera and bool(
+            profile.eye_contact or profile.lip_strength or profile.blush_strength
+        )
+        if face and self.landmarks is None:
             self.landmarks = FaceLandmarks()
-        elif not gaze and self.landmarks is not None:
+        elif not face and self.landmarks is not None:
             landmarks, self.landmarks = self.landmarks, None
             landmarks.close()
         if profile.reactions and camera and self.reactions is None:
@@ -684,14 +696,17 @@ class ProfileEffect:
         return self.denoiser(frame) if profile.denoise else frame
 
     def _light(self, frame: Frame, profile: Profile) -> Frame:
-        """Auto light, eye contact and skin touch-up, on the camera picture only."""
+        """Auto light, eye contact, skin touch-up and makeup, on the camera picture."""
         frame = self.auto_light(frame, time.monotonic())
-        if self.landmarks is not None:
-            points = self.landmarks.detect(frame)
-            if points is not None:
-                frame = correct_gaze(frame, points, profile.eye_contact)
+        points = None if self.landmarks is None else self.landmarks.detect(frame)
+        if points is not None and profile.eye_contact:
+            frame = correct_gaze(frame, points, profile.eye_contact)
         if profile.touchup:
             frame = smooth_skin(frame, profile.touchup)
+        makeup = _makeup(profile)
+        if points is not None and not makeup.is_empty():
+            # the irises moved, but lips and cheeks are where the mesh found them
+            frame = apply_makeup(frame, points, makeup)
         return frame
 
     def _grade(self, frame: Frame, profile: Profile) -> Frame:

@@ -33,6 +33,55 @@ RIGHT_EYE = (
 )
 LEFT_IRIS = (468, 469, 470, 471, 472)
 RIGHT_IRIS = (473, 474, 475, 476, 477)
+# lip outlines from the left mouth corner, along the lower lip and back
+LIPS_OUTER = (
+    61,
+    146,
+    91,
+    181,
+    84,
+    17,
+    314,
+    405,
+    321,
+    375,
+    291,
+    409,
+    270,
+    269,
+    267,
+    0,
+    37,
+    39,
+    40,
+    185,
+)
+LIPS_INNER = (
+    78,
+    95,
+    88,
+    178,
+    87,
+    14,
+    317,
+    402,
+    318,
+    324,
+    308,
+    415,
+    310,
+    311,
+    312,
+    13,
+    82,
+    81,
+    80,
+    191,
+)
+MOUTH_CORNERS = (61, 291)
+# apples of the cheeks, and the face's outer edges at cheekbone height
+CHEEKS = (50, 280)
+FACE_SIDES = (234, 454)
 POINTS = 478
 
 Landmarks = NDArray[np.float32]

@@ -138,6 +138,12 @@ class Profile:
     # holding thumbs up or down, a peace sign or an I-love-you sign to the camera
     # sets off an animation over the picture; two thumbs up throw confetti
     reactions: bool = False
+    # makeup placed with the face mesh: lip color and blush, each with a strength
+    # 0..100 where 0 is off; colors keep the picture's shading
+    lip_color: str = "#B23A48"
+    lip_strength: int = 0
+    blush_color: str = "#E8828C"
+    blush_strength: int = 0
     # set on the camera itself while the profile runs and put back after: exposure
     # time and focus as percents of the camera's range, and mains flicker
     # filtering; null leaves the camera's own, usually automatic, setting
@@ -190,6 +196,8 @@ class Profile:
             ("touchup", 0, 100),
             ("denoise", 0, 100),
             ("eye_contact", 0, 100),
+            ("lip_strength", 0, 100),
+            ("blush_strength", 0, 100),
             ("spotlight_dim", 0, 100),
             ("spotlight_lift", 0, 100),
             ("look_strength", 0, 100),
@@ -290,11 +298,11 @@ class Profile:
             ):
                 raise ValueError("background_color must be #RRGGBB or null")
             object.__setattr__(self, "background_color", self.background_color.upper())
-        if not isinstance(self.key_color, str) or not _HEX_COLOR.fullmatch(
-            self.key_color
-        ):
-            raise ValueError("key_color must be #RRGGBB")
-        object.__setattr__(self, "key_color", self.key_color.upper())
+        for key in ("key_color", "lip_color", "blush_color"):
+            value = getattr(self, key)
+            if not isinstance(value, str) or not _HEX_COLOR.fullmatch(value):
+                raise ValueError(f"{key} must be #RRGGBB")
+            object.__setattr__(self, key, value.upper())
         if not isinstance(self.image_path, str) or len(self.image_path) > 4096:
             raise ValueError("image_path must be a path string")
         if self.effect == "image" and not self.image_path:
@@ -327,6 +335,14 @@ class Profile:
     def key_bgr(self) -> tuple[int, int, int]:
         """Green screen key color as OpenCV BGR."""
         return _bgr(self.key_color)
+
+    @property
+    def lip_bgr(self) -> tuple[int, int, int]:
+        return _bgr(self.lip_color)
+
+    @property
+    def blush_bgr(self) -> tuple[int, int, int]:
+        return _bgr(self.blush_color)
 
     @property
     def capture_size(self) -> tuple[int, int]:

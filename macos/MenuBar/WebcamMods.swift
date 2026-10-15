@@ -115,6 +115,11 @@ struct Configuration: Codable, Equatable {
     var eye_contact = 0
     // held hand gestures set off animations over the picture
     var reactions = false
+    // lip color and blush placed with the face mesh, strength 0 off
+    var lip_color = "#B23A48"
+    var lip_strength = 0
+    var blush_color = "#E8828C"
+    var blush_strength = 0
     // set on the camera itself while running, then put back: exposure time and focus
     // as percents of its range, anti-flicker off/50hz/60hz; nil keeps the camera's own
     var camera_exposure: Int?
@@ -145,6 +150,7 @@ struct Configuration: Codable, Equatable {
     var hasOverlay: Bool { !logo_path.isEmpty || !caption.isEmpty || !caption_detail.isEmpty }
 
     var hardwareAdjusted: Bool { camera_exposure != nil || camera_focus != nil || anti_flicker != nil }
+    var makeupApplied: Bool { lip_strength > 0 || blush_strength > 0 }
 
     // keep in step with MAX_CAPTION_LENGTH in profiles.py, which counts code points
     static let captionLimit = 80
@@ -1108,6 +1114,11 @@ final class SessionModel: ObservableObject {
             model.cameraHardware = CameraHardware(exposure: .init(auto: false, value: 40), focus: .init(auto: true, value: 16), anti_flicker: "50hz")
             running(model, view: "output")
         }
+        try render("narrow-makeup", width: 440, height: 1250) { model in
+            model.config.lip_strength = 60
+            model.config.blush_strength = 30
+            running(model, view: "output")
+        }
         try render("desktop-image-background", width: 1100, height: 1000) { model in
             if let background = BuiltInBackground.catalog.first { model.selectBackground(background) }
             model.config.effect = "image"
@@ -1420,8 +1431,10 @@ final class SessionModel: ObservableObject {
         smoothed.denoise = 60
         smoothed.eye_contact = 70
         smoothed.reactions = true
+        smoothed.lip_strength = 60
+        smoothed.blush_color = "#D06070"
         let smoothedDecoded = try JSONDecoder().decode(Configuration.self, from: JSONEncoder().encode(smoothed))
-        try check(smoothedDecoded.touchup == 40 && smoothedDecoded.denoise == 60 && smoothedDecoded.eye_contact == 70 && smoothedDecoded.reactions && !smoothed.needsRestart(from: Configuration()) && Configuration().json["touchup"] as? Int == 0 && Configuration().json["denoise"] as? Int == 0 && Configuration().json["eye_contact"] as? Int == 0 && Configuration().json["reactions"] as? Bool == false, "Touch-up, denoise, eye contact and reactions encode and apply live")
+        try check(smoothedDecoded.touchup == 40 && smoothedDecoded.denoise == 60 && smoothedDecoded.eye_contact == 70 && smoothedDecoded.reactions && smoothedDecoded.lip_strength == 60 && smoothedDecoded.blush_color == "#D06070" && smoothed.makeupApplied && !Configuration().makeupApplied && Configuration().json["lip_color"] as? String == "#B23A48" && !smoothed.needsRestart(from: Configuration()) && Configuration().json["touchup"] as? Int == 0 && Configuration().json["denoise"] as? Int == 0 && Configuration().json["eye_contact"] as? Int == 0 && Configuration().json["reactions"] as? Bool == false, "Touch-up, denoise, eye contact, reactions and makeup encode and apply live")
         model.previewView = "output"
         model.beginWhitePick()
         try check(model.pickingWhite && model.previewView == "source", "White pick switches to Camera view")
@@ -1635,7 +1648,7 @@ final class SessionModel: ObservableObject {
         try pipe.fileHandleForWriting.close()
         try pipe.fileHandleForReading.close()
         try helperSelfTest()
-        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats, orientation, compare, color, spotlight, looks, pause, menu profiles, background color, green screen, overlays, screen source, presenter, snapshot, record loop, touch-up, denoise, eye contact, reactions, camera hardware, desk view).")
+        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats, orientation, compare, color, spotlight, looks, pause, menu profiles, background color, green screen, overlays, screen source, presenter, snapshot, record loop, touch-up, denoise, eye contact, reactions, makeup, camera hardware, desk view).")
     }
 
     private static func helperSelfTest() throws {
@@ -1930,6 +1943,7 @@ struct ControlPanel: View {
     @State private var colorExpanded: Bool
     @State private var overlaysExpanded: Bool
     @State private var hardwareExpanded: Bool
+    @State private var makeupExpanded: Bool
     @State private var confirmDelete = false
     @State private var showError = false
 
@@ -1938,6 +1952,7 @@ struct ControlPanel: View {
         _colorExpanded = State(initialValue: model.config.colorAdjusted)
         _overlaysExpanded = State(initialValue: model.config.hasOverlay)
         _hardwareExpanded = State(initialValue: model.config.hardwareAdjusted)
+        _makeupExpanded = State(initialValue: model.config.makeupApplied)
     }
 
     // keep in step with OVERLAY_POSITIONS in profiles.py
@@ -2154,6 +2169,20 @@ struct ControlPanel: View {
                         }.padding(.top, 4)
                     }
                     if model.config.usesCamera {
+                        DisclosureGroup("Makeup", isExpanded: $makeupExpanded) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    slider("Lips", value: $model.config.lip_strength, range: 0...100)
+                                    ColorPicker("Lip color", selection: hexColor(\.lip_color), supportsOpacity: false).labelsHidden()
+                                }
+                                HStack {
+                                    slider("Blush", value: $model.config.blush_strength, range: 0...100)
+                                    ColorPicker("Blush color", selection: hexColor(\.blush_color), supportsOpacity: false).labelsHidden()
+                                }
+                                Text("Colors keep the shading of your lips and skin. Downloads a face model on first use.")
+                                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                            }.padding(.top, 4)
+                        }
                         DisclosureGroup("Camera hardware", isExpanded: $hardwareExpanded) {
                             cameraHardware.padding(.top, 4)
                                 .task(id: model.selectedCameraID) { model.refreshCameraHardware() }
@@ -2390,6 +2419,12 @@ struct ControlPanel: View {
         Picker("Corner", selection: selection) {
             ForEach(Self.corners, id: \.0) { corner in Text(corner.1).tag(corner.0) }
         }
+    }
+
+    private func hexColor(_ key: WritableKeyPath<Configuration, String>) -> Binding<Color> {
+        Binding(get: { Color(nsColor: Configuration.color(hex: model.config[keyPath: key])) }, set: { picked in
+            if let hex = Configuration.hex(NSColor(picked)) { model.config[keyPath: key] = hex }
+        })
     }
 
     private func slider(_ title: String, value: Binding<Int>, range: ClosedRange<Double>) -> some View {
