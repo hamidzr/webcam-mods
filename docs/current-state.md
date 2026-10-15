@@ -20,7 +20,7 @@ remain supported. Native macOS menu is optional; installed CLI works independent
   background transformation, then brightness. Tracking background inference runs at
   fixed output dimensions to avoid rebuilding models during zoom.
 - Local JSONL helper manages one session through explicit Start/Stop and status.
-  Configuration changes require a stopped session. Native app opens a resizable
+  Effect settings apply live; capture/output shape changes restart. Native app opens a resizable
   main window with processed video preview, profiles, camera/effect selection,
   settings and errors. Preview-only output tests without OBS; virtual-camera
   output also supports preview. Preview uses a bounded latest JPEG in memory,

@@ -11,6 +11,24 @@ import sys
 import tempfile
 from typing import Any, Iterator
 
+# fields that shape capture or output; changing them needs a session restart
+RESTART_FIELDS = frozenset(
+    {
+        "input_device",
+        "camera_id",
+        "width",
+        "height",
+        "fps",
+        "capture",
+        "output_width",
+        "output_height",
+        "output_fps",
+        "repeat_frames",
+        "processing_fps",
+        "signal_pattern",
+    }
+)
+
 
 @dataclass(frozen=True)
 class Profile:

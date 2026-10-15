@@ -52,7 +52,14 @@ publishing; extension detection does not test exclusive output access.
 Status distinguishes Idle, Starting, Running, Stopping and Error. Running follows
 the first processed frame delivered to output. Starting can include model download
 or uncached CPU/Metal calibration. Stop releases capture and processing before
-another session starts. Edit settings while stopped; changes do not apply live.
+another session starts. Effect settings apply live while the camera runs: background,
+blur, color, tracking, brightness, mirror, segmentation, processing and smoothing.
+Background mode changes keep the loaded segmentation model; segmentation, processing
+or smoothing changes reload it, and tracking loads or releases face detection.
+Camera, capture size/FPS, capture backend, output destination, output size/FPS,
+processing FPS, repeat mode and loading picture shape the session. Editing them
+while running shows Restart camera, which stops, refreshes camera inventory and
+starts with the edited settings.
 The menu does not automatically activate when another application opens a camera.
 
 Background choices are original, blur, solid gray and image. Tracking combines
@@ -208,9 +215,17 @@ the helper available.
 | profiles.delete | name | true |
 | start | config, or profile name; optional output: virtualcam (default) or preview | Current state |
 | preview.get | {} | Latest {jpeg: base64, width, height}, or null |
+| session.update | config | Current state; applies live fields to the running session |
 | stop | {} | State after bounded shutdown |
 | status | {} | Current state, optional error and negotiated output_fps once output opens |
 | shutdown | {} | Stop result, then helper exits |
+
+`session.update` takes a complete configuration. It fails without a starting or
+running session, and when capture/output fields differ from the running session
+(`RESTART_FIELDS` in `profiles.py`). Unreadable background images fail the request.
+Accepted updates apply on the processing thread before the next frame; the latest
+update wins. If applying fails there, the session keeps running with its previous
+components and emits `{"event":"warning","data":{"message":...}}`.
 
 EOF also stops the session. Simultaneous sessions are rejected. Configuration
 validation occurs before acquiring resources. The controller refuses restart

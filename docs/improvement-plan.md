@@ -16,7 +16,7 @@ adapters and OBS output. Prefer bounded changes supported by concrete defects.
 The numbers retain the ordering from the project review. See [current state](current-state.md)
 for implemented behavior and verified limits. The native menu is an optional
 SwiftUI shell around the shared Python worker. It owns one explicit session;
-changing a running configuration requires Stop followed by Start.
+effect settings apply live; capture and output shape changes restart the session.
 
 ## Latest follow-up round
 

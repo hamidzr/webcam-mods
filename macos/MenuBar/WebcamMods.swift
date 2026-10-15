@@ -36,6 +36,35 @@ struct Configuration: Codable, Equatable {
     var json: [String: Any] {
         (try? JSONSerialization.jsonObject(with: JSONEncoder().encode(self))) as? [String: Any] ?? [:]
     }
+
+    // capture and output shape; keep in step with RESTART_FIELDS in profiles.py
+    func withRestartFields(from other: Configuration) -> Configuration {
+        var copy = self
+        copy.input_device = other.input_device
+        copy.camera_id = other.camera_id
+        copy.width = other.width
+        copy.height = other.height
+        copy.fps = other.fps
+        copy.capture = other.capture
+        copy.output_width = other.output_width
+        copy.output_height = other.output_height
+        copy.output_fps = other.output_fps
+        copy.repeat_frames = other.repeat_frames
+        copy.processing_fps = other.processing_fps
+        copy.signal_pattern = other.signal_pattern
+        return copy
+    }
+
+    func needsRestart(from running: Configuration) -> Bool {
+        var current = self
+        var original = running
+        // enumeration-only index changes keep the same physical camera
+        if current.camera_id != nil && current.camera_id == original.camera_id {
+            current.input_device = 0
+            original.input_device = 0
+        }
+        return current.withRestartFields(from: original) != current
+    }
 }
 
 struct ProfileIssue: Decodable {
@@ -94,13 +123,18 @@ enum OBSReadiness {
 @MainActor
 final class SessionModel: ObservableObject {
     static weak var current: SessionModel?
-    @Published var config = Configuration()
+    @Published var config = Configuration() {
+        didSet { if config != oldValue { pushLiveSettings() } }
+    }
     @Published var cameras: [Camera] = []
     @Published var profiles: [Profile] = []
     @Published var selectedProfile = ""
     @Published var profileName = ""
     @Published var state = "idle" {
-        didSet { if !previewing || (state == "starting" && oldValue != "starting") { clearPreview() } }
+        didSet {
+            if !previewing || (state == "starting" && oldValue != "starting") { clearPreview() }
+            if !active { endLiveSession() }
+        }
     }
     @Published var outputMode = "preview"
     @Published var outputFPS: Double?
@@ -126,6 +160,13 @@ final class SessionModel: ObservableObject {
     private var quitting = false
     private var startGeneration = 0
     private var workerGeneration = 0
+    // settings the running session last accepted; nil while stopped
+    @Published private(set) var sessionConfig: Configuration?
+    private var sessionOutputMode = "preview"
+    private var liveUpdateInFlight = false
+    private var liveUpdateQueued = false
+    private var restartAfterStop = false
+    private var startAfterInventory = false
 
     init() { Self.current = self }
     var hasWorker: Bool { process != nil }
@@ -231,6 +272,51 @@ final class SessionModel: ObservableObject {
         error = nil
         state = "idle"
         connect()
+    }
+
+    var restartRequired: Bool {
+        guard active, let running = sessionConfig else { return false }
+        return outputMode != sessionOutputMode || config.needsRestart(from: running)
+    }
+
+    private func endLiveSession() {
+        sessionConfig = nil
+        liveUpdateInFlight = false
+        liveUpdateQueued = false
+        if restartAfterStop, state == "idle" {
+            restartAfterStop = false
+            startAfterInventory = true
+            refreshCameras()
+        } else if state == "error" {
+            restartAfterStop = false
+        }
+    }
+
+    func pushLiveSettings() {
+        guard previewing, connected, let running = sessionConfig else { return }
+        let live = config.withRestartFields(from: running)
+        guard live != running else { return }
+        guard !liveUpdateInFlight else { liveUpdateQueued = true; return }
+        liveUpdateInFlight = true
+        sessionConfig = live
+        request("session.update", params: ["config": live.json]) { [weak self] result in
+            guard let self, self.liveUpdateInFlight else { return }
+            self.liveUpdateInFlight = false
+            if case .failure(let issue) = result {
+                if self.sessionConfig == live { self.sessionConfig = running }
+                self.error = issue.localizedDescription
+            }
+            if self.liveUpdateQueued {
+                self.liveUpdateQueued = false
+                self.pushLiveSettings()
+            }
+        }
+    }
+
+    func restart() {
+        guard active, state != "stopping" else { return }
+        restartAfterStop = true
+        stop()
     }
 
     var previewing: Bool { ["starting", "running"].contains(state) }
@@ -360,6 +446,8 @@ final class SessionModel: ObservableObject {
                 state = data["state"] as? String ?? "idle"
                 outputFPS = data["output_fps"] as? Double
                 error = data["error"] as? String
+            } else if message["event"] as? String == "warning", let data = message["data"] as? [String: Any] {
+                error = data["message"] as? String
             } else if let id = message["id"] as? Int, let callback = pending.removeValue(forKey: id) {
                 if let message = message["error"] as? String { callback(.failure(failure(message))) }
                 else { callback(.success(message["result"] ?? NSNull())) }
@@ -566,10 +654,46 @@ final class SessionModel: ObservableObject {
         try check(model.previewInterval == 1 / 29.97, "Preview follows negotiated output FPS")
         model.consume(Data("{\"event\":\"status\",\"data\":{\"state\":\"idle\"}}\n".utf8))
         try check(model.outputFPS == nil, "Idle clears negotiated output cadence")
+        _ = pipe.fileHandleForReading.availableData
+        func lastRequest() throws -> [String: Any]? {
+            let lines = pipe.fileHandleForReading.availableData.split(separator: 10)
+            return try lines.last.flatMap { try JSONSerialization.jsonObject(with: Data($0)) as? [String: Any] }
+        }
+        model.config = Configuration()
+        model.outputMode = "preview"
+        model.state = "running"
+        model.sessionConfig = Configuration()
+        model.sessionOutputMode = "preview"
+        let liveID = model.nextID + 1
+        model.config.brightness = 40
+        var live = try lastRequest()
+        let liveParams = live?["params"] as? [String: Any]
+        try check(live?["method"] as? String == "session.update" && (liveParams?["config"] as? [String: Any])?["brightness"] as? Int == 40, "Live setting sends session update")
+        model.config.width = 1280
+        try check(model.nextID == liveID && model.restartRequired, "Capture size waits for restart instead of live update")
+        model.config.brightness = 50
+        try check(model.nextID == liveID, "One live update in flight")
+        model.consume(Data("{\"id\":\(liveID),\"result\":{\"state\":\"running\"}}\n".utf8))
+        live = try lastRequest()
+        let queued = (live?["params"] as? [String: Any])?["config"] as? [String: Any]
+        try check(model.nextID == liveID + 1 && queued?["brightness"] as? Int == 50 && queued?["width"] as? Int == 640, "Queued live update keeps running capture settings")
+        model.consume(Data("{\"id\":\(liveID + 1),\"error\":\"could not apply\"}\n".utf8))
+        try check(model.error == "could not apply" && model.sessionConfig?.brightness == 40, "Rejected live update restores accepted settings")
+        model.consume(Data("{\"event\":\"warning\",\"data\":{\"message\":\"Could not apply settings: model\"}}\n".utf8))
+        try check(model.error == "Could not apply settings: model", "Worker warnings surface")
+        model.config.width = 640
+        model.config.input_device = 3
+        model.sessionConfig?.camera_id = "same"
+        model.config.camera_id = "same"
+        try check(!model.restartRequired, "Camera index renumbering does not require restart")
+        model.outputMode = "virtualcam"
+        try check(model.restartRequired, "Output destination change requires restart")
+        model.state = "idle"
+        try check(model.sessionConfig == nil && !model.restartRequired, "Stopping clears live session state")
         try pipe.fileHandleForWriting.close()
         try pipe.fileHandleForReading.close()
         try helperSelfTest()
-        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence, OBS readiness).")
+        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence, OBS readiness, live updates).")
     }
 
     private static func helperSelfTest() throws {
@@ -670,6 +794,10 @@ final class SessionModel: ObservableObject {
             inventoryCapture = capture
             reconcileCamera()
         }
+        if startAfterInventory {
+            startAfterInventory = false
+            start()
+        }
     }
 
     private func decode<T: Decodable>(_ result: Result<Any, Error>, as type: T.Type, apply: (T) -> Void) {
@@ -729,6 +857,8 @@ final class SessionModel: ObservableObject {
                     self.error = "Camera access denied. Enable Webcam Mods in System Settings > Privacy & Security > Camera."
                     return
                 }
+                self.sessionConfig = self.config
+                self.sessionOutputMode = self.outputMode
                 self.request("start", params: ["config": self.config.json, "output": self.outputMode]) { [weak self] result in
                     if case .failure(let issue) = result {
                         self?.state = "error"
@@ -912,9 +1042,17 @@ struct ControlPanel: View {
                             Toggle("Smooth segmentation mask", isOn: $model.config.smoothing)
                         }.padding(.top, 6)
                     }
-                }.disabled(model.active || !model.connected)
+                }.disabled(!model.connected)
             }.frame(maxHeight: .infinity)
-            Text(model.active ? "Stop camera to change settings." : "Choose settings, then start camera to preview.")
+            if model.restartRequired {
+                HStack {
+                    Label("Camera and output changes apply after a restart.", systemImage: "arrow.triangle.2.circlepath")
+                        .font(.caption).foregroundStyle(.orange)
+                    Spacer()
+                    Button("Restart camera", action: model.restart).disabled(model.state == "stopping")
+                }
+            }
+            Text(model.active ? "Effects apply live while the camera runs." : "Choose settings, then start camera to preview.")
                 .font(.caption).foregroundStyle(.secondary)
             if !model.connected && !model.hasWorker {
                 Button("Reconnect worker", action: model.reconnect)

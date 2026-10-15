@@ -188,6 +188,21 @@ class BackgroundEffect:
             quality=common.quality,
             smoothing=common.mask_smoothing,
         )
+        try:
+            self.configure(mode, value, image_blur_kernel=image_blur_kernel)
+        except BaseException:
+            self.effects.close()
+            raise
+        self.brightness = brightness
+
+    def configure(
+        self,
+        mode: Literal["blur_bg", "color_bg", "swap_bg"],
+        value: int | Frame,
+        *,
+        image_blur_kernel: int = 1,
+    ) -> None:
+        """Switch background treatment while keeping the loaded segmentation model."""
         if mode == "swap_bg":
             if not isinstance(value, np.ndarray):
                 raise TypeError("background replacement requires an image")
@@ -201,7 +216,6 @@ class BackgroundEffect:
                 if mode == "blur_bg"
                 else (lambda frame: self.effects.color_bg(frame, value))
             )
-        self.brightness = brightness
 
     def __call__(self, frame: Frame) -> Frame:
         result = self.transform(frame)

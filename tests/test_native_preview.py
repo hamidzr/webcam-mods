@@ -282,7 +282,15 @@ class PreviewControllerTests(unittest.TestCase):
         fail = False
 
         def runner(
-            profile, stop, ready, source_ready, *, output, on_frame, on_output_ready
+            profile,
+            stop,
+            ready,
+            source_ready,
+            *,
+            output,
+            on_frame,
+            on_output_ready,
+            **_,
         ):
             callbacks.append(on_frame)
             if cadence_callbacks:

@@ -111,18 +111,26 @@ class MirrorTests(HeadlessCliTestCase):
             self.assertEqual(result.exit_code, 0, result.output)
             self.assertIs(loop.call_args.kwargs["settings"].mirror, expected)
 
-    def test_profile_mirror_reaches_loop_settings(self) -> None:
+    def test_profile_mirror_is_applied_live_by_the_effect(self) -> None:
         from webcam_mods.control import run_profile
+        from webcam_mods.effects import ProfileEffect
 
         with (
             patch("webcam_mods.capture.create_camera", return_value=Mock()),
-            patch("webcam_mods.effects.ProfileEffect", return_value=Mock()),
             patch("webcam_mods.loopback.live_loop") as loop,
         ):
             run_profile(
                 Profile(mirror=True), threading.Event(), lambda: None, lambda _: None
             )
-        self.assertTrue(loop.call_args.kwargs["settings"].mirror)
+        # the loop must not flip again; the effect owns profile mirroring
+        self.assertFalse(loop.call_args.kwargs["settings"].mirror)
+        effect = loop.call_args.kwargs["mod"]
+        self.assertIsInstance(effect, ProfileEffect)
+        pixels = GradientSource().pixels
+        np.testing.assert_array_equal(effect(pixels), pixels[:, ::-1])
+        effect.update(Profile(mirror=False))
+        np.testing.assert_array_equal(effect(pixels), pixels)
+        effect.close()
 
     def test_screen_border_follows_mirrored_crop(self) -> None:
         from webcam_mods.input.screen import Screen

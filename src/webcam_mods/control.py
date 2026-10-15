@@ -4,9 +4,9 @@ from importlib.metadata import version
 import json
 import sys
 import threading
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
 
-from webcam_mods.profiles import Profile, ProfileStore
+from webcam_mods.profiles import RESTART_FIELDS, Profile, ProfileStore
 from webcam_mods.protocol import RequestFailure, read_requests
 from webcam_mods.output.native_preview import NativePreview
 from webcam_mods.utils.video import Frame
@@ -14,6 +14,9 @@ from webcam_mods.utils.video import Frame
 _STOP_TIMEOUT = 12
 from webcam_mods.input.input import AdapterMetadata, FrameInput
 from webcam_mods.settings import StartupSettings
+
+if TYPE_CHECKING:
+    from webcam_mods.effects import ProfileEffect
 
 
 def run_profile(
@@ -25,6 +28,8 @@ def run_profile(
     output: str = "virtualcam",
     on_frame: Callable[[Frame], None] | None = None,
     on_output_ready: Callable[[AdapterMetadata], None] | None = None,
+    on_effect: Callable[["ProfileEffect"], None] | None = None,
+    on_warning: Callable[[str], None] | None = None,
 ) -> None:
     from webcam_mods.capture import camera_index_for_id, create_camera
     from webcam_mods.effects import ProfileEffect
@@ -49,9 +54,11 @@ def run_profile(
         repeat_frames=profile.repeat_frames,
         processing_fps=profile.processing_fps,
         signal_pattern=profile.signal_pattern,  # type: ignore[arg-type]
-        mirror=profile.mirror,
     )
-    effect = ProfileEffect(profile, settings)
+    # the effect owns mirroring so it can change while running
+    effect = ProfileEffect(profile, settings, on_warning=on_warning)
+    if on_effect is not None:
+        on_effect(effect)
     transferred = False
     closed = False
     try:
@@ -117,9 +124,12 @@ class Controller:
         self.poisoned = False
         self.preview: NativePreview | None = None
         self.output_fps: float | None = None
+        self.profile: Profile | None = None
+        self.effect: ProfileEffect | None = None
 
     def _clear_preview(self) -> None:
         self.output_fps = None
+        self.effect = None
         if self.preview is not None:
             self.preview.close()
             self.preview = None
@@ -174,7 +184,16 @@ class Controller:
             self.source = None
             self._clear_preview()
             preview = self.preview = NativePreview()
+            self.profile = profile
             self._state("starting")
+
+            def effect_ready(effect: ProfileEffect) -> None:
+                with self.lock:
+                    if self.preview is preview and not self.stop_event.is_set():
+                        self.effect = effect
+
+            def warning(message: str) -> None:
+                self.emit({"event": "warning", "data": {"message": message}})
 
             def source_ready(source: FrameInput) -> None:
                 with self.lock:
@@ -208,6 +227,8 @@ class Controller:
                             output=output,
                             on_frame=preview.publish,
                             on_output_ready=output_ready,
+                            on_effect=effect_ready,
+                            on_warning=warning,
                         )
                     else:
                         self.runner(profile, self.stop_event, ready, source_ready)
@@ -228,6 +249,27 @@ class Controller:
                 target=run, name="webcam-session", daemon=True
             )
             self.thread.start()
+            return self.status()
+
+    def update(self, profile: Profile) -> dict[str, Any]:
+        """Apply live settings to the running session without reopening devices."""
+        with self.lock:
+            effect, running = self.effect, self.profile
+            if (
+                self.state not in ("starting", "running")
+                or effect is None
+                or running is None
+            ):
+                raise RuntimeError("no running session to update")
+            changed = sorted(
+                name
+                for name in RESTART_FIELDS
+                if getattr(profile, name) != getattr(running, name)
+            )
+            if changed:
+                raise ValueError(f"restart required to change {', '.join(changed)}")
+            effect.update(profile)
+            self.profile = profile
             return self.status()
 
     def stop(self) -> dict[str, Any]:
@@ -303,6 +345,10 @@ class Controller:
                 else Profile.parse(params.get("config", {}))
             )
             return self.start(profile, params.get("output", "virtualcam"))
+        if method == "session.update":
+            if set(params) != {"config"}:
+                raise ValueError("session.update requires only config")
+            return self.update(Profile.parse(params["config"]))
         if method in ("stop", "shutdown"):
             return self.stop()
         raise ValueError("unknown method")

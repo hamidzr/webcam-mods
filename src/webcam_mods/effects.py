@@ -1,14 +1,19 @@
 """Owned effect composition: tracking, background, then brightness."""
 
 from contextlib import ExitStack
+import threading
 import time
-from typing import Protocol, cast
+from typing import TYPE_CHECKING, Callable, Literal, Protocol, cast
 
 import cv2
+from loguru import logger
 from webcam_mods.mods.video_mods import brighten, crop_rect, resize_and_pad
 from webcam_mods.profiles import Profile
 from webcam_mods.utils.video import Frame
 from webcam_mods.settings import StartupSettings
+
+if TYPE_CHECKING:
+    from webcam_mods.entry import BackgroundEffect
 
 
 class Effect(Protocol):
@@ -89,64 +94,169 @@ class TrackingEffect:
         self.resources.close()
 
 
+def _read_image(path: str) -> Frame:
+    image = cv2.imread(path)
+    if image is None:
+        raise ValueError("background image could not be read")
+    return cast(Frame, image)
+
+
+def _background_key(profile: Profile) -> tuple[object, ...] | None:
+    if profile.effect not in ("blur", "color", "image"):
+        return None
+    return (
+        profile.effect,
+        profile.blur_kernel,
+        profile.color,
+        profile.image_path,
+        profile.image_blur,
+    )
+
+
+# changing these rebuilds the segmentation model; other settings apply in place
+_SEGMENTATION_FIELDS = ("segmentation", "processing", "smoothing")
+
+
 class ProfileEffect:
-    def __init__(self, profile: Profile, settings: StartupSettings) -> None:
-        self.resources = ExitStack()
-        self.brightness = profile.brightness
+    """Profile pipeline whose settings can change between frames.
+
+    Order: orientation, tracking, fixed-size background, brightness. Updates are
+    queued by any thread and applied on the processing thread before a frame.
+    """
+
+    def __init__(
+        self,
+        profile: Profile,
+        settings: StartupSettings,
+        *,
+        on_warning: Callable[[str], None] | None = None,
+    ) -> None:
         self._profile, self._settings = profile, settings
+        self._on_warning = on_warning
+        self._lock = threading.Lock()
+        self._pending: Profile | None = None
+        self._image: tuple[str, Frame] | None = None
         self._initialized = False
         self._closed = False
-        self.transform: Effect | None = None
+        self.background: "BackgroundEffect | None" = None
+        self.tracking: TrackingEffect | None = None
 
-    def _initialize(self) -> None:
-        from webcam_mods.entry import BackgroundEffect, Common
+    @property
+    def profile(self) -> Profile:
+        return self._profile
 
-        profile, settings = self._profile, self._settings
-        common = Common(segmentation=profile.segmentation, processing=profile.processing, mask_smoothing=profile.smoothing)  # type: ignore[arg-type]
-        background = None
-        try:
-            if profile.effect == "blur":
-                background = BackgroundEffect(common, "blur_bg", profile.blur_kernel)
-            elif profile.effect == "color":
-                background = BackgroundEffect(common, "color_bg", profile.color)
-            elif profile.effect == "image":
-                image = cv2.imread(profile.image_path)
-                if image is None:
-                    raise ValueError("background image could not be read")
-                background = BackgroundEffect(
-                    common,
-                    "swap_bg",
-                    cast(Frame, image),
-                    image_blur_kernel=profile.blur_kernel if profile.image_blur else 1,
-                )
-            if background is not None and not (
-                profile.track or profile.effect == "track"
-            ):
-                self.resources.callback(background.close)
-            self.transform = (
-                TrackingEffect(settings, background=background)
-                if profile.track or profile.effect == "track"
-                else background
+    def update(self, profile: Profile) -> None:
+        """Queue settings for the next frame; unreadable images fail here."""
+        if self._closed:
+            raise RuntimeError("profile effect is closed")
+        if profile.effect == "image":
+            self._load_image(profile.image_path)
+        with self._lock:
+            self._pending = profile
+
+    def _load_image(self, path: str) -> Frame:
+        with self._lock:
+            cached = self._image
+        if cached is not None and cached[0] == path:
+            return cached[1]
+        image = _read_image(path)
+        with self._lock:
+            self._image = (path, image)
+        return image
+
+    def _apply(self, profile: Profile, previous: Profile | None) -> None:
+        from webcam_mods.entry import Common, BackgroundEffect
+
+        key = _background_key(profile)
+        if self.background is not None and (
+            key is None
+            or previous is None
+            or any(
+                getattr(previous, name) != getattr(profile, name)
+                for name in _SEGMENTATION_FIELDS
             )
-            if isinstance(self.transform, TrackingEffect):
-                self.resources.callback(self.transform.close)
-            self._initialized = True
-        except BaseException:
-            self.resources.close()
-            raise
+        ):
+            background, self.background = self.background, None
+            background.close()
+        if key is not None:
+            mode: Literal["blur_bg", "color_bg", "swap_bg"]
+            value: int | Frame
+            if profile.effect == "image":
+                mode, value = "swap_bg", self._load_image(profile.image_path)
+            elif profile.effect == "blur":
+                mode, value = "blur_bg", profile.blur_kernel
+            else:
+                mode, value = "color_bg", profile.color
+            kernel = profile.blur_kernel if profile.image_blur else 1
+            if self.background is None:
+                common = Common(
+                    segmentation=profile.segmentation,  # type: ignore[arg-type]
+                    processing=profile.processing,  # type: ignore[arg-type]
+                    mask_smoothing=profile.smoothing,
+                )
+                self.background = BackgroundEffect(
+                    common, mode, value, image_blur_kernel=kernel
+                )
+            elif previous is not None and _background_key(previous) != key:
+                self.background.configure(mode, value, image_blur_kernel=kernel)
+        tracked = profile.track or profile.effect == "track"
+        if self.tracking is not None and not tracked:
+            tracking, self.tracking = self.tracking, None
+            tracking.close()
+        if tracked and self.tracking is None:
+            self.tracking = TrackingEffect(self._settings)
+        self._profile = profile
+
+    def _apply_pending(self) -> None:
+        with self._lock:
+            pending, self._pending = self._pending, None
+        if pending is None:
+            return
+        try:
+            self._apply(pending, self._profile)
+        except Exception as error:
+            # keep the session running on the components that still work
+            logger.error(f"failed to apply settings: {error}")
+            if self._on_warning is not None:
+                self._on_warning(f"Could not apply settings: {error}")
 
     def __call__(self, frame: Frame) -> Frame | None:
         if self._closed:
             raise RuntimeError("profile effect is closed")
         if not self._initialized:
-            self._initialize()
-        result = self.transform(frame) if self.transform is not None else frame
-        return (
-            brighten(result, self.brightness)
-            if result is not None and self.brightness
-            else result
-        )
+            try:
+                self._apply(self._profile, None)
+            except BaseException:
+                self._close_components()
+                raise
+            self._initialized = True
+        self._apply_pending()
+        profile = self._profile
+        if profile.mirror:
+            frame = cast(Frame, cv2.flip(frame, 1))
+        if self.tracking is not None:
+            tracked = self.tracking(frame)
+            if tracked is None:
+                return None
+            frame = tracked
+        if self.background is not None:
+            # fixed segmentation dimensions avoid rebuilding models on crop changes
+            frame = resize_and_pad(
+                frame, sw=self._settings.out_width, sh=self._settings.out_height
+            )
+            frame = self.background(frame)
+        return brighten(frame, profile.brightness) if profile.brightness else frame
+
+    def _close_components(self) -> None:
+        tracking, self.tracking = self.tracking, None
+        background, self.background = self.background, None
+        try:
+            if tracking is not None:
+                tracking.close()
+        finally:
+            if background is not None:
+                background.close()
 
     def close(self) -> None:
         self._closed = True
-        self.resources.close()
+        self._close_components()
