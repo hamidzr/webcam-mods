@@ -58,7 +58,7 @@ Phase 4, backgrounds:
 
 14. Any background color, eyedropper, background image position (S). Done.
 15. Green screen keying as a segmentation choice (M). Done.
-16. Looping video backgrounds (M).
+16. Looping video backgrounds (M). Done.
 
 Phase 5, composition:
 

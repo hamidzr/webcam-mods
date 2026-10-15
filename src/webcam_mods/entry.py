@@ -33,6 +33,7 @@ from webcam_mods.uses.interactive_controls import ControlAdapters
 
 if TYPE_CHECKING:
     from webcam_mods.mods.person_segmentation import Mask
+    from webcam_mods.mods.video_background import LoopingVideo
 
 app = typer.Typer(
     cls=SharedOptionsGroup,
@@ -182,7 +183,7 @@ class BackgroundEffect:
         self,
         common: Common,
         mode: BackgroundMode,
-        value: int | Frame | tuple[int, int, int],
+        value: "int | Frame | tuple[int, int, int] | LoopingVideo",
         brightness: int = 0,
         *,
         image_blur_kernel: int = 1,
@@ -213,7 +214,7 @@ class BackgroundEffect:
     def configure(
         self,
         mode: BackgroundMode,
-        value: int | Frame | tuple[int, int, int],
+        value: "int | Frame | tuple[int, int, int] | LoopingVideo",
         *,
         image_blur_kernel: int = 1,
         image_anchor: tuple[float, float] | None = None,
@@ -221,18 +222,32 @@ class BackgroundEffect:
     ) -> None:
         """Switch background treatment while keeping the loaded segmentation model.
 
-        value is the blur kernel, gray level or BGR color, or image; spotlight takes
-        the background dim percent as value and the person lift percent as lift.
-        An image anchor fills the frame keeping that image point in view; without
-        one the image stretches to the frame.
+        value is the blur kernel, gray level or BGR color, or image or looping
+        video; spotlight takes the background dim percent as value and the person
+        lift percent as lift. An image anchor fills the frame keeping that image
+        point in view; without one the image stretches to the frame. The caller
+        keeps owning a video.
         """
-        if mode == "swap_bg":
+        from webcam_mods.mods.video_background import LoopingVideo
+
+        if mode == "swap_bg" and isinstance(value, LoopingVideo):
+            video = value
+            self.effects.set_background(
+                video.frame(), blur_kernel=image_blur_kernel, anchor=image_anchor
+            )
+
+            def play(frame: Frame) -> Frame:
+                self.effects.replace_background(video.frame())
+                return self.effects.swap_bg(frame)
+
+            self.transform: Callable[[Frame], Frame] = play
+        elif mode == "swap_bg":
             if not isinstance(value, np.ndarray):
                 raise TypeError("background replacement requires an image")
             self.effects.set_background(
                 value, blur_kernel=image_blur_kernel, anchor=image_anchor
             )
-            self.transform: Callable[[Frame], Frame] = self.effects.swap_bg
+            self.transform = self.effects.swap_bg
         elif mode == "color_bg":
             if not isinstance(value, (int, tuple)):
                 raise TypeError("background color needs a gray level or BGR color")

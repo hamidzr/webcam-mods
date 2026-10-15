@@ -124,6 +124,8 @@ class PersonEffects:
         self._background: Frame | None = None
         self._background_blur_kernel = 1
         self._background_anchor: tuple[float, float] | None = None
+        # caller-owned video frame behind _background_source, for identity checks
+        self._background_origin: Frame | None = None
         # latest mask, aligned with the effect output, for the mask preview
         self.last_mask: Mask | None = None
 
@@ -209,8 +211,23 @@ class PersonEffects:
         if anchor is not None and not all(0 <= value <= 1 for value in anchor):
             raise ValueError("background anchor must be fractions in 0..1")
         self._background_source = bg_image.copy()
+        self._background_origin = None
         self._background_blur_kernel = blur_kernel
         self._background_anchor = anchor
+        self._background = None
+
+    def replace_background(self, bg_image: Frame) -> None:
+        """Show a new background picture with the current blur and anchor.
+
+        Meant for video frames: ownership passes in, so nothing is copied, and the
+        same frame object again keeps the already prepared background.
+        """
+        if bg_image is self._background_origin:
+            return
+        if self._closed:
+            raise RuntimeError("person effects are closed")
+        validate_frame(bg_image)
+        self._background_source = self._background_origin = bg_image
         self._background = None
 
     def swap_bg(self, frame: Frame, bg_image: Frame | None = None) -> Frame:
@@ -246,6 +263,7 @@ class PersonEffects:
     def close(self) -> None:
         self._closed = True
         self._background_source = self._background = None
+        self._background_origin = None
         self.last_mask = None
         if self.stabilizer is not None:
             self.stabilizer.reset()

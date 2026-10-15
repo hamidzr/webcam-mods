@@ -1509,8 +1509,9 @@ final class SessionModel: ObservableObject {
 
     func chooseImage() {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.image]
+        panel.allowedContentTypes = [.image, .movie]
         panel.allowsMultipleSelection = false
+        panel.message = "Choose a background picture or a video to loop"
         if panel.runModal() == .OK { config.image_path = panel.url?.path ?? "" }
     }
 
@@ -1613,7 +1614,7 @@ struct ControlPanel: View {
                         Text("Original").tag("plain")
                         Text("Blur").tag("blur")
                         Text("Solid color").tag("color")
-                        Text("Image").tag("image")
+                        Text("Image or video").tag("image")
                         Text("Spotlight").tag("spotlight")
                         Text("Face tracking").tag("track")
                     }

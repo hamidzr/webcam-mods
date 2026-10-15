@@ -91,7 +91,9 @@ sends the loading picture at output FPS. Resume video reopens the camera; Stop
 ends the pause. The menu bar icon shows a crossed-out camera while paused. The
 shortcut is registered when the app launches; if macOS refuses it, use the menu bar.
 
-Background choices are original, blur, solid color, image and spotlight. Solid
+Background choices are original, blur, solid color, image or video and spotlight.
+Choose your own accepts pictures and videos; a video loops at its own frame rate,
+without sound, decoded on the processing thread. Solid
 color takes any color from the color picker; the eyedropper button samples any
 pixel on screen, such as your wall in the camera preview. Image backgrounds fill
 the picture without stretching; Horizontal and Vertical choose which part of the
@@ -241,7 +243,7 @@ Profile fields and defaults:
 | blur_kernel | 31 | Positive odd box-blur kernel or Core Image radius mapping |
 | color | 192 | Gray background, 0..255, used when background_color is absent |
 | background_color | absent | Solid background as #RRGGBB; stored uppercase |
-| image_path | empty | Image required for image effect |
+| image_path | empty | Image or video required for image effect; videos loop |
 | image_blur | false | Cache image background blur using blur_kernel |
 | image_x, image_y | 0.5 | Image point kept in view while the image fills the picture, fractions from left and top |
 | spotlight_dim | 60 | Spotlight background darkening percent, 0..100 |

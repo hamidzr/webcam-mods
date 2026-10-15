@@ -16,6 +16,7 @@ from webcam_mods.mods.color import (
     neutral_balance,
 )
 from webcam_mods.mods.looks import ColorLook, builtin_look, load_cube
+from webcam_mods.mods.video_background import LoopingVideo
 from webcam_mods.mods.video_mods import brighten, crop_rect, resize_and_pad
 from webcam_mods.output.native_preview import Guides
 from webcam_mods.profiles import Profile
@@ -232,11 +233,13 @@ def _mask_frame(mask: "Mask") -> Frame:
     return cast(Frame, cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR))
 
 
-def _read_image(path: str) -> Frame:
+def _read_background(path: str) -> Frame | None:
+    """Still image at path, or None when it is a playable video."""
     image = cv2.imread(path)
-    if image is None:
-        raise ValueError("background image could not be read")
-    return cast(Frame, image)
+    if image is not None:
+        return cast(Frame, image)
+    LoopingVideo(path).close()
+    return None
 
 
 def _background_key(profile: Profile) -> tuple[object, ...] | None:
@@ -284,7 +287,9 @@ class ProfileEffect:
         self.stats = RateMeter()
         self._lock = threading.Lock()
         self._pending: Profile | None = None
-        self._image: tuple[str, Frame] | None = None
+        self._image: tuple[str, Frame | None] | None = None
+        # looping video background, opened and closed on the processing thread
+        self._video: LoopingVideo | None = None
         self._cube: tuple[str, ColorLook] | None = None
         self.look: ColorLook | None = None
         self._initialized = False
@@ -311,12 +316,12 @@ class ProfileEffect:
         with self._lock:
             self._pending = profile
 
-    def _load_image(self, path: str) -> Frame:
+    def _load_image(self, path: str) -> Frame | None:
         with self._lock:
             cached = self._image
         if cached is not None and cached[0] == path:
             return cached[1]
-        image = _read_image(path)
+        image = _read_background(path)
         with self._lock:
             self._image = (path, image)
         return image
@@ -350,11 +355,22 @@ class ProfileEffect:
         ):
             background, self.background = self.background, None
             background.close()
+        video: LoopingVideo | None = None
         if key is not None:
             mode: "BackgroundMode"
-            value: int | Frame | tuple[int, int, int]
+            value: int | Frame | tuple[int, int, int] | LoopingVideo
             if profile.effect == "image":
-                mode, value = "swap_bg", self._load_image(profile.image_path)
+                image = self._load_image(profile.image_path)
+                if image is not None:
+                    mode, value = "swap_bg", image
+                else:
+                    video = (
+                        self._video
+                        if self._video is not None
+                        and self._video.path == profile.image_path
+                        else LoopingVideo(profile.image_path)
+                    )
+                    mode, value = "swap_bg", video
             elif profile.effect == "blur":
                 mode, value = "blur_bg", profile.blur_kernel
             elif profile.effect == "spotlight":
@@ -363,28 +379,33 @@ class ProfileEffect:
                 mode, value = "color_bg", profile.background_bgr
             kernel = profile.blur_kernel if profile.image_blur else 1
             anchor = (profile.image_x, profile.image_y)
-            if self.background is None:
-                common = Common(
-                    segmentation=profile.segmentation,  # type: ignore[arg-type]
-                    processing=profile.processing,  # type: ignore[arg-type]
-                    mask_smoothing=profile.smoothing,
-                )
-                self.background = BackgroundEffect(
-                    common,
-                    mode,
-                    value,
-                    image_blur_kernel=kernel,
-                    image_anchor=anchor,
-                    lift=profile.spotlight_lift,
-                )
-            elif previous is not None and _background_key(previous) != key:
-                self.background.configure(
-                    mode,
-                    value,
-                    image_blur_kernel=kernel,
-                    image_anchor=anchor,
-                    lift=profile.spotlight_lift,
-                )
+            try:
+                if self.background is None:
+                    common = Common(
+                        segmentation=profile.segmentation,  # type: ignore[arg-type]
+                        processing=profile.processing,  # type: ignore[arg-type]
+                        mask_smoothing=profile.smoothing,
+                    )
+                    self.background = BackgroundEffect(
+                        common,
+                        mode,
+                        value,
+                        image_blur_kernel=kernel,
+                        image_anchor=anchor,
+                        lift=profile.spotlight_lift,
+                    )
+                elif previous is not None and _background_key(previous) != key:
+                    self.background.configure(
+                        mode,
+                        value,
+                        image_blur_kernel=kernel,
+                        image_anchor=anchor,
+                        lift=profile.spotlight_lift,
+                    )
+            except BaseException:
+                if video is not None and video is not self._video:
+                    video.close()
+                raise
             if profile.segmentation == "chroma":
                 self.background.effects.configure_key(
                     profile.key_bgr,
@@ -392,6 +413,11 @@ class ProfileEffect:
                     profile.key_softness,
                     profile.key_spill,
                 )
+        # the background now plays the new video, or none
+        if self._video is not video:
+            if self._video is not None:
+                self._video.close()
+            self._video = video
         tracked = profile.track or profile.effect == "track"
         if self.tracking is not None and not tracked:
             tracking, self.tracking = self.tracking, None
@@ -515,12 +541,17 @@ class ProfileEffect:
     def _close_components(self) -> None:
         tracking, self.tracking = self.tracking, None
         background, self.background = self.background, None
+        video, self._video = self._video, None
         try:
             if tracking is not None:
                 tracking.close()
         finally:
-            if background is not None:
-                background.close()
+            try:
+                if background is not None:
+                    background.close()
+            finally:
+                if video is not None:
+                    video.close()
 
     def close(self) -> None:
         self._closed = True
