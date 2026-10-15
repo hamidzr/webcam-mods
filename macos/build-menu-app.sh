@@ -21,6 +21,7 @@ BUILD_DATE=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
 mkdir -p "$OUTPUT/Contents/MacOS" "$OUTPUT/Contents/Resources"
 mkdir -p "$OUTPUT/Contents/Resources/Backgrounds"
 cp "$ROOT"/macos/Backgrounds/*.jpg "$ROOT/macos/Backgrounds/README.md" "$OUTPUT/Contents/Resources/Backgrounds/"
+cp "$ROOT/macos/AppIcon.icns" "$OUTPUT/Contents/Resources/AppIcon.icns"
 swiftc -parse-as-library -swift-version 5 -O -target "$(uname -m)-apple-macosx13.0" \
     "$ROOT/macos/MenuBar/WebcamMods.swift" -o "$OUTPUT/Contents/MacOS/WebcamMods"
 printf '%s\n' "$PYTHON" > "$OUTPUT/Contents/Resources/backend-python.txt"
@@ -32,6 +33,7 @@ cat > "$OUTPUT/Contents/Info.plist" <<PLIST
 <key>CFBundleName</key><string>Webcam Mods</string>
 <key>CFBundleDisplayName</key><string>Webcam Mods</string>
 <key>CFBundleExecutable</key><string>WebcamMods</string>
+<key>CFBundleIconFile</key><string>AppIcon</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleShortVersionString</key><string>$VERSION</string>
 <key>CFBundleVersion</key><string>$VERSION</string>

@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4f7cff"/>
+      <stop offset="1" stop-color="#5a32d6"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e4e8ff"/>
+    </linearGradient>
+    <radialGradient id="lens" cx="0.4" cy="0.35" r="0.75">
+      <stop offset="0" stop-color="#4b5df0"/>
+      <stop offset="1" stop-color="#1d1660"/>
+    </radialGradient>
+    <linearGradient id="spark" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff1a8"/>
+      <stop offset="1" stop-color="#ffc53d"/>
+    </linearGradient>
+    <filter id="tileShadow" x="-10%" y="-10%" width="120%" height="125%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="14"/>
+      <feOffset dy="12"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.35"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="glyphShadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="10"/>
+      <feOffset dy="10"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.28"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- big sur grid: 824 tile centered in 1024 -->
+  <g filter="url(#tileShadow)">
+    <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#tile)"/>
+    <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#sheen)"/>
+  </g>
+
+  <g filter="url(#glyphShadow)">
+    <!-- camera body -->
+    <rect x="214" y="384" width="440" height="320" rx="80" fill="url(#body)"/>
+    <!-- side flap -->
+    <path d="M690 492 L790 432 Q812 420 812 446 L812 642 Q812 668 790 656 L690 596 Z" fill="url(#body)"/>
+    <!-- lens -->
+    <circle cx="434" cy="544" r="104" fill="url(#lens)"/>
+    <circle cx="434" cy="544" r="104" fill="none" stroke="#c9d0ff" stroke-width="10"/>
+    <circle cx="400" cy="508" r="26" fill="#ffffff" fill-opacity="0.85"/>
+    <!-- sparkles -->
+    <path d="M690 196 Q706 300 810 316 Q706 332 690 436 Q674 332 570 316 Q674 300 690 196 Z" fill="url(#spark)"/>
+    <path d="M812 198 Q818 236 856 242 Q818 248 812 286 Q806 248 768 242 Q806 236 812 198 Z" fill="url(#spark)"/>
+  </g>
+</svg>

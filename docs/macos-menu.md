@@ -15,6 +15,9 @@ bundle. `menu-build` builds under `dist`; `menu-check` compiles and runs native
 transport/model self-tests, validates the plist and checks the signature. The app
 references the uv-tool runtime rather than embedding Python. Reinstall/rebuild
 both after changes; removing the uv tool makes the app's runtime unavailable.
+The bundle icon is the committed `macos/AppIcon.icns`; after editing the
+`assets/icon.svg` master, regenerate it with `just menu-icon` (needs
+`rsvg-convert` from librsvg).
 
 ## Controls
 
@@ -69,8 +72,8 @@ dimensions change. CLI equivalent: `webcam_mods bg-swap --blur --blur-kernel-siz
 Brightness adds HSV value, 0..255. Advanced settings expose capture size/FPS,
 processing FPS, backend choices, repeat delivery and optional mask smoothing.
 Loading picture selects TV color bars or animated TV static. Both preview and
-virtual-camera output receive the same loading frames with a startup message
-while capture, model initialization and calibration run. Live frames replace them
+virtual-camera output receive the same picture-only loading frames while
+capture, model initialization and calibration run; status stays in the window. Live frames replace them
 automatically; startup preview remains available while the session is starting.
 Requested capture size/FPS must be supported together by the selected camera.
 Native capture prefers an exact FPS match and accepts supported rates within 1%

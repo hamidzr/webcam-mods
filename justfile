@@ -72,6 +72,10 @@ e2e:
 
 verify: check test
 
+# regenerate macos/AppIcon.icns from assets/icon.svg (needs rsvg-convert)
+menu-icon:
+    macos/build-icon.sh
+
 # build native menu against the installed Python snapshot (macOS only)
 menu-build:
     macos/build-menu-app.sh
