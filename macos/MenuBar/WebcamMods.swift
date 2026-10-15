@@ -49,11 +49,13 @@ struct Configuration: Codable, Equatable {
     var temperature = 0
     var tint = 0
     var sharpness = 0
+    // lifts dark pictures gradually, 0 off
+    var auto_light = 0
 
     var tracking: Bool { track || effect == "track" }
 
     var colorAdjusted: Bool {
-        exposure != 0 || contrast != 0 || saturation != 0 || temperature != 0 || tint != 0 || sharpness != 0
+        exposure != 0 || contrast != 0 || saturation != 0 || temperature != 0 || tint != 0 || sharpness != 0 || auto_light != 0
     }
 
     mutating func resetColor() {
@@ -64,6 +66,7 @@ struct Configuration: Codable, Equatable {
         temperature = defaults.temperature
         tint = defaults.tint
         sharpness = defaults.sharpness
+        auto_light = defaults.auto_light
     }
 
     mutating func resetFramingPreferences() {
@@ -798,6 +801,7 @@ final class SessionModel: ObservableObject {
             model.config.exposure = 0.3
             model.config.temperature = 18
             model.config.saturation = 10
+            model.config.auto_light = 40
             running(model, view: "output")
             model.beginWhitePick()
             model.previewImage = image
@@ -1066,8 +1070,9 @@ final class SessionModel: ObservableObject {
         var colored = Configuration()
         colored.exposure = 0.5
         colored.sharpness = 30
+        colored.auto_light = 60
         let coloredDecoded = try JSONDecoder().decode(Configuration.self, from: JSONEncoder().encode(colored))
-        try check(coloredDecoded.exposure == 0.5 && coloredDecoded.colorAdjusted && !colored.needsRestart(from: Configuration()) && (Configuration().json["tint"] as? Int) == 0, "Color settings encode and apply live")
+        try check(coloredDecoded.exposure == 0.5 && coloredDecoded.auto_light == 60 && coloredDecoded.colorAdjusted && !colored.needsRestart(from: Configuration()) && (Configuration().json["tint"] as? Int) == 0, "Color settings encode and apply live")
         colored.resetColor()
         try check(!colored.colorAdjusted && colored == Configuration(), "Reset color restores neutral settings")
         model.previewView = "output"
@@ -1474,6 +1479,8 @@ struct ControlPanel: View {
                     slider("Brightness", value: $model.config.brightness, range: 0...255)
                     DisclosureGroup("Color", isExpanded: $colorExpanded) {
                         VStack(alignment: .leading, spacing: 4) {
+                            slider("Low light", value: $model.config.auto_light, range: 0...100)
+                                .help("Brightens dark rooms gradually; bright pictures stay as they are. 0 is off.")
                             decimalSlider("Exposure", value: $model.config.exposure, range: -2...2, text: { "\($0 > 0 ? "+" : "")\($0.formatted(.number.precision(.fractionLength(1))))" })
                                 .help("Exposure in stops: +1 doubles the light.")
                             slider("Contrast", value: $model.config.contrast, range: -100...100)

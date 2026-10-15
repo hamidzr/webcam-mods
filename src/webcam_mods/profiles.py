@@ -82,6 +82,8 @@ class Profile:
     temperature: int = 0
     tint: int = 0
     sharpness: int = 0
+    # lifts dark pictures toward a target brightness over about a second, 0 off
+    auto_light: int = 0
     camera_id: str | None = None
     output_width: int | None = None
     output_height: int | None = None
@@ -100,6 +102,7 @@ class Profile:
             ("temperature", -100, 100),
             ("tint", -100, 100),
             ("sharpness", 0, 100),
+            ("auto_light", 0, 100),
         ):
             value = getattr(self, key)
             if type(value) is not int or not lower <= value <= upper:

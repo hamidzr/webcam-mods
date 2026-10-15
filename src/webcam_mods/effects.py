@@ -9,7 +9,12 @@ import cv2
 from loguru import logger
 import numpy as np
 from webcam_mods.geometry import Rect
-from webcam_mods.mods.color import ColorAdjuster, ColorSettings, neutral_balance
+from webcam_mods.mods.color import (
+    AutoLight,
+    ColorAdjuster,
+    ColorSettings,
+    neutral_balance,
+)
 from webcam_mods.mods.video_mods import brighten, crop_rect, resize_and_pad
 from webcam_mods.output.native_preview import Guides
 from webcam_mods.profiles import Profile
@@ -252,8 +257,8 @@ _SEGMENTATION_FIELDS = ("segmentation", "processing", "smoothing")
 class ProfileEffect:
     """Profile pipeline whose settings can change between frames.
 
-    Order: orientation, manual crop with optional tracking inside it, fixed-size
-    background, brightness, color. Updates are
+    Order: orientation, manual crop with optional tracking inside it, auto light,
+    fixed-size background, brightness, color. Updates are
     queued by any thread and applied on the processing thread before a frame.
     Source, original and mask preview frames are encoded only while the app shows
     them.
@@ -280,6 +285,7 @@ class ProfileEffect:
         self.background: "BackgroundEffect | None" = None
         self.tracking: TrackingEffect | None = None
         self.color = ColorAdjuster()
+        self.auto_light = AutoLight(0)
         # latest oriented camera frame, sampled for click-to-white-balance
         self._source: Frame | None = None
 
@@ -355,6 +361,7 @@ class ProfileEffect:
         ):
             self.tracking.configure(**options)
         self.color.configure(_color_settings(profile))
+        self.auto_light.configure(profile.auto_light)
         self._profile = profile
 
     def _apply_pending(self) -> None:
@@ -402,6 +409,8 @@ class ProfileEffect:
         if preview is not None and preview.wants("original"):
             # same framing as output without image effects, for hold-to-compare
             preview.publish(frame, "original")
+        # before segmentation so masks see the lifted picture; images stay as chosen
+        frame = self.auto_light(frame, time.monotonic())
         if self.background is not None:
             # fixed segmentation dimensions avoid rebuilding models on crop changes
             frame = resize_and_pad(

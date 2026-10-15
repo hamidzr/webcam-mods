@@ -78,6 +78,28 @@ class ProfileEffectColorTests(unittest.TestCase):
         self.assertEqual(len(effect.white_balance(1, 0)), 2)
 
 
+class AutoLightProfileTests(unittest.TestCase):
+    def test_auto_light_lifts_dark_framed_picture_live(self) -> None:
+        with self.assertRaisesRegex(ValueError, "auto_light"):
+            Profile.parse({"auto_light": 101})
+        self.assertNotIn("auto_light", RESTART_FIELDS)
+        dark = np.full((48, 64, 3), 30, np.uint8)
+        effect = ProfileEffect(
+            Profile(auto_light=100), StartupSettings(out_width=64, out_height=48)
+        )
+        self.addCleanup(effect.close)
+        lifted = effect(dark)
+        assert lifted is not None
+        self.assertGreater(float(lifted.mean()), 60)
+        # the gain eases over about a second and never darkens
+        bright = np.full((48, 64, 3), 200, np.uint8)
+        eased = effect(bright)
+        assert eased is not None
+        self.assertTrue(np.all(eased >= bright))
+        effect.update(Profile())
+        np.testing.assert_array_equal(effect(dark), dark)
+
+
 class ControllerWhiteBalanceTests(unittest.TestCase):
     def test_white_balance_needs_running_session_and_valid_point(self) -> None:
         directory = tempfile.TemporaryDirectory()

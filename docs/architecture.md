@@ -60,7 +60,7 @@ Root help lists frequent grouped options; command help exposes all common option
 | `session.py` | Validated frame preparation, ordered command application, recording ownership |
 | `loopback.py` | Adapter selection, metadata validation, synchronous/repeated delivery, cooperative stop and error behavior |
 | `frame_producer.py` | Worker-owned capture/effects, latest snapshot, bounded shutdown |
-| `effects.py` | Live profile pipeline: orientation, crop, tracking, background, brightness, color; preview views and white-balance sampling |
+| `effects.py` | Live profile pipeline: orientation, crop, tracking, auto light, background, brightness, color; preview views and white-balance sampling |
 | `profiles.py` | Validated launch profiles and transactional SQLite persistence |
 | `control.py` | One-session lifecycle controller and local JSONL request/event protocol |
 | `macos/MenuBar/WebcamMods.swift` | Native menu, managed helper transport and settings UI |

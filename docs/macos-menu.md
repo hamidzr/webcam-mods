@@ -85,7 +85,8 @@ The menu does not automatically activate when another application opens a camera
 Background choices are original, blur, solid gray and image. Tracking combines
 with background and brightness. Effect order: rotation, mirror and vertical flip,
 manual crop, tracking inside
-the crop, fixed-size background processing, brightness, color, final output sizing. Mirror video flips the
+the crop, auto light, fixed-size background processing, brightness, color, final
+output sizing. Mirror video flips the
 camera left to right for both preview and OBS output, so receivers see the
 mirrored view; background images stay readable. Flip upside down turns the picture
 over for a camera mounted upside down; Rotate turns it 90, 180 or 270 degrees
@@ -106,7 +107,10 @@ Color sets exposure, contrast, saturation, warmth, tint and sharpness for the wh
 picture, background included, after brightness; all apply live and Reset color
 restores neutral. Pick white switches to Camera view; click something white or gray
 and the worker samples a small patch of the raw camera frame, then sets warmth and
-tint so it turns neutral. Cancel or stopping the camera ends picking.
+tint so it turns neutral. Cancel or stopping the camera ends picking. Low light
+(0..100, 0 off) brightens dark framed pictures toward a mid-tone target over about a
+second, rolling off highlights; it never darkens. It runs before segmentation, so
+masks see the brighter picture while background images stay as chosen.
 Image mode includes an offline thumbnail gallery: Warm study, Quiet office and
 Soft shelves. Entering Image with no previous image selects Warm study; click a
 thumbnail to switch, or Choose your own to open an image file. Saved profiles
@@ -230,6 +234,7 @@ Profile fields and defaults:
 | contrast, saturation | 0 | -100..100 around the unchanged picture; saturation -100 is grayscale |
 | temperature, tint | 0 | White balance, -100..100: positive warmer, positive tint magenta |
 | sharpness | 0 | Unsharp mask amount, 0..100 |
+| auto_light | 0 | Low-light lift strength, 0..100; 0 off, never darkens |
 | smoothing | false | Opt-in motion-aware mask stabilization |
 
 ## Local protocol
