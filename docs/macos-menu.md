@@ -110,6 +110,15 @@ sends the loading picture at output FPS. Resume video reopens the camera; Stop
 ends the pause. The menu bar icon shows a crossed-out camera while paused. The
 shortcut is registered when the app launches; if macOS refuses it, use the menu bar.
 
+Below a running preview, Snapshot saves the frame calls last received as a PNG in
+Pictures > Webcam Mods, named for the time and never replacing a file; Show in
+Finder reveals it. Record loop keeps what calls see in memory as JPEG frames, up to
+256 MiB (about a minute at 720p), and stops on its own when full. Play loop sends
+the recording on repeat instead of the camera, for stepping away, and skips the
+effect pipeline meanwhile; Back to live returns. The preview marks Recording and
+Playing loop. Recordings last until the camera stops or restarts. Narrow windows
+show these buttons as icons.
+
 Background choices are original, blur, solid color, image or video and spotlight.
 Choose your own accepts pictures and videos; a video loops at its own frame rate,
 without sound, decoded on the processing thread. Solid
@@ -350,7 +359,9 @@ the helper available.
 | start | config, or profile name; optional output: virtualcam (default) or preview | Current state |
 | preview.get | optional view: output (default), source, mask or original | Latest {jpeg: base64, width, height, view, optional guides}, or null |
 | session.update | config | Current state; applies live fields to the running session |
-| session.stats | {} | {processed_fps, sent_fps, effect_ms}, each null until measured; null when idle |
+| session.stats | {} | {processed_fps, sent_fps, effect_ms}, each null until measured, plus recorder and recorded_seconds as in session.record; null when idle |
+| session.snapshot | {} | {path} of a new PNG of the frame last sent, in ~/Pictures/Webcam Mods. Fails before the first frame or while paused |
+| session.record | {action: record, stop or replay} | {recorder: idle, recording or replaying, recorded_seconds}. Record starts over; replay fails without a recording |
 | session.pause | {paused: true or false} | Current state; a paused session closes capture and sends the loading picture at output FPS. Requires a running session |
 | session.white_balance | {x, y} fractions of the camera view, 0..1 | {temperature, tint} that make a small patch of the latest camera frame neutral; the app applies them as a live update |
 | stop | {} | State after bounded shutdown |

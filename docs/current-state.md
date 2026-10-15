@@ -49,7 +49,8 @@ remain supported. Native macOS menu is optional; installed CLI works independent
   Menu bar exposes status, Start/Stop, Pause video, profile switching, Open window
   and Quit; switching restarts only when camera or output shape changes. Pause
   (also Control-Option-P from any app) closes the camera and sends the loading
-  picture while output stays open. Bounded settings
+  picture while output stays open. The preview saves PNG snapshots and records a
+  compressed in-memory loop that can replace the camera. Bounded settings
   scrolling and helper reconnection are available. Saved macOS camera identities
   prevent substitution after enumeration changes; independent profile output
   overrides inherit capture settings when absent. Local protocol accepts bounded

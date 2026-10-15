@@ -158,6 +158,7 @@ class ControllerPreviewTests(unittest.TestCase):
         self.addCleanup(directory.cleanup)
         self.effect = Mock()
         self.effect.stats.snapshot.return_value = (29.94, 0.01234)
+        self.effect.recording.return_value = {"recorder": "idle", "recorded_seconds": 0}
         self.started = threading.Event()
         self.frames = threading.Event()
 
@@ -195,6 +196,7 @@ class ControllerPreviewTests(unittest.TestCase):
         self.assertEqual(stats["processed_fps"], 29.9)
         self.assertEqual(stats["effect_ms"], 12.3)
         self.assertIsNotNone(stats["sent_fps"])
+        self.assertEqual(stats["recorder"], "idle")
         self.controller.stop()
         self.assertIsNone(dispatch("session.stats", {}))
 

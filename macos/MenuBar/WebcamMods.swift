@@ -402,6 +402,9 @@ final class SessionModel: ObservableObject {
                 stats = nil
                 comparing = false
                 paused = false
+                recorder = "idle"
+                recordedSeconds = 0
+                snapshotPath = nil
                 cancelWhitePick()
             }
             if !active { endLiveSession() }
@@ -432,6 +435,11 @@ final class SessionModel: ObservableObject {
     // normalized boxes drawn over the preview, never into the video
     @Published var previewGuides: [String: CGRect] = [:]
     @Published var stats: SessionStats?
+    // in-memory output loop: idle, recording or replaying; gone when the camera stops
+    @Published var recorder = "idle"
+    @Published var recordedSeconds = 0.0
+    private var recordPending = false
+    @Published var snapshotPath: String?
     private var statsPending = false
     private var statsRequestedAt: Date?
     private var previewPending = false
@@ -627,6 +635,50 @@ final class SessionModel: ObservableObject {
             (data[key] as? NSNumber).map(\.doubleValue).flatMap { $0.isFinite && $0 >= 0 ? $0 : nil }
         }
         stats = SessionStats(processedFPS: number("processed_fps"), sentFPS: number("sent_fps"), effectMS: number("effect_ms"))
+        // recordings stop on their own when memory runs out
+        if !recordPending { acceptRecording(data) }
+    }
+
+    private func acceptRecording(_ data: [String: Any]) {
+        guard let state = data["recorder"] as? String, ["idle", "recording", "replaying"].contains(state),
+              let seconds = (data["recorded_seconds"] as? NSNumber)?.doubleValue, seconds.isFinite, seconds >= 0 else { return }
+        recorder = state
+        recordedSeconds = seconds
+    }
+
+    // record, stop or replay; replay sends the recording on repeat instead of the camera
+    func record(_ action: String) {
+        guard state == "running", !recordPending else { return }
+        recordPending = true
+        request("session.record", params: ["action": action]) { [weak self] result in
+            guard let self else { return }
+            self.recordPending = false
+            switch result {
+            case .success(let value):
+                if let data = value as? [String: Any] { self.acceptRecording(data) }
+            case .failure(let issue):
+                self.error = issue.localizedDescription
+            }
+        }
+    }
+
+    // the worker writes a PNG of what calls see to Pictures/Webcam Mods
+    func snapshot() {
+        guard state == "running", !paused else { return }
+        request("session.snapshot") { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success(let value):
+                self.snapshotPath = (value as? [String: Any])?["path"] as? String
+            case .failure(let issue):
+                self.error = issue.localizedDescription
+            }
+        }
+    }
+
+    func revealSnapshot() {
+        guard let snapshotPath else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: snapshotPath)])
     }
 
     private func acceptPreview(_ result: Result<Any, Error>) {
@@ -927,6 +979,12 @@ final class SessionModel: ObservableObject {
         try render("desktop-output", width: 1100, height: 720) { model in
             model.config.effect = "blur"
             running(model, view: "output")
+        }
+        try render("narrow-loop", width: 440, height: 900) { model in
+            running(model, view: "output")
+            model.recorder = "replaying"
+            model.recordedSeconds = 12.4
+            model.snapshotPath = "/Users/snapshot/Pictures/Webcam Mods/Webcam Mods 2026-10-15 at 14.03.22.png"
         }
         try render("desktop-camera-guides", width: 1100, height: 720) { model in
             model.config.track = true
@@ -1289,8 +1347,24 @@ final class SessionModel: ObservableObject {
         try check(model.stats?.summary == "Processed 29.9 fps, sent 30 fps, effects --", "Stats decode and format")
         model.pollStats(visible: true, now: statsTime.addingTimeInterval(0.5))
         try check(model.nextID == statsID, "Stats poll at most once a second")
+        let recordID = model.nextID + 1
+        model.record("record")
+        model.record("stop")
+        let recordRequest = try lastRequest()
+        try check(model.nextID == recordID && recordRequest?["method"] as? String == "session.record" && (recordRequest?["params"] as? [String: Any])?["action"] as? String == "record", "One record request in flight")
+        model.consume(Data("{\"id\":\(recordID),\"result\":{\"recorder\":\"recording\",\"recorded_seconds\":0}}\n".utf8))
+        try check(model.recorder == "recording" && model.recordedSeconds == 0, "Record shows the worker's recorder state")
+        let fullID = model.nextID + 1
+        model.pollStats(visible: true, now: statsTime.addingTimeInterval(4))
+        model.consume(Data("{\"id\":\(fullID),\"result\":{\"processed_fps\":30,\"sent_fps\":30,\"effect_ms\":9,\"recorder\":\"idle\",\"recorded_seconds\":41.5}}\n".utf8))
+        try check(model.recorder == "idle" && model.recordedSeconds == 41.5, "Stats show a recording that stopped when full")
+        let snapshotID = model.nextID + 1
+        model.snapshot()
+        let snapshotRequest = try lastRequest()
+        model.consume(Data("{\"id\":\(snapshotID),\"result\":{\"path\":\"/Users/a/Pictures/Webcam Mods/Webcam Mods 2026-10-15 at 14.03.22.png\"}}\n".utf8))
+        try check(snapshotRequest?["method"] as? String == "session.snapshot" && model.snapshotPath?.hasSuffix("14.03.22.png") == true, "Snapshot asks the worker and keeps the saved path")
         model.state = "idle"
-        try check(model.stats == nil, "Stopping clears stats")
+        try check(model.stats == nil && model.recorder == "idle" && model.recordedSeconds == 0 && model.snapshotPath == nil, "Stopping clears stats, recording and snapshot")
         var tuned = Configuration()
         tuned.track_face_height = 0.3
         tuned.track_follow_seconds = 1.5
@@ -1420,7 +1494,7 @@ final class SessionModel: ObservableObject {
         try pipe.fileHandleForWriting.close()
         try pipe.fileHandleForReading.close()
         try helperSelfTest()
-        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats, orientation, compare, color, spotlight, looks, pause, menu profiles, background color, green screen, overlays, screen source, presenter).")
+        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats, orientation, compare, color, spotlight, looks, pause, menu profiles, background color, green screen, overlays, screen source, presenter, snapshot, record loop).")
     }
 
     private static func helperSelfTest() throws {
@@ -2193,9 +2267,9 @@ struct PreviewPanel: View {
                             }
                         }
                         .overlay(alignment: .topLeading) {
-                            if model.comparing {
-                                Text("Original").font(.caption.bold()).padding(.horizontal, 8).padding(.vertical, 3)
-                                    .background(Capsule().fill(.black.opacity(0.6))).foregroundStyle(.white).padding(8)
+                            if let badge = model.comparing ? "Original" : model.recorder == "replaying" ? "Playing loop" : model.recorder == "recording" ? "Recording" : nil {
+                                Text(badge).font(.caption.bold()).lineLimit(1).fixedSize().padding(.horizontal, 8).padding(.vertical, 3)
+                                    .background(Capsule().fill(model.recorder == "recording" && !model.comparing ? .red.opacity(0.8) : .black.opacity(0.6))).foregroundStyle(.white).padding(8)
                             }
                         }
                 } else {
@@ -2212,6 +2286,7 @@ struct PreviewPanel: View {
             if let error = model.previewError {
                 Label(error, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange)
             }
+            if model.state == "running" { captureControls }
             Text(caption).font(.caption).foregroundStyle(.secondary)
             if let stats = model.stats {
                 Text(stats.summary).font(.caption).monospacedDigit().foregroundStyle(.secondary)
@@ -2222,6 +2297,41 @@ struct PreviewPanel: View {
 
 extension PreviewPanel {
     var title: some View { Text("Video preview").font(.headline).lineLimit(1) }
+
+    @ViewBuilder var captureControls: some View {
+        // narrow windows drop the button titles
+        ViewThatFits(in: .horizontal) {
+            captureButtons.labelStyle(.titleAndIcon)
+            captureButtons.labelStyle(.iconOnly)
+        }
+        if let path = model.snapshotPath {
+            HStack {
+                Text("Saved \(URL(fileURLWithPath: path).lastPathComponent)").font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                Button("Show in Finder", action: model.revealSnapshot).font(.caption)
+            }
+        }
+    }
+
+    private var captureButtons: some View {
+        let recording = model.recorder == "recording", replaying = model.recorder == "replaying"
+        return HStack(spacing: 8) {
+            Button(action: model.snapshot) { Label("Snapshot", systemImage: "camera") }
+                .disabled(model.paused)
+                .help("Save what calls see as a PNG in Pictures > Webcam Mods.")
+            Button { model.record(recording ? "stop" : "record") } label: {
+                Label(recording ? "Stop recording" : "Record loop", systemImage: recording ? "stop.circle" : "record.circle")
+            }.disabled(model.paused || replaying)
+                .help("Record what calls see, kept in memory until the camera stops. Recording stops on its own when memory for it runs out.")
+            Button { model.record(replaying ? "stop" : "replay") } label: {
+                Label(replaying ? "Back to live" : "Play loop", systemImage: replaying ? "video" : "repeat")
+            }.disabled(model.paused || recording || (!replaying && model.recordedSeconds == 0))
+                .help("Send the recording on repeat instead of the camera, for stepping away.")
+            if recording || model.recordedSeconds > 0 {
+                Text("\(model.recordedSeconds.formatted(.number.precision(.fractionLength(1)))) s").font(.caption).monospacedDigit().foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+    }
 
     var destination: some View {
         Text(model.outputMode == "preview" ? "Preview only" : "OBS Virtual Camera")

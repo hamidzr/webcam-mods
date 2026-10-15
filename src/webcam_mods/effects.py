@@ -18,6 +18,7 @@ from webcam_mods.mods.color import (
 from webcam_mods.mods.looks import ColorLook, builtin_look, load_cube
 from webcam_mods.mods.overlay import Logo, Overlay, OverlaySettings, Position, load_logo
 from webcam_mods.mods.presenter import Alpha, bubble, cutout, place
+from webcam_mods.mods.record_replay import Recorder
 from webcam_mods.mods.video_background import LoopingVideo
 from webcam_mods.mods.video_mods import brighten, crop_rect, resize_and_pad
 from webcam_mods.output.native_preview import Guides
@@ -289,7 +290,8 @@ class ProfileEffect:
     fixed-size background, brightness, color, look, overlays. A screen source
     skips orientation, tracking and background; with the presenter on, the camera
     picture is oriented, lit and graded, then placed over the output-sized screen
-    before overlays. Updates are
+    before overlays. The recorder keeps finished frames; while it replays, they
+    replace the whole pipeline. Updates are
     queued by any thread and applied on the processing thread before a frame.
     Source, original and mask preview frames are encoded only while the app shows
     them.
@@ -331,6 +333,9 @@ class ProfileEffect:
         self.auto_light = AutoLight(0)
         # latest oriented camera frame, sampled for click-to-white-balance
         self._source: Frame | None = None
+        # output loop for stepping away; commands arrive from the control thread
+        self.recorder = Recorder(compress=True)
+        self._record_lock = threading.Lock()
 
     @property
     def profile(self) -> Profile:
@@ -530,10 +535,44 @@ class ProfileEffect:
             if self._on_warning is not None:
                 self._on_warning(f"Could not apply settings: {error}")
 
+    def recording(self) -> dict[str, str | float]:
+        """Recorder state and recorded seconds."""
+        with self._record_lock:
+            return {
+                "recorder": self.recorder.state,
+                "recorded_seconds": round(self.recorder.seconds, 1),
+            }
+
+    def record(self, action: str) -> dict[str, str | float]:
+        """Record the output, stop, or replay the recording in place of the camera."""
+        with self._record_lock:
+            if not self.recorder.command(action):
+                raise ValueError(
+                    "nothing recorded yet"
+                    if action == "replay"
+                    else "action must be record, stop or replay"
+                )
+        return self.recording()
+
     def __call__(self, frame: Frame) -> Frame | None:
         if self._closed:
             raise RuntimeError("profile effect is closed")
         started = time.perf_counter()
+        with self._record_lock:
+            replaying = self.recorder.replaying
+            if replaying:
+                # the recording stands in for the camera; nothing else runs
+                result: Frame | None = self.recorder.engage(frame)
+        if not replaying:
+            result = self._process(frame)
+            if result is not None:
+                with self._record_lock:
+                    result = self.recorder.engage(result)
+        if result is not None:
+            self.stats.tick(time.perf_counter() - started)
+        return result
+
+    def _process(self, frame: Frame) -> Frame | None:
         if not self._initialized:
             try:
                 self._apply(self._profile, None)
@@ -567,7 +606,6 @@ class ProfileEffect:
             frame = self._present(frame, profile)
             if self.overlay is not None:
                 frame = self.overlay(frame)
-            self.stats.tick(time.perf_counter() - started)
             return frame
         # before segmentation so masks see the lifted picture; images stay as chosen
         frame = self.auto_light(frame, time.monotonic())
@@ -585,7 +623,6 @@ class ProfileEffect:
         frame = self._grade(frame, profile)
         if self.overlay is not None:
             frame = self.overlay(frame)
-        self.stats.tick(time.perf_counter() - started)
         return frame
 
     def _grade(self, frame: Frame, profile: Profile) -> Frame:
@@ -684,4 +721,6 @@ class ProfileEffect:
     def close(self) -> None:
         self._closed = True
         self._source = None
+        with self._record_lock:
+            self.recorder.close()
         self._close_components()

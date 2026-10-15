@@ -79,7 +79,7 @@ Root help lists frequent grouped options; command help exposes all common option
 | `mods/mp_face.py` | Lazy instance-owned MediaPipe face detector with automatic CPU/Metal selection |
 | `mods/person_segmentation.py` | Instance-owned MediaPipe/Vision/chroma effects (blur, color, image, spotlight) and float32 blending |
 | `mods/camera_motion.py` | Instance-owned crop interpolation |
-| `mods/record_replay.py` | Bounded recorder and looping replay |
+| `mods/record_replay.py` | Bounded recorder (raw, or JPEG for app loops) with looping replay; time-named PNG snapshots |
 | `mods/video_background.py` | Looping video background decoded at its own frame rate, repeating frames when processing runs faster |
 | `mods/chroma.py` | Lighting-robust chroma key segmenter (CrCb distance) and edge despill for green screen |
 | `mods/presenter.py` | Presenter bubble and cutout layers placed in a corner of the screen |

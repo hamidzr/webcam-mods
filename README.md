@@ -170,7 +170,8 @@ just verify
 `check` runs Flake8, Black and strict mypy; `test` runs headless regression tests.
 E2E uses real models and deterministic image input through the production loop,
 writing PNG output and metrics under `dist/e2e`. It needs no camera, OBS or display.
-Native app opens a settings window with processed video preview. Preview-only
+Native app opens a settings window with processed video preview, PNG snapshots and
+a recorded loop that can stand in for the camera. Preview-only
 mode tests without OBS; the menu bar provides status, Start/Stop, Pause video, profile switching and Open window.
 Native app setup and checks: [macOS app guide](docs/macos-menu.md).
 

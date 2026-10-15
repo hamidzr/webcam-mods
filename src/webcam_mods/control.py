@@ -3,6 +3,7 @@
 from dataclasses import replace
 from importlib.metadata import version
 import json
+from pathlib import Path
 import sys
 import threading
 from typing import TYPE_CHECKING, Any, Callable
@@ -14,6 +15,7 @@ from webcam_mods.stats import RateMeter
 from webcam_mods.utils.video import Frame
 
 _STOP_TIMEOUT = 12
+SNAPSHOT_DIR = Path.home() / "Pictures" / "Webcam Mods"
 from webcam_mods.input.input import AdapterMetadata, FrameInput
 from webcam_mods.settings import StartupSettings
 
@@ -155,12 +157,15 @@ class Controller:
         self.profile: Profile | None = None
         self.effect: ProfileEffect | None = None
         self.sent = RateMeter()
+        # last frame sent to the output, for snapshots
+        self.delivered: Frame | None = None
         # user pause: capture closes and output shows the loading picture
         self.paused = threading.Event()
 
     def _clear_preview(self) -> None:
         self.output_fps = None
         self.effect = None
+        self.delivered = None
         if self.preview is not None:
             self.preview.close()
             self.preview = None
@@ -246,6 +251,9 @@ class Controller:
 
             def deliver(frame: Frame) -> None:
                 sent.tick()
+                # paused output is the loading picture, not the video
+                if self.preview is preview and not paused.is_set():
+                    self.delivered = frame
                 preview.publish(frame)
 
             def output_ready(metadata: AdapterMetadata) -> None:
@@ -329,8 +337,8 @@ class Controller:
                 self.emit({"event": "status", "data": self.status()})
             return self.status()
 
-    def stats(self) -> dict[str, float | None] | None:
-        """Processed and sent frame rates plus mean effect time, or None when idle."""
+    def stats(self) -> dict[str, str | float | None] | None:
+        """Frame rates, mean effect time and recorder state, or None when idle."""
         with self.lock:
             effect, sent = self.effect, self.sent
             if self.state not in ("starting", "running") or effect is None:
@@ -347,7 +355,28 @@ class Controller:
             "effect_ms": rounded(
                 None if effect_seconds is None else effect_seconds * 1000
             ),
+            **effect.recording(),
         }
+
+    def snapshot(self) -> dict[str, str]:
+        """Save the frame calls last received as a PNG."""
+        from webcam_mods.mods.record_replay import save_snapshot
+
+        with self.lock:
+            frame = self.delivered
+            if self.state != "running" or frame is None:
+                raise RuntimeError("no video to save yet")
+            if self.paused.is_set():
+                raise RuntimeError("video is paused")
+        return {"path": str(save_snapshot(frame, SNAPSHOT_DIR))}
+
+    def record(self, action: str) -> dict[str, str | float]:
+        """Record the output, stop, or loop the recording in place of the camera."""
+        with self.lock:
+            effect = self.effect
+            if self.state != "running" or effect is None:
+                raise RuntimeError("camera is not running")
+        return effect.record(action)
 
     def white_balance(self, x: float, y: float) -> dict[str, int]:
         """Neutral temperature and tint for a camera point; the app applies them."""
@@ -403,6 +432,18 @@ class Controller:
             if set(params) != {"paused"} or not isinstance(params["paused"], bool):
                 raise ValueError("session.pause needs paused true or false")
             return self.pause(params["paused"])
+        if method == "session.snapshot":
+            if params:
+                raise ValueError("session.snapshot params must be empty")
+            return self.snapshot()
+        if method == "session.record":
+            if set(params) != {"action"} or params["action"] not in (
+                "record",
+                "stop",
+                "replay",
+            ):
+                raise ValueError("session.record needs action record, stop or replay")
+            return self.record(params["action"])
         if method == "session.white_balance":
             if set(params) != {"x", "y"} or not all(
                 isinstance(params[key], (int, float))
