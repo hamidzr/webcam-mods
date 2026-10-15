@@ -10,10 +10,79 @@ Current supported behavior: [current state](docs/current-state.md).
 - Battery/AC/Low Power Mode presets after power measurements.
 - Real Linux V4L2 consumer/output acceptance.
 
-## Feature ideas
+## Desktop app roadmap
 
-- Camera/screen switching and window-following screen capture.
-- Rotation/vertical flip controls and video overlays.
+Ordered build plan, 2026-10-15. Each item ships with profile fields, app controls,
+headless tests and docs. Effort: S small, M medium, L large.
+
+Shared design:
+
+- New tunable settings are profile fields, so the CLI `profile-run` and the app
+  produce the same output.
+- Settings that change capture or output shape (camera, capture size/FPS, output
+  size/FPS, repeat mode, rotation) restart; everything else applies live.
+- Profile effects run on the processing thread in this order: orientation, denoise,
+  crop or desk view, tracking and background, output sizing, color, overlays.
+- Preview guides are drawn by the app, never into the output video.
+- Manual crop is stored per profile as fractions of the frame; with tracking on,
+  tracking stays inside the crop. CLI interactive crop keeps `~/.webcam-mods.conf`;
+  padding stays CLI-only.
+
+Phase 0, foundation:
+
+1. Live settings updates while running (M).
+2. Preview views: output, raw camera, mask; app-drawn guides (M).
+3. Stats: input/output FPS, processing time (S).
+
+Phase 1, framing:
+
+4. Manual crop, zoom, pan and recenter in the preview (M).
+5. Auto-framing tuning: face size, max zoom, eye line, follow speed, steadiness (S).
+6. Vertical flip, rotate 90/180/270 and output shape presets such as 9:16 (M).
+
+Phase 2, image look:
+
+7. Hold-to-compare raw and processed preview (S).
+8. Color: exposure, contrast, saturation, temperature, tint, sharpness,
+   click-to-white-balance (S).
+9. Auto low-light and exposure (S-M).
+10. Spotlight: dim background, lift person (S).
+11. Looks: built-in color filters and `.cube` LUT import with strength (M).
+
+Phase 3, call controls:
+
+12. Pause video from the menu bar and a global hotkey (S).
+13. Switch profiles from the menu bar (S).
+
+Phase 4, backgrounds:
+
+14. Any background color, eyedropper, background image position (S).
+15. Green screen keying as a segmentation choice (M).
+16. Looping video backgrounds (M).
+
+Phase 5, composition:
+
+17. Overlays: logo or watermark, name caption (M).
+18. Screen capture input in the app (M).
+19. Presenter overlay: camera cutout over a shared screen (M-L).
+20. Snapshot and record/replay buttons (S).
+
+Phase 6, enhancement:
+
+21. Skin touch-up (M).
+22. Temporal noise reduction (M).
+
+Phase 7, large or research:
+
+23. Hardware camera controls: exposure, focus, anti-flicker (support varies by camera).
+24. Desk or whiteboard view: perspective correction of a chosen area.
+25. Eye-contact correction.
+26. Gesture reactions.
+27. Makeup filters.
+
+## Other ideas
+
+- Window-following screen capture.
 - Eye tracking, webcam stitching and animation, pending concrete demand.
 - Native-frame processing, pending measured end-to-end benefit.
 
