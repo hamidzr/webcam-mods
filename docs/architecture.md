@@ -60,7 +60,7 @@ Root help lists frequent grouped options; command help exposes all common option
 | `session.py` | Validated frame preparation, ordered command application, recording ownership |
 | `loopback.py` | Adapter selection, metadata validation, synchronous/repeated delivery, cooperative stop and error behavior |
 | `frame_producer.py` | Worker-owned capture/effects, latest snapshot, bounded shutdown |
-| `effects.py` | Live profile pipeline: orientation, denoise, desk view or crop, tracking, auto light, touch-up, background, brightness, color, look, presenter, overlays; preview views and white-balance sampling |
+| `effects.py` | Live profile pipeline: orientation, denoise, desk view or crop, tracking, auto light, eye contact, touch-up, background, brightness, color, look, presenter, overlays; preview views and white-balance sampling |
 | `profiles.py` | Validated launch profiles and transactional SQLite persistence |
 | `camera_controls.py` | Profile exposure, focus and anti-flicker set on the camera from the first frame, live updates, restored when the run ends |
 | `control.py` | One-session lifecycle controller and local JSONL request/event protocol |
@@ -87,6 +87,8 @@ Root help lists frequent grouped options; command help exposes all common option
 | `mods/presenter.py` | Presenter bubble and cutout layers placed in a corner of the screen |
 | `mods/denoise.py` | Motion-adaptive temporal running average; moving areas pass through |
 | `mods/perspective.py` | Desk view: cached warp of a validated corner quad to an upright rectangle |
+| `mods/face_landmarks.py` | Lazy MediaPipe face mesh with irises in pixel points; eye and iris index sets |
+| `mods/eye_contact.py` | Eye contact: per-eye remap that lifts the iris between fixed lids |
 | `mods/touchup.py` | Skin-tone mask with edge protection and full-resolution bilateral smoothing |
 | `mods/overlay.py` | Logo and caption overlays rendered once per frame size (Pillow text) and composited as premultiplied patches |
 | `mods/looks.py` | `.cube` 3D LUT parsing, built-in looks and 7-bit table application with strength |

@@ -111,6 +111,8 @@ struct Configuration: Codable, Equatable {
     var touchup = 0
     // averages camera noise over frames where nothing moves, 0 off
     var denoise = 0
+    // experimental: slides irises up toward a camera above the screen, 0 off
+    var eye_contact = 0
     // set on the camera itself while running, then put back: exposure time and focus
     // as percents of its range, anti-flicker off/50hz/60hz; nil keeps the camera's own
     var camera_exposure: Int?
@@ -1413,8 +1415,9 @@ final class SessionModel: ObservableObject {
         var smoothed = Configuration()
         smoothed.touchup = 40
         smoothed.denoise = 60
+        smoothed.eye_contact = 70
         let smoothedDecoded = try JSONDecoder().decode(Configuration.self, from: JSONEncoder().encode(smoothed))
-        try check(smoothedDecoded.touchup == 40 && smoothedDecoded.denoise == 60 && !smoothed.needsRestart(from: Configuration()) && Configuration().json["touchup"] as? Int == 0 && Configuration().json["denoise"] as? Int == 0, "Touch-up and denoise encode and apply live")
+        try check(smoothedDecoded.touchup == 40 && smoothedDecoded.denoise == 60 && smoothedDecoded.eye_contact == 70 && !smoothed.needsRestart(from: Configuration()) && Configuration().json["touchup"] as? Int == 0 && Configuration().json["denoise"] as? Int == 0 && Configuration().json["eye_contact"] as? Int == 0, "Touch-up, denoise and eye contact encode and apply live")
         model.previewView = "output"
         model.beginWhitePick()
         try check(model.pickingWhite && model.previewView == "source", "White pick switches to Camera view")
@@ -1628,7 +1631,7 @@ final class SessionModel: ObservableObject {
         try pipe.fileHandleForWriting.close()
         try pipe.fileHandleForReading.close()
         try helperSelfTest()
-        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats, orientation, compare, color, spotlight, looks, pause, menu profiles, background color, green screen, overlays, screen source, presenter, snapshot, record loop, touch-up, denoise, camera hardware, desk view).")
+        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats, orientation, compare, color, spotlight, looks, pause, menu profiles, background color, green screen, overlays, screen source, presenter, snapshot, record loop, touch-up, denoise, eye contact, camera hardware, desk view).")
     }
 
     private static func helperSelfTest() throws {
@@ -2100,6 +2103,8 @@ struct ControlPanel: View {
                     if model.config.usesCamera {
                         slider("Touch up", value: $model.config.touchup, range: 0...100)
                             .help("Smooths skin while eyes, brows and lips stay sharp. 0 is off.")
+                        slider("Eye contact", value: $model.config.eye_contact, range: 0...100)
+                            .help("Experimental. Moves your irises up so you seem to look into a camera above the screen while you read it. Downloads a face model on first use. 0 is off.")
                         slider("Denoise", value: $model.config.denoise, range: 0...100)
                             .help("Averages grain over frames where nothing moves; moving parts stay sharp. Helps in dim rooms. 0 is off.")
                     }

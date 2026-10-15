@@ -35,8 +35,9 @@ remain supported. Native macOS menu is optional; installed CLI works independent
   Hold Compare to see the output framing without background or image effects.
   Color (exposure, contrast, saturation, warmth, tint, sharpness) applies live from
   profiles; Pick white sets warmth and tint from a clicked camera point. Low light
-  gradually brightens dark pictures before segmentation; Touch up smooths skin
-  while eyes, brows and lips stay sharp; Denoise averages grain over still frames.
+  gradually brightens dark pictures before segmentation; experimental Eye contact
+  lifts irises toward a camera above the screen; Touch up smooths skin while eyes,
+  brows and lips stay sharp; Denoise averages grain over still frames.
   Camera hardware sets exposure, focus and anti-flicker on cameras whose drivers
   publish them, and puts them back when the session ends.
   Solid backgrounds take any color, with a screen eyedropper; image backgrounds

@@ -132,6 +132,9 @@ class Profile:
     touchup: int = 0
     # averages camera noise over frames where nothing moves, 0 off
     denoise: int = 0
+    # experimental: slides both irises up so eyes on the screen meet a camera
+    # above it, 0 off
+    eye_contact: int = 0
     # set on the camera itself while the profile runs and put back after: exposure
     # time and focus as percents of the camera's range, and mains flicker
     # filtering; null leaves the camera's own, usually automatic, setting
@@ -183,6 +186,7 @@ class Profile:
             ("auto_light", 0, 100),
             ("touchup", 0, 100),
             ("denoise", 0, 100),
+            ("eye_contact", 0, 100),
             ("spotlight_dim", 0, 100),
             ("spotlight_lift", 0, 100),
             ("look_strength", 0, 100),

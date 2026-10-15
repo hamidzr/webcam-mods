@@ -67,8 +67,8 @@ shows the middle of the camera picture in a circle; Cutout shows only the person
 standing on the bottom edge, using the profile's segmentation (Green screen keys a
 backdrop instead). Corner and Size (camera height, 10..80 percent of the picture)
 apply live; turning it on or off restarts. Mirror, flip, rotation, denoise, low
-light, touch up, brightness, color and look apply to the camera picture, never to
-the screen. The camera opens and closes with the session, so Pause turns it off.
+light, eye contact, touch up, brightness, color and look apply to the camera
+picture, never to the screen. The camera opens and closes with the session, so Pause turns it off.
 
 Zoom (1x..4x) crops the camera to what calls see. The crop keeps the output aspect,
 so output fills without bars. In Camera view the crop is a white box with the rest
@@ -145,8 +145,8 @@ keeps the room but darkens it by Dim room percent and brightens you with a gentl
 curve set by Lift you, where black and white stay put; both apply live without
 reloading segmentation. Tracking combines
 with background and brightness. Effect order: rotation, mirror and vertical flip,
-denoise, desk view or manual crop with tracking inside the crop, auto light, touch
-up, fixed-size background processing, brightness, color, look, overlays, final
+denoise, desk view or manual crop with tracking inside the crop, auto light, eye
+contact, touch up, fixed-size background processing, brightness, color, look, overlays, final
 output sizing. Mirror video flips the
 camera left to right for both preview and OBS output, so receivers see the
 mirrored view; background images stay readable. Background effects keep the
@@ -172,10 +172,17 @@ and the worker samples a small patch of the raw camera frame, then sets warmth a
 tint so it turns neutral. Cancel or stopping the camera ends picking. Low light
 (0..100, 0 off) brightens dark framed pictures toward a mid-tone target over about a
 second, rolling off highlights; it never darkens. It runs before segmentation, so
-masks see the brighter picture while background images stay as chosen. Touch up
-(0..100, 0 off) smooths skin tones with an edge-preserving filter after low light;
-strong edges such as eyes, brows and lips keep their detail, and non-skin colors
-stay untouched. It costs about 7 ms per 720p frame and applies live. Denoise
+masks see the brighter picture while background images stay as chosen. Eye
+contact (0..100, 0 off, experimental) finds the face mesh in the framed camera
+picture after low light and slides each iris up inside its eye opening, so eyes
+reading the screen seem to meet a camera above it; at 100 an iris moves up to 0.6
+of its radius, less where the opening is narrow. Lids, brows and skin keep their
+pixels, closed eyes and frames without a face pass unchanged, and the iris top
+slides under the upper lid while the sclera below stretches. It costs about 4 ms
+per 720p frame, downloads the MediaPipe face landmarker (3.8 MB) on first use and
+applies live. Touch up (0..100, 0 off) smooths skin tones with an edge-preserving
+filter after eye contact; strong edges such as eyes, brows and lips keep their
+detail, and non-skin colors stay untouched. It costs about 7 ms per 720p frame and applies live. Denoise
 (0..100, 0 off) averages each pixel over recent frames where the picture holds
 still, right after orientation and before framing, so zooming or tracking never
 restarts it; moving areas and scene changes pass through without ghosts. It costs
@@ -346,6 +353,7 @@ Profile fields and defaults:
 | temperature, tint | 0 | White balance, -100..100: positive warmer, positive tint magenta |
 | sharpness | 0 | Unsharp mask amount, 0..100 |
 | auto_light | 0 | Low-light lift strength, 0..100; 0 off, never darkens |
+| eye_contact | 0 | Experimental iris lift toward a camera above the screen, 0..100; 0 off. Camera picture only |
 | touchup | 0 | Skin smoothing strength, 0..100; 0 off |
 | denoise | 0 | Temporal noise reduction strength, 0..100; 0 off |
 | camera_exposure, camera_focus | null | Exposure time and focus set on the camera, 0..100 across its range (exposure in even stops); null keeps the camera's own, usually automatic, setting. macOS with camera_id |

@@ -16,6 +16,8 @@ from webcam_mods.mods.color import (
     neutral_balance,
 )
 from webcam_mods.mods.denoise import TemporalDenoiser
+from webcam_mods.mods.eye_contact import correct_gaze
+from webcam_mods.mods.face_landmarks import FaceLandmarks
 from webcam_mods.mods.looks import ColorLook, builtin_look, load_cube
 from webcam_mods.mods.overlay import Logo, Overlay, OverlaySettings, Position, load_logo
 from webcam_mods.mods.perspective import PerspectiveView
@@ -290,8 +292,8 @@ class ProfileEffect:
     """Profile pipeline whose settings can change between frames.
 
     Order: orientation, noise reduction, desk view straightening or manual crop
-    with optional tracking inside it, auto light, skin touch-up, fixed-size background, brightness, color, look,
-    overlays. A screen source skips orientation, noise reduction, tracking and
+    with optional tracking inside it, auto light, eye contact, skin touch-up,
+    fixed-size background, brightness, color, look, overlays. A screen source skips orientation, noise reduction, tracking and
     background; with the presenter on, the camera picture is oriented, cleaned, lit
     and graded, then placed over the output-sized screen before overlays. The
     recorder keeps finished frames; while it replays, they replace the whole
@@ -336,6 +338,8 @@ class ProfileEffect:
         self.color = ColorAdjuster()
         self.auto_light = AutoLight(0)
         self.denoiser = TemporalDenoiser(0)
+        # face mesh for eye contact, made while a profile uses it
+        self.landmarks: FaceLandmarks | None = None
         # latest oriented camera frame, sampled for click-to-white-balance
         self._source: Frame | None = None
         # output loop for stepping away; commands arrive from the control thread
@@ -527,6 +531,15 @@ class ProfileEffect:
         self.auto_light.configure(profile.auto_light)
         if previous is None or profile.denoise != previous.denoise:
             self.denoiser.configure(profile.denoise)
+        # shared screens without the presenter have no camera eyes to correct
+        gaze = profile.eye_contact and (
+            profile.source == "camera" or profile.presenting
+        )
+        if gaze and self.landmarks is None:
+            self.landmarks = FaceLandmarks()
+        elif not gaze and self.landmarks is not None:
+            landmarks, self.landmarks = self.landmarks, None
+            landmarks.close()
         if profile.look == "none" or profile.look_strength == 0:
             self.look = None
         elif profile.look == "custom":
@@ -655,8 +668,12 @@ class ProfileEffect:
         return self.denoiser(frame) if profile.denoise else frame
 
     def _light(self, frame: Frame, profile: Profile) -> Frame:
-        """Auto light and skin touch-up, on the camera picture only."""
+        """Auto light, eye contact and skin touch-up, on the camera picture only."""
         frame = self.auto_light(frame, time.monotonic())
+        if self.landmarks is not None:
+            points = self.landmarks.detect(frame)
+            if points is not None:
+                frame = correct_gaze(frame, points, profile.eye_contact)
         if profile.touchup:
             frame = smooth_skin(frame, profile.touchup)
         return frame
@@ -739,6 +756,7 @@ class ProfileEffect:
         background, self.background = self.background, None
         video, self._video = self._video, None
         presenter, self.presenter_effects = self.presenter_effects, None
+        landmarks, self.landmarks = self.landmarks, None
         self._presented = None
         try:
             if tracking is not None:
@@ -752,8 +770,12 @@ class ProfileEffect:
                     if video is not None:
                         video.close()
                 finally:
-                    if presenter is not None:
-                        presenter.close()
+                    try:
+                        if presenter is not None:
+                            presenter.close()
+                    finally:
+                        if landmarks is not None:
+                            landmarks.close()
 
     def close(self) -> None:
         self._closed = True
