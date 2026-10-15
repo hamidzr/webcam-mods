@@ -102,7 +102,10 @@ context entry attempts teardown even when setup partially fails. Input and contr
 are stopped in `finally`; output context teardown closes output.
 With `mirror`, the loop flips each captured frame before the mod, so crop state,
 tracking, recording and segmentation all use mirrored coordinates. Screen border
-placement converts the crop back to screen coordinates.
+placement converts the crop back to screen coordinates. Profile sessions
+(`profile-run` and the app) own orientation in `ProfileEffect` and pre-flip frames
+before segmentation, so background effects do not mirror the picture there; the
+`bg-*` and `track-face` commands keep the legacy single mirror.
 
 Effect exceptions and `None` results produce an error image or, with
 `freeze_on_error`, the last successful resized frame. The initial frozen frame is

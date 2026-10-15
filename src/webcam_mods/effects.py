@@ -416,7 +416,9 @@ class ProfileEffect:
             frame = resize_and_pad(
                 frame, sw=self._settings.out_width, sh=self._settings.out_height
             )
-            frame = self.background(frame)
+            # segmentation flips once for legacy CLI commands; pre-flipping cancels
+            # it so only the mirror setting decides orientation, as in plain output
+            frame = self.background(cast(Frame, cv2.flip(frame, 1)))
             mask = self.background.mask
             if preview is not None and mask is not None and preview.wants("mask"):
                 preview.publish(_mask_frame(mask), "mask")

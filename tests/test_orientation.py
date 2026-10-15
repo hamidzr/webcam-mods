@@ -78,6 +78,34 @@ class ProfileEffectOrientationTests(unittest.TestCase):
         np.testing.assert_array_equal(result[:, :, 0], [[5, 2], [4, 1]])
 
 
+class BackgroundOrientationTests(unittest.TestCase):
+    def test_background_effects_keep_plain_orientation(self) -> None:
+        frame = np.zeros((48, 64, 3), np.uint8)
+        frame[:, :32] = 200
+        segmenter = Mock()
+        segmenter.predict.side_effect = lambda image: np.ones(
+            image.shape[:2], np.float32
+        )
+        with patch(
+            "webcam_mods.mods.person_segmentation.MediaPipeSegmenter",
+            return_value=segmenter,
+        ):
+            for profile in (
+                Profile(effect="blur"),
+                Profile(effect="blur", mirror=True),
+            ):
+                with self.subTest(mirror=profile.mirror):
+                    effect = ProfileEffect(
+                        profile, StartupSettings(out_width=64, out_height=48)
+                    )
+                    self.addCleanup(effect.close)
+                    result = effect(frame)
+                    assert result is not None
+                    left, right = result[:, :32].mean(), result[:, 32:].mean()
+                    # the person mask keeps everything, so only mirror moves the bright half
+                    self.assertEqual(left > right, not profile.mirror)
+
+
 class RotatedOutputSizeTests(unittest.TestCase):
     def settings(self, profile: Profile) -> StartupSettings:
         with (

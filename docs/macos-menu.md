@@ -88,7 +88,8 @@ manual crop, tracking inside
 the crop, auto light, fixed-size background processing, brightness, color, final
 output sizing. Mirror video flips the
 camera left to right for both preview and OBS output, so receivers see the
-mirrored view; background images stay readable. Flip upside down turns the picture
+mirrored view; background images stay readable. Background effects keep the
+picture orientation, so only Mirror video flips it. Flip upside down turns the picture
 over for a camera mounted upside down; Rotate turns it 90, 180 or 270 degrees
 clockwise. Mirror and flip apply to the rotated picture as you see it. A quarter turn
 swaps the default output size, so a sideways camera sends a portrait picture.
