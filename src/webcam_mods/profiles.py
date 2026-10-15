@@ -26,6 +26,7 @@ RESTART_FIELDS = frozenset(
         "repeat_frames",
         "processing_fps",
         "signal_pattern",
+        "rotate",
     }
 )
 
@@ -60,7 +61,10 @@ class Profile:
     smoothing: bool = False
     signal_pattern: str = "color-bars"
     mirror: bool = False
-    # manual crop as [x, y, width, height] fractions of the mirrored camera frame
+    flip_vertical: bool = False
+    # clockwise camera rotation in degrees; quarter turns swap default output size
+    rotate: int = 0
+    # manual crop as [x, y, width, height] fractions of the oriented camera frame
     crop: tuple[float, float, float, float] | None = None
     # auto-framing: face height and head center as output fractions, zoom limit,
     # follow time constant in seconds, and ignored drift as a crop fraction
@@ -104,6 +108,8 @@ class Profile:
             object.__setattr__(self, "crop", _crop(self.crop))
         if self.blur_kernel % 2 == 0:
             raise ValueError("blur_kernel must be odd")
+        if type(self.rotate) is not int or self.rotate not in (0, 90, 180, 270):
+            raise ValueError("rotate must be 0, 90, 180 or 270")
         for key in ("fps", "processing_fps", "output_fps"):
             value = getattr(self, key)
             if key == "output_fps" and value is None:
@@ -124,7 +130,14 @@ class Profile:
                 or not low <= value <= high
             ):
                 raise ValueError(f"{key} must be a number in {low}..{high}")
-        for key in ("track", "repeat_frames", "smoothing", "image_blur", "mirror"):
+        for key in (
+            "track",
+            "repeat_frames",
+            "smoothing",
+            "image_blur",
+            "mirror",
+            "flip_vertical",
+        ):
             if type(getattr(self, key)) is not bool:
                 raise ValueError(f"{key} must be a boolean")
         for key, choices in (
@@ -140,6 +153,13 @@ class Profile:
             raise ValueError("image_path must be a path string")
         if self.effect == "image" and not self.image_path:
             raise ValueError("image effect requires image_path")
+
+    @property
+    def oriented_size(self) -> tuple[int, int]:
+        """Capture width and height after rotation."""
+        if self.rotate in (90, 270):
+            return self.height, self.width
+        return self.width, self.height
 
     @classmethod
     def parse(cls, config: object) -> "Profile":

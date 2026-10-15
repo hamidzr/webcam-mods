@@ -14,6 +14,8 @@ remain supported. Native macOS menu is optional; installed CLI works independent
 - Stable face selection/framing with bounded zoom and independent pan/zoom response.
 - MediaPipe segmentation, optional Vision/Core Image and opt-in motion-aware smoothing.
 - Opt-in horizontal mirror of camera input before crop and effects (CLI, env, profiles).
+  Profiles add live vertical flip and restart-time 90/180/270 rotation; quarter turns
+  swap default output size. The app offers output shape presets (16:9, 4:3, 1:1, 9:16).
 - Independent capture/output sizing and FPS; optional repeat mode keeps latest-frame
   delivery independent of processing. See [frame delivery](frame-delivery.md).
 - SQLite saved launch profiles shared by CLI and menu. Composition orders tracking,

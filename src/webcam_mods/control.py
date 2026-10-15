@@ -45,11 +45,12 @@ def run_profile(
         if profile.camera_id is not None
         else profile.input_device
     )
+    oriented_width, oriented_height = profile.oriented_size
     settings = StartupSettings(
         in_width=profile.width,
         in_height=profile.height,
-        out_width=profile.output_width or profile.width,
-        out_height=profile.output_height or profile.height,
+        out_width=profile.output_width or oriented_width,
+        out_height=profile.output_height or oriented_height,
         in_fps=profile.fps,
         max_out_fps=profile.output_fps or profile.fps,
         video_in=input_device,
@@ -57,7 +58,7 @@ def run_profile(
         processing_fps=profile.processing_fps,
         signal_pattern=profile.signal_pattern,  # type: ignore[arg-type]
     )
-    # the effect owns mirroring so it can change while running
+    # the effect owns orientation; flips change while running, rotation restarts
     effect = ProfileEffect(profile, settings, on_warning=on_warning, preview=preview)
     if on_effect is not None:
         on_effect(effect)

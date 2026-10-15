@@ -40,7 +40,7 @@ output FPS, including independent output rates and nearby native rates such as
 reduced resolution; output delivery retains configured dimensions and FPS.
 
 The preview header switches views. **Output** is what calls receive. **Camera**
-shows the full camera picture after mirroring but before framing and effects; with
+shows the full camera picture after rotation and flips but before framing and effects; with
 tracking on, a yellow box marks the detected face and green dashes mark the auto
 framing crop. **Mask** appears with blur, color or image backgrounds and shows the
 segmentation confidence aligned with the output: white is kept, black is replaced.
@@ -70,20 +70,31 @@ Status distinguishes Idle, Starting, Running, Stopping and Error. Running follow
 the first processed frame delivered to output. Starting can include model download
 or uncached CPU/Metal calibration. Stop releases capture and processing before
 another session starts. Effect settings apply live while the camera runs: background,
-blur, color, tracking, brightness, mirror, segmentation, processing and smoothing.
+blur, color, tracking, brightness, mirror, vertical flip, crop, framing, segmentation,
+processing and smoothing.
 Background mode changes keep the loaded segmentation model; segmentation, processing
 or smoothing changes reload it, and tracking loads or releases face detection.
-Camera, capture size/FPS, capture backend, output destination, output size/FPS,
-processing FPS, repeat mode and loading picture shape the session. Editing them
+Camera, capture size/FPS, capture backend, rotation, output destination, output
+size/FPS, processing FPS, repeat mode and loading picture shape the session. Editing them
 while running shows Restart camera, which stops, refreshes camera inventory and
 starts with the edited settings.
 The menu does not automatically activate when another application opens a camera.
 
 Background choices are original, blur, solid gray and image. Tracking combines
-with background and brightness. Effect order: mirror, manual crop, tracking inside
+with background and brightness. Effect order: rotation, mirror and vertical flip,
+manual crop, tracking inside
 the crop, fixed-size background processing, brightness, final output sizing. Mirror video flips the
 camera left to right for both preview and OBS output, so receivers see the
-mirrored view; background images stay readable. With tracking on, framing
+mirrored view; background images stay readable. Flip upside down turns the picture
+over for a camera mounted upside down; Rotate turns it 90, 180 or 270 degrees
+clockwise. Mirror and flip apply to the rotated picture as you see it. A quarter turn
+swaps the default output size, so a sideways camera sends a portrait picture.
+Shape sets the output to the camera shape, Wide 16:9, Standard 4:3, Square 1:1 or
+Portrait 9:16 at the largest size that fits the rotated camera without upscaling;
+typed sizes under Advanced show as Custom. Without tracking, a shape that differs
+from the camera adds a centered crop so output fills without bars; Show whole camera
+removes it and pads instead. With tracking, framing follows the new shape. Rotation
+and shape restart the session. With tracking on, framing
 controls tune face size, head height, maximum zoom, follow time and steadiness live
 without reloading the face model; Default framing restores them. Follow time sets the
 pan response; zoom responds 2.4 times slower, matching the CLI defaults. Steadiness
@@ -184,7 +195,7 @@ Profile fields and defaults:
 | width, height | 640, 480 | Requested capture dimensions |
 | fps | 30 | Capture request |
 | camera_id | null | Stable macOS device identity; legacy index selection when absent |
-| output_width, output_height | null | Independent delivery dimensions; inherit capture when null |
+| output_width, output_height | null | Independent delivery dimensions; inherit rotated capture when null |
 | output_fps | null | Independent delivery cap; inherit capture when null |
 | effect | plain | plain, blur, color, image, track |
 | track | false | Combine tracking with selected background |
@@ -200,12 +211,14 @@ Profile fields and defaults:
 | processing_fps | 30 | Fresh-frame cap in repeat mode |
 | signal_pattern | color-bars | Loading/paused picture: color-bars or noise |
 | mirror | false | Flip camera left to right before effects |
+| flip_vertical | false | Flip camera top to bottom before effects; applies live |
+| rotate | 0 | Clockwise camera rotation: 0, 90, 180 or 270; restarts, and quarter turns swap default output size |
 | track_face_height | 0.4 | Target face height as an output fraction, 0.1..0.9 (`--face-height`) |
 | track_target_y | 0.42 | Face center from the top as an output fraction, 0.2..0.8 (`--target-y`) |
 | track_max_zoom | 2.0 | Maximum zoom over the widest view, 1..4 (`--max-zoom`) |
 | track_follow_seconds | 0.25 | Pan time constant, 0.05..3; zoom uses 2.4 times this |
 | track_deadzone | 0.08 | Ignored pan and zoom drift as a crop fraction, 0..0.4 |
-| crop | null | Manual crop `[x, y, width, height]` as fractions of the mirrored camera frame; each size at least 0.02 and inside the frame |
+| crop | null | Manual crop `[x, y, width, height]` as fractions of the oriented camera frame; each size at least 0.02 and inside the frame |
 | smoothing | false | Opt-in motion-aware mask stabilization |
 
 ## Local protocol

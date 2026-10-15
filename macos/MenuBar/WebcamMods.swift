@@ -32,7 +32,10 @@ struct Configuration: Codable, Equatable {
     var smoothing = false
     var signal_pattern = "color-bars"
     var mirror = false
-    // [x, y, width, height] fractions of the mirrored camera frame; nil shows it all
+    var flip_vertical = false
+    // clockwise degrees; quarter turns swap the default output size
+    var rotate = 0
+    // [x, y, width, height] fractions of the oriented camera frame; nil shows it all
     var crop: [Double]?
     var track_face_height = 0.4
     var track_target_y = 0.42
@@ -70,6 +73,7 @@ struct Configuration: Codable, Equatable {
         copy.repeat_frames = other.repeat_frames
         copy.processing_fps = other.processing_fps
         copy.signal_pattern = other.signal_pattern
+        copy.rotate = other.rotate
         return copy
     }
 
@@ -98,11 +102,71 @@ struct SessionStats: Equatable {
     }
 }
 
+struct OutputShape: Identifiable {
+    let id: String
+    let label: String
+    let aspect: Double
+
+    static let presets = [
+        OutputShape(id: "16:9", label: "Wide 16:9", aspect: 16 / 9),
+        OutputShape(id: "4:3", label: "Standard 4:3", aspect: 4 / 3),
+        OutputShape(id: "1:1", label: "Square 1:1", aspect: 1),
+        OutputShape(id: "9:16", label: "Portrait 9:16", aspect: 9 / 16),
+    ]
+}
+
 extension Configuration {
-    // largest crop with the output aspect, as fractions of the camera frame
+    // capture size after rotation; output defaults to it
+    var orientedWidth: Int { rotate == 90 || rotate == 270 ? height : width }
+    var orientedHeight: Int { rotate == 90 || rotate == 270 ? width : height }
+
+    // "camera" while output follows capture, a preset id, or "custom"
+    var outputShape: String {
+        guard output_width != nil || output_height != nil else { return "camera" }
+        let aspect = Double(output_width ?? orientedWidth) / Double(max(output_height ?? orientedHeight, 1))
+        return OutputShape.presets.first { abs($0.aspect - aspect) < 0.01 }?.id ?? "custom"
+    }
+
+    // largest output of the shape that fits the oriented capture, so nothing is upscaled
+    mutating func setOutputShape(_ id: String) {
+        let zoom = cropZoom, center = cropCenter
+        guard id == "camera" || OutputShape.presets.contains(where: { $0.id == id }) else { return }
+        fitOutput(to: id)
+        refitCrop(zoom: zoom, center: center)
+    }
+
+    // presets refit to the turned camera; custom sizes stay as typed
+    mutating func setRotation(_ degrees: Int) {
+        let shape = outputShape, zoom = cropZoom, center = cropCenter
+        rotate = degrees
+        fitOutput(to: shape)
+        refitCrop(zoom: zoom, center: center)
+    }
+
+    private mutating func fitOutput(to id: String) {
+        if id == "camera" {
+            output_width = nil
+            output_height = nil
+        } else if let shape = OutputShape.presets.first(where: { $0.id == id }) {
+            let width = Double(orientedWidth), height = Double(max(orientedHeight, 1))
+            let wide = width / height > shape.aspect
+            func even(_ value: Double) -> Int { max(16, Int(value / 2) * 2) }
+            output_width = even(wide ? height * shape.aspect : width)
+            output_height = even(wide ? height : width / shape.aspect)
+        }
+    }
+
+    // a manual crop keeps its zoom and center; untracked output fills the shape instead of padding
+    private mutating func refitCrop(zoom: Double, center: CGPoint) {
+        if crop != nil || (!tracking && fullCropSize != CGSize(width: 1, height: 1)) {
+            setCrop(zoom: zoom, center: center)
+        }
+    }
+
+    // largest crop with the output aspect, as fractions of the oriented camera frame
     var fullCropSize: CGSize {
-        let source = Double(width) / Double(max(height, 1))
-        let output = Double(output_width ?? width) / Double(max(output_height ?? height, 1))
+        let source = Double(orientedWidth) / Double(max(orientedHeight, 1))
+        let output = Double(output_width ?? orientedWidth) / Double(max(output_height ?? orientedHeight, 1))
         guard source.isFinite, output.isFinite, source > 0, output > 0 else { return CGSize(width: 1, height: 1) }
         return source > output ? CGSize(width: output / source, height: 1) : CGSize(width: 1, height: source / output)
     }
@@ -932,11 +996,32 @@ final class SessionModel: ObservableObject {
         let cropUpdate = ((try lastRequest())?["params"] as? [String: Any])?["config"] as? [String: Any]
         let sentCrop = (cropUpdate?["crop"] as? [NSNumber])?.map(\.doubleValue) ?? []
         try check(sentCrop.count == 4 && zip(sentCrop, model.config.crop ?? []).allSatisfy { abs($0 - $1) < 1e-9 } && !model.restartRequired, "Crop applies live")
+        var oriented = Configuration()
+        oriented.flip_vertical = true
+        try check(!oriented.needsRestart(from: Configuration()) && (Configuration().json["rotate"] as? Int) == 0, "Vertical flip applies live")
+        oriented.rotate = 270
+        try check(oriented.needsRestart(from: Configuration()) && oriented.orientedWidth == 480 && oriented.outputShape == "camera", "Rotation restarts and turns the default output")
+        var shaped = Configuration()
+        shaped.width = 1280
+        shaped.height = 720
+        shaped.setOutputShape("9:16")
+        try check(shaped.output_width == 404 && shaped.output_height == 720 && shaped.outputShape == "9:16" && abs((shaped.crop?[2] ?? 0) - 0.3156) < 0.001, "Portrait shape fits the camera and fills without bars")
+        shaped.setRotation(90)
+        try check(shaped.output_width == 720 && shaped.output_height == 1280 && shaped.crop == [0, 0, 1, 1], "Rotation refits a preset shape and crop")
+        shaped.setOutputShape("camera")
+        try check(shaped.output_width == nil && shaped.output_height == nil && shaped.cropZoom == 1, "Camera shape follows rotated capture")
+        var trackedShape = Configuration()
+        trackedShape.track = true
+        trackedShape.setOutputShape("16:9")
+        try check(trackedShape.output_width == 640 && trackedShape.output_height == 360 && trackedShape.crop == nil, "Tracking frames a new shape without a fixed crop")
+        trackedShape.output_width = 1000
+        trackedShape.output_height = 500
+        try check(trackedShape.outputShape == "custom", "Typed output size shows as custom")
         model.state = "idle"
         try pipe.fileHandleForWriting.close()
         try pipe.fileHandleForReading.close()
         try helperSelfTest()
-        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats).")
+        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats, orientation).")
     }
 
     private static func helperSelfTest() throws {
@@ -1257,6 +1342,19 @@ struct ControlPanel: View {
                     slider("Brightness", value: $model.config.brightness, range: 0...255)
                     Toggle("Mirror video", isOn: $model.config.mirror)
                         .help("Flip left to right. Preview and OBS Virtual Camera both show the mirrored view.")
+                    Toggle("Flip upside down", isOn: $model.config.flip_vertical)
+                        .help("For cameras mounted upside down.")
+                    Picker("Rotate", selection: Binding(get: { model.config.rotate }, set: { model.config.setRotation($0) })) {
+                        Text("0").tag(0); Text("90").tag(90); Text("180").tag(180); Text("270").tag(270)
+                    }.pickerStyle(.segmented)
+                        .help("Turn the camera picture clockwise, in degrees, for a sideways or upside-down camera. Applies after a restart.")
+                    Picker("Shape", selection: Binding(get: { model.config.outputShape }, set: { model.config.setOutputShape($0) })) {
+                        Text("Same as camera").tag("camera")
+                        ForEach(OutputShape.presets) { shape in Text(shape.label).tag(shape.id) }
+                        if model.config.outputShape == "custom" {
+                            Text("Custom \(model.config.output_width ?? model.config.orientedWidth)x\(model.config.output_height ?? model.config.orientedHeight)").tag("custom")
+                        }
+                    }.help("Output picture shape. Sizes fit the camera without upscaling; edit them under Advanced. Applies after a restart.")
                     VStack(alignment: .leading, spacing: 6) {
                         HStack {
                             Text("Zoom").frame(width: 75, alignment: .leading)
@@ -1286,16 +1384,16 @@ struct ControlPanel: View {
                             Toggle("Use capture settings for output", isOn: Binding(
                                 get: { model.config.output_width == nil && model.config.output_height == nil && model.config.output_fps == nil },
                                 set: { inherited in
-                                    model.config.output_width = inherited ? nil : model.config.width
-                                    model.config.output_height = inherited ? nil : model.config.height
+                                    model.config.output_width = inherited ? nil : model.config.orientedWidth
+                                    model.config.output_height = inherited ? nil : model.config.orientedHeight
                                     model.config.output_fps = inherited ? nil : model.config.fps
                                 }))
                             if model.config.output_width != nil || model.config.output_height != nil || model.config.output_fps != nil {
                                 HStack {
                                     Text("Output size")
-                                    TextField("Width", value: Binding(get: { model.config.output_width ?? model.config.width }, set: { model.config.output_width = $0 }), format: .number)
+                                    TextField("Width", value: Binding(get: { model.config.output_width ?? model.config.orientedWidth }, set: { model.config.output_width = $0 }), format: .number)
                                     Text("x")
-                                    TextField("Height", value: Binding(get: { model.config.output_height ?? model.config.height }, set: { model.config.output_height = $0 }), format: .number)
+                                    TextField("Height", value: Binding(get: { model.config.output_height ?? model.config.orientedHeight }, set: { model.config.output_height = $0 }), format: .number)
                                 }
                                 Stepper("Output FPS: \((model.config.output_fps ?? model.config.fps).formatted(.number.precision(.fractionLength(0...2))))", value: Binding(get: { model.config.output_fps ?? model.config.fps }, set: { model.config.output_fps = $0 }), in: 1...60)
                             }

@@ -182,6 +182,23 @@ def _crop_region(
     )
 
 
+_ROTATIONS = {
+    90: cv2.ROTATE_90_CLOCKWISE,
+    180: cv2.ROTATE_180,
+    270: cv2.ROTATE_90_COUNTERCLOCKWISE,
+}
+
+
+def _orient(frame: Frame, profile: Profile) -> Frame:
+    """Rotate clockwise, then mirror and flip as the viewer sees the picture."""
+    if profile.rotate:
+        frame = cast(Frame, cv2.rotate(frame, _ROTATIONS[profile.rotate]))
+    if profile.mirror or profile.flip_vertical:
+        code = -1 if profile.mirror and profile.flip_vertical else int(profile.mirror)
+        frame = cast(Frame, cv2.flip(frame, code))
+    return frame
+
+
 def _region_pixels(frame: Frame, region: Rect) -> Frame:
     return frame[
         region.top : region.top + region.height,
@@ -349,8 +366,7 @@ class ProfileEffect:
             self._initialized = True
         self._apply_pending()
         profile = self._profile
-        if profile.mirror:
-            frame = cast(Frame, cv2.flip(frame, 1))
+        frame = _orient(frame, profile)
         source = frame
         height, width = frame.shape[:2]
         region = (
