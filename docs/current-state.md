@@ -8,7 +8,9 @@ remain supported. Native macOS menu is optional; installed CLI works independent
 - Camera commands: crop-cam, bg-blur, bg-color, bg-swap, brighten, track-face,
   test-loop. Common options work before or after the command.
 - Screen sharing: explicit region or macOS area/screen/visible picker, fresh crop
-  state, optional outside border, preview or virtual-camera output.
+  state, optional outside border, preview or virtual-camera output. Profiles and
+  the app can use a screen area as the source instead of a camera; the app picks a
+  display and crops part of it with the preview crop box.
 - Per-run crop/padding, ordered bounded controls and 256 MiB default recording cap.
   Keyboard/stdin adapters start explicitly; import/help starts no listeners.
 - Stable face selection/framing with bounded zoom and independent pan/zoom response.

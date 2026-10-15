@@ -51,6 +51,16 @@ Guides are drawn by the app over the preview and never enter the video. In Outpu
 view, press and hold Compare to see the same framing without background or image
 effects, marked Original; release to return. VoiceOver toggles it instead.
 
+Source switches between Camera and Screen. Screen shares a whole display, picked
+from the connected displays by name and size, at the capture FPS; zoom and drag the
+crop box in the preview's Screen view to share part of it. The area is saved as
+global screen points, so a profile keeps its display; Start is blocked with a
+message when that area is on no connected display. The first screen start asks for
+Screen Recording permission (System Settings > Privacy & Security > Screen & System
+Audio Recording); the worker inherits it from the app. Output defaults to the
+display size; Shape picks a smaller preset. Changing source or display restarts the
+session. With Screen, labels that say Camera read Screen.
+
 Zoom (1x..4x) crops the camera to what calls see. The crop keeps the output aspect,
 so output fills without bars. In Camera view the crop is a white box with the rest
 dimmed: drag to move it or pinch to zoom. Center recenters it; Show whole camera
@@ -244,6 +254,8 @@ Profile fields and defaults:
 | width, height | 640, 480 | Requested capture dimensions |
 | fps | 30 | Capture request |
 | camera_id | null | Stable macOS device identity; legacy index selection when absent |
+| source | camera | camera or screen; restarts |
+| screen_region | null | [left, top, width, height] in global screen points, required for screen; width and height 16..8192 replace the capture size |
 | output_width, output_height | null | Independent delivery dimensions; inherit rotated capture when null |
 | output_fps | null | Independent delivery cap; inherit capture when null |
 | effect | plain | plain, blur, color, image, spotlight, track |

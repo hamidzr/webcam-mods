@@ -29,6 +29,8 @@ RESTART_FIELDS = frozenset(
         "processing_fps",
         "signal_pattern",
         "rotate",
+        "source",
+        "screen_region",
     }
 )
 
@@ -125,6 +127,10 @@ class Profile:
     caption: str = ""
     caption_detail: str = ""
     caption_position: str = "bottom-left"
+    # camera, or a screen area as [left, top, width, height] in global screen points
+    # from the main display's top-left corner; crop then picks part of it
+    source: str = "camera"
+    screen_region: tuple[int, int, int, int] | None = None
     camera_id: str | None = None
     output_width: int | None = None
     output_height: int | None = None
@@ -172,6 +178,10 @@ class Profile:
         if self.crop is not None:
             # JSON lists become tuples so profiles stay hashable and comparable
             object.__setattr__(self, "crop", _crop(self.crop))
+        if self.screen_region is not None:
+            object.__setattr__(
+                self, "screen_region", _screen_region(self.screen_region)
+            )
         if self.blur_kernel % 2 == 0:
             raise ValueError("blur_kernel must be odd")
         if type(self.rotate) is not int or self.rotate not in (0, 90, 180, 270):
@@ -215,9 +225,12 @@ class Profile:
             ("look", LOOKS),
             ("logo_position", OVERLAY_POSITIONS),
             ("caption_position", OVERLAY_POSITIONS),
+            ("source", ("camera", "screen")),
         ):
             if getattr(self, key) not in choices:
                 raise ValueError(f"invalid {key}")
+        if self.source == "screen" and self.screen_region is None:
+            raise ValueError("screen source requires screen_region")
         if self.background_color is not None:
             if not isinstance(self.background_color, str) or not _HEX_COLOR.fullmatch(
                 self.background_color
@@ -263,11 +276,19 @@ class Profile:
         return _bgr(self.key_color)
 
     @property
+    def capture_size(self) -> tuple[int, int]:
+        """Captured frame width and height: the camera's, or the screen area's."""
+        if self.source == "screen" and self.screen_region is not None:
+            return self.screen_region[2], self.screen_region[3]
+        return self.width, self.height
+
+    @property
     def oriented_size(self) -> tuple[int, int]:
         """Capture width and height after rotation."""
+        width, height = self.capture_size
         if self.rotate in (90, 270):
-            return self.height, self.width
-        return self.width, self.height
+            return height, width
+        return width, height
 
     @classmethod
     def parse(cls, config: object) -> "Profile":
@@ -302,6 +323,22 @@ def _crop(value: object) -> tuple[float, float, float, float]:
     ):
         raise ValueError("crop must be fractions inside the frame, at least 0.02 wide")
     return x, y, width, height
+
+
+def _screen_region(value: object) -> tuple[int, int, int, int]:
+    if (
+        not isinstance(value, (list, tuple))
+        or len(value) != 4
+        or any(type(item) is not int for item in value)
+        or not all(-65536 <= item <= 65536 for item in value[:2])
+        or not all(16 <= item <= 8192 for item in value[2:])
+    ):
+        raise ValueError(
+            "screen_region must be [left, top, width, height] in screen points,"
+            " at least 16 wide and high"
+        )
+    left, top, width, height = value
+    return left, top, width, height
 
 
 def _bgr(color: str) -> tuple[int, int, int]:

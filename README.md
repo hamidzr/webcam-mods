@@ -120,7 +120,9 @@ coordinates support other displays. macOS `--select area|screen|visible` require
 cannot combine with coordinates. Area selection fits output aspect ratio; a
 click-through border follows later crop changes. `--no-border` hides it.
 Screen runs use fresh crop state, MSS capture and the same output/control path.
-Grant Screen Recording permission to the launching application.
+Grant Screen Recording permission to the launching application. The macOS app
+shares a display from Source > Screen without `select-region`; saved profiles keep
+the area for `profile-run`.
 
 ## Configuration and models
 

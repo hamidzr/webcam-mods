@@ -10,9 +10,35 @@ struct Camera: Decodable, Identifiable {
     let id: String
 }
 
+struct Display: Identifiable, Equatable {
+    let id: String
+    let name: String
+    // [left, top, width, height] in global points from the main display's top-left
+    let region: [Int]
+
+    var label: String { "\(name) (\(region[2])x\(region[3]))" }
+
+    // NSScreen frames start at the main display's bottom-left corner
+    static func region(of frame: CGRect, mainHeight: CGFloat) -> [Int] {
+        [Int(frame.minX.rounded()), Int((mainHeight - frame.maxY).rounded()), Int(frame.width.rounded()), Int(frame.height.rounded())]
+    }
+
+    @MainActor static func connected() -> [Display] {
+        // the first screen holds the menu bar and the global origin
+        guard let main = NSScreen.screens.first else { return [] }
+        return NSScreen.screens.map { screen in
+            let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber
+            return Display(id: number?.stringValue ?? screen.localizedName, name: screen.localizedName, region: region(of: screen.frame, mainHeight: main.frame.height))
+        }
+    }
+}
+
 struct Configuration: Codable, Equatable {
     var input_device = 0
     var camera_id: String?
+    // camera, or screen: screen_region is [left, top, width, height] in global points
+    var source = "camera"
+    var screen_region: [Int]?
     var output_width: Int?
     var output_height: Int?
     var output_fps: Double?
@@ -163,6 +189,8 @@ struct Configuration: Codable, Equatable {
         copy.processing_fps = other.processing_fps
         copy.signal_pattern = other.signal_pattern
         copy.rotate = other.rotate
+        copy.source = other.source
+        copy.screen_region = other.screen_region
         return copy
     }
 
@@ -205,9 +233,15 @@ struct OutputShape: Identifiable {
 }
 
 extension Configuration {
+    var screenSource: Bool { source == "screen" && screen_region?.count == 4 }
+    // the camera's capture size, or the shared screen area's
+    var captureWidth: Int { screenSource ? screen_region![2] : width }
+    var captureHeight: Int { screenSource ? screen_region![3] : height }
+    var sourceName: String { source == "screen" ? "Screen" : "Camera" }
+
     // capture size after rotation; output defaults to it
-    var orientedWidth: Int { rotate == 90 || rotate == 270 ? height : width }
-    var orientedHeight: Int { rotate == 90 || rotate == 270 ? width : height }
+    var orientedWidth: Int { rotate == 90 || rotate == 270 ? captureHeight : captureWidth }
+    var orientedHeight: Int { rotate == 90 || rotate == 270 ? captureWidth : captureHeight }
 
     // "camera" while output follows capture, a preset id, or "custom"
     var outputShape: String {
@@ -346,6 +380,7 @@ final class SessionModel: ObservableObject {
         }
     }
     @Published var cameras: [Camera] = []
+    @Published var displays: [Display] = []
     @Published var profiles: [Profile] = []
     @Published var selectedProfile = ""
     @Published var profileName = ""
@@ -415,7 +450,14 @@ final class SessionModel: ObservableObject {
     private var restartAfterStop = false
     private var startAfterInventory = false
 
-    init() { Self.current = self }
+    init() {
+        Self.current = self
+        guard !Self.snapshotMode else { return }
+        displays = Display.connected()
+        NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.refreshDisplays() }
+        }
+    }
     var hasWorker: Bool { process != nil }
 
     var selectedBackground: BuiltInBackground? {
@@ -444,9 +486,33 @@ final class SessionModel: ObservableObject {
         return current != original
     }
     var cameraUnavailable: Bool {
+        guard config.source == "camera" else { return false }
         guard !inventoryPending, inventoryCapture == config.capture else { return true }
         if let id = config.camera_id { return !cameras.contains(where: { $0.id == id }) }
         return !cameras.contains(where: { $0.index == config.input_device })
+    }
+    var screenUnavailable: Bool {
+        guard config.source == "screen" else { return false }
+        guard config.screenSource, let region = config.screen_region else { return true }
+        let area = CGRect(x: region[0], y: region[1], width: region[2], height: region[3])
+        return !displays.contains { area.intersects(CGRect(x: $0.region[0], y: $0.region[1], width: $0.region[2], height: $0.region[3])) }
+    }
+    var selectedDisplayID: String {
+        displays.first(where: { $0.region == config.screen_region })?.id ?? ""
+    }
+    func refreshDisplays() {
+        guard !Self.snapshotMode else { return }
+        displays = Display.connected()
+    }
+    func selectSource(_ source: String) {
+        if source == "screen" {
+            refreshDisplays()
+            if config.screen_region == nil, let main = displays.first { config.screen_region = main.region }
+        }
+        config.source = source
+    }
+    func selectDisplay(_ id: String) {
+        if let display = displays.first(where: { $0.id == id }) { config.screen_region = display.region }
     }
     var selectedCameraID: String {
         config.camera_id ?? cameras.first(where: { $0.index == config.input_device })?.id ?? ""
@@ -897,6 +963,12 @@ final class SessionModel: ObservableObject {
             model.config.logo_scale = 20
             running(model, view: "output")
         }
+        try render("desktop-screen-source", width: 1100, height: 760) { model in
+            model.displays = [Display(id: "1", name: "Built-in Retina Display", region: [0, 0, 1512, 982]), Display(id: "2", name: "Studio Display", region: [1512, -229, 2560, 1440])]
+            model.selectSource("screen")
+            model.config.setCrop(zoom: 1.5, center: CGPoint(x: 0.4, y: 0.45))
+            running(model, view: "source")
+        }
         try render("narrow-camera-guides", width: 440, height: 900) { model in
             model.config.track = true
             running(model, view: "source")
@@ -1269,6 +1341,19 @@ final class SessionModel: ObservableObject {
         let titledDecoded = try JSONDecoder().decode(Configuration.self, from: JSONEncoder().encode(titled))
         try check(titledDecoded == titled && titled.hasOverlay && !Configuration().hasOverlay && !titled.needsRestart(from: Configuration()) && Configuration().json["caption_position"] as? String == "bottom-left", "Overlays encode and apply live")
         let longCaption = Configuration.captionText(String(repeating: "\u{1F469}\u{200D}\u{1F4BB}", count: 30))
+        try check(Display.region(of: CGRect(x: -1920, y: 200, width: 1920, height: 1080), mainHeight: 982) == [-1920, -298, 1920, 1080], "Display frames convert to global top-left points")
+        var shared = Configuration()
+        shared.source = "screen"
+        shared.screen_region = [0, 0, 1512, 982]
+        try check(shared.orientedWidth == 1512 && shared.orientedHeight == 982 && shared.needsRestart(from: Configuration()) && shared.json["screen_region"] as? [Int] == [0, 0, 1512, 982] && Configuration().json["screen_region"] == nil, "Screen source takes its size from the area and restarts")
+        let sharing = SessionModel()
+        sharing.config.source = "screen"
+        sharing.displays = [Display(id: "1", name: "Built-in", region: [0, 0, 1512, 982])]
+        try check(sharing.screenUnavailable && !sharing.cameraUnavailable, "Screen source needs an area, not a camera")
+        sharing.selectDisplay("1")
+        try check(!sharing.screenUnavailable && sharing.selectedDisplayID == "1" && sharing.config.screen_region == [0, 0, 1512, 982], "Choosing a display shares all of it")
+        sharing.config.screen_region = [5000, 0, 800, 600]
+        try check(sharing.screenUnavailable && sharing.selectedDisplayID.isEmpty, "Areas off every display cannot start")
         try check(longCaption.unicodeScalars.count == Configuration.captionLimit && Configuration.captionText("Ada\tLove\nlace\u{00A0}\u{200D}") == "AdaLovelace\u{00A0}\u{200D}", "Captions stay one short line, counted like the worker")
         let switcher = SessionModel()
         let switchPipe = Pipe()
@@ -1307,7 +1392,7 @@ final class SessionModel: ObservableObject {
         try pipe.fileHandleForWriting.close()
         try pipe.fileHandleForReading.close()
         try helperSelfTest()
-        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats, orientation, compare, color, spotlight, looks, pause, menu profiles, background color, green screen, overlays).")
+        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats, orientation, compare, color, spotlight, looks, pause, menu profiles, background color, green screen, overlays, screen source).")
     }
 
     private static func helperSelfTest() throws {
@@ -1464,11 +1549,22 @@ final class SessionModel: ObservableObject {
         refreshOBS()
         guard !outputUnavailable else { error = obsReadiness.guidance; return }
         guard !cameraUnavailable else { error = "Saved camera unavailable. Reconnect it or choose another camera."; return }
+        refreshDisplays()
+        guard !screenUnavailable else { error = "The saved screen area is not on a connected display. Choose a display."; return }
+        if config.source == "screen" {
+            // the worker inherits the app's permission; asking shows the system prompt once
+            guard CGPreflightScreenCaptureAccess() else {
+                CGRequestScreenCaptureAccess()
+                error = "Screen recording access needed. Enable Webcam Mods in System Settings > Privacy & Security > Screen & System Audio Recording, then start again."
+                return
+            }
+        }
         error = nil
         outputFPS = nil
         state = "starting"
         startGeneration += 1
         let generation = startGeneration
+        guard config.source == "camera" else { launch(generation: generation); return }
         AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
             Task { @MainActor in
                 guard let self else { return }
@@ -1478,14 +1574,19 @@ final class SessionModel: ObservableObject {
                     self.error = "Camera access denied. Enable Webcam Mods in System Settings > Privacy & Security > Camera."
                     return
                 }
-                self.sessionConfig = self.config
-                self.sessionOutputMode = self.outputMode
-                self.request("start", params: ["config": self.config.json, "output": self.outputMode]) { [weak self] result in
-                    if case .failure(let issue) = result {
-                        self?.state = "error"
-                        self?.error = issue.localizedDescription
-                    }
-                }
+                self.launch(generation: generation)
+            }
+        }
+    }
+
+    private func launch(generation: Int) {
+        guard startGeneration == generation, state == "starting", connected else { return }
+        sessionConfig = config
+        sessionOutputMode = outputMode
+        request("start", params: ["config": config.json, "output": outputMode]) { [weak self] result in
+            if case .failure(let issue) = result {
+                self?.state = "error"
+                self?.error = issue.localizedDescription
             }
         }
     }
@@ -1640,12 +1741,28 @@ struct ControlPanel: View {
                             }
                         }
                     }.font(.caption)
-                    Picker("Camera", selection: Binding(get: { model.selectedCameraID }, set: model.selectCamera)) {
-                        if model.cameraUnavailable { Text(model.cameras.isEmpty ? "No cameras found" : "Saved camera unavailable").tag(model.selectedCameraID) }
-                        ForEach(model.cameras) { camera in Text(camera.name).tag(camera.id) }
-                    }.disabled(model.inventoryPending)
-                    if model.cameraUnavailable {
-                        Text(model.inventoryPending ? "Refreshing camera inventory..." : "Reconnect saved camera or choose another camera.").font(.caption).foregroundStyle(.secondary)
+                    Picker("Source", selection: Binding(get: { model.config.source }, set: model.selectSource)) {
+                        Text("Camera").tag("camera")
+                        Text("Screen").tag("screen")
+                    }.pickerStyle(.segmented)
+                        .help("Send a camera, or share a screen as video. Applies after a restart.")
+                    if model.config.source == "screen" {
+                        Picker("Display", selection: Binding(get: { model.selectedDisplayID }, set: model.selectDisplay)) {
+                            if model.selectedDisplayID.isEmpty { Text(model.screenUnavailable ? "Saved area unavailable" : "Saved area").tag("") }
+                            ForEach(model.displays) { display in Text(display.label).tag(display.id) }
+                        }
+                        Text(model.screenUnavailable
+                             ? "The saved area is not on a connected display. Choose a display."
+                             : "Zoom in and drag the box in Screen view to share part of the display. Needs Screen Recording permission.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    } else {
+                        Picker("Camera", selection: Binding(get: { model.selectedCameraID }, set: model.selectCamera)) {
+                            if model.cameraUnavailable { Text(model.cameras.isEmpty ? "No cameras found" : "Saved camera unavailable").tag(model.selectedCameraID) }
+                            ForEach(model.cameras) { camera in Text(camera.name).tag(camera.id) }
+                        }.disabled(model.inventoryPending)
+                        if model.cameraUnavailable {
+                            Text(model.inventoryPending ? "Refreshing camera inventory..." : "Reconnect saved camera or choose another camera.").font(.caption).foregroundStyle(.secondary)
+                        }
                     }
                     HStack {
                         Picker("Profile", selection: Binding(get: { model.selectedProfile }, set: model.selectProfile)) {
@@ -1805,7 +1922,7 @@ struct ControlPanel: View {
                     }.pickerStyle(.segmented)
                         .help("Turn the camera picture clockwise, in degrees, for a sideways or upside-down camera. Applies after a restart.")
                     Picker("Shape", selection: Binding(get: { model.config.outputShape }, set: { model.config.setOutputShape($0) })) {
-                        Text("Same as camera").tag("camera")
+                        Text("Same as \(model.config.sourceName.lowercased())").tag("camera")
                         ForEach(OutputShape.presets) { shape in Text(shape.label).tag(shape.id) }
                         if model.config.outputShape == "custom" {
                             Text("Custom \(model.config.output_width ?? model.config.orientedWidth)x\(model.config.output_height ?? model.config.orientedHeight)").tag("custom")
@@ -1819,13 +1936,13 @@ struct ControlPanel: View {
                         }
                         HStack {
                             Button("Center") { model.config.setCrop(zoom: model.config.cropZoom, center: CGPoint(x: 0.5, y: 0.5)) }
-                            Button("Show whole camera") { model.config.crop = nil }.disabled(model.config.crop == nil)
+                            Button("Show whole \(model.config.sourceName.lowercased())") { model.config.crop = nil }.disabled(model.config.crop == nil)
                         }
                         Text(model.config.crop == nil
-                             ? "Zoom in to crop. Drag the box in Camera view to choose what calls see."
+                             ? "Zoom in to crop. Drag the box in \(model.config.sourceName) view to choose what calls see."
                              : model.config.track || model.config.effect == "track"
-                             ? "Face tracking stays inside the crop. Drag the box in Camera view to move it."
-                             : "Drag the box in Camera view, or pinch it, to adjust the crop.")
+                             ? "Face tracking stays inside the crop. Drag the box in \(model.config.sourceName) view to move it."
+                             : "Drag the box in \(model.config.sourceName) view, or pinch it, to adjust the crop.")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                     DisclosureGroup("Advanced", isExpanded: $advanced) {
@@ -1887,7 +2004,7 @@ struct ControlPanel: View {
             }
             HStack {
                 Button(model.active ? "Stop camera" : "Start camera", action: model.active ? model.stop : model.start)
-                    .buttonStyle(.borderedProminent).disabled(!model.connected || model.state == "stopping" || (!model.active && (model.cameraUnavailable || model.outputUnavailable)))
+                    .buttonStyle(.borderedProminent).disabled(!model.connected || model.state == "stopping" || (!model.active && (model.cameraUnavailable || model.screenUnavailable || model.outputUnavailable)))
                 if model.state == "running" {
                     Button(model.paused ? "Resume video" : "Pause video", action: model.togglePause)
                         .help("Control-Option-P from any app")
@@ -2061,10 +2178,10 @@ extension PreviewPanel {
     @ViewBuilder var viewControls: some View {
         Picker("View", selection: $model.previewView) {
             Text("Output").tag("output")
-            Text("Camera").tag("source")
+            Text(model.config.sourceName).tag("source")
             if model.maskAvailable { Text("Mask").tag("mask") }
         }.pickerStyle(.segmented).labelsHidden().fixedSize()
-            .help("Output: what calls receive. Camera: full camera picture before framing and effects. Mask: what background effects keep.")
+            .help("Output: what calls receive. \(model.config.sourceName): full \(model.config.sourceName.lowercased()) picture before framing and effects. Mask: what background effects keep.")
         if model.previewView == "output" && model.previewing { CompareButton(model: model).fixedSize() }
     }
 
@@ -2075,8 +2192,8 @@ extension PreviewPanel {
             return "Click something white or gray to balance color."
         case "source":
             return model.previewGuides.isEmpty
-                ? "Camera view shows the full picture before framing and effects."
-                : "Camera view: yellow box is the detected face, green dashes are auto framing."
+                ? "\(model.config.sourceName) view shows the full picture before framing and effects."
+                : "\(model.config.sourceName) view: yellow box is the detected face, green dashes are auto framing."
         case "mask":
             return "Mask view: white is kept as you, black gets the background effect."
         default:
@@ -2233,7 +2350,7 @@ struct WebcamModsApp: App {
         MenuBarExtra("Webcam Mods", systemImage: model.paused ? "video.slash" : model.state == "running" ? "video.fill" : "video") {
             Text("Camera: \(model.paused ? "Paused" : model.state.capitalized)")
             Button(model.active ? "Stop camera" : "Start camera", action: model.active ? model.stop : model.start)
-                .disabled(!model.connected || model.state == "stopping" || (!model.active && (model.cameraUnavailable || model.outputUnavailable)))
+                .disabled(!model.connected || model.state == "stopping" || (!model.active && (model.cameraUnavailable || model.screenUnavailable || model.outputUnavailable)))
             Button(model.paused ? "Resume video" : "Pause video", action: model.togglePause)
                 .keyboardShortcut("p", modifiers: [.control, .option])
                 .disabled(model.state != "running")

@@ -41,15 +41,17 @@ def run_profile(
 
     if output not in ("virtualcam", "preview"):
         raise ValueError("output must be virtualcam or preview")
+    screen = profile.screen_region if profile.source == "screen" else None
     input_device = (
         camera_index_for_id(profile.camera_id, profile.capture)  # type: ignore[arg-type]
-        if profile.camera_id is not None
+        if profile.camera_id is not None and screen is None
         else profile.input_device
     )
+    capture_width, capture_height = profile.capture_size
     oriented_width, oriented_height = profile.oriented_size
     settings = StartupSettings(
-        in_width=profile.width,
-        in_height=profile.height,
+        in_width=capture_width,
+        in_height=capture_height,
         out_width=profile.output_width or oriented_width,
         out_height=profile.output_height or oriented_height,
         in_fps=profile.fps,
@@ -66,9 +68,18 @@ def run_profile(
     transferred = False
     closed = False
     try:
-        source = create_camera(
-            settings, profile.capture, device_id=profile.camera_id  # type: ignore[arg-type]
-        )
+        source: FrameInput
+        if screen is not None:
+            from webcam_mods.input.screen import Screen
+
+            left, top, width, height = screen
+            source = Screen(
+                top=top, left=left, width=width, height=height, fps=profile.fps
+            )
+        else:
+            source = create_camera(
+                settings, profile.capture, device_id=profile.camera_id  # type: ignore[arg-type]
+            )
         source_ready(source)
         if stop.is_set():
             return

@@ -63,7 +63,7 @@ Phase 4, backgrounds:
 Phase 5, composition:
 
 17. Overlays: logo or watermark, name caption (M). Done.
-18. Screen capture input in the app (M).
+18. Screen capture input in the app (M). Done.
 19. Presenter overlay: camera cutout over a shared screen (M-L).
 20. Snapshot and record/replay buttons (S).
 
