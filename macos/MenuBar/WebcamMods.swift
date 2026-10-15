@@ -1174,6 +1174,27 @@ final class SessionModel: ObservableObject {
         trackedShape.output_width = 1000
         trackedShape.output_height = 500
         try check(trackedShape.outputShape == "custom", "Typed output size shows as custom")
+        let switcher = SessionModel()
+        let switchPipe = Pipe()
+        switcher.input = switchPipe.fileHandleForWriting
+        switcher.connected = true
+        switcher.state = "running"
+        switcher.sessionConfig = switcher.config
+        var livePick = switcher.config
+        livePick.brightness = 30
+        var restartPick = switcher.config
+        restartPick.width = 1280
+        restartPick.height = 720
+        switcher.profiles = [Profile(name: "Bright", config: livePick), Profile(name: "Wide", config: restartPick)]
+        switcher.switchProfile("Bright")
+        let liveSwitch = String(decoding: switchPipe.fileHandleForReading.availableData, as: UTF8.self)
+        try check(switcher.selectedProfile == "Bright" && switcher.config.brightness == 30 && liveSwitch.contains("\"session.update\"") && !liveSwitch.contains("\"stop\"") && switcher.state == "running", "Menu profile switch applies live fields")
+        switcher.switchProfile("Wide")
+        let restartSwitch = String(decoding: switchPipe.fileHandleForReading.availableData, as: UTF8.self)
+        try check(switcher.selectedProfile == "Wide" && switcher.state == "stopping" && restartSwitch.contains("\"stop\""), "Menu profile switch restarts for capture changes")
+        try switchPipe.fileHandleForWriting.close()
+        try switchPipe.fileHandleForReading.close()
+        SessionModel.current = model
         let pauseID = model.nextID + 1
         model.togglePause()
         let pauseRequest = try lastRequest()
@@ -1190,7 +1211,7 @@ final class SessionModel: ObservableObject {
         try pipe.fileHandleForWriting.close()
         try pipe.fileHandleForReading.close()
         try helperSelfTest()
-        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats, orientation, compare, color, spotlight, looks, pause).")
+        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats, orientation, compare, color, spotlight, looks, pause, menu profiles).")
     }
 
     private static func helperSelfTest() throws {
@@ -1312,6 +1333,13 @@ final class SessionModel: ObservableObject {
         profileName = name
         reconcileCamera()
         if connected { refreshCameras() }
+    }
+
+    // menu bar switching applies at once; camera or output shape changes restart
+    func switchProfile(_ name: String) {
+        guard name != selectedProfile || profileModified else { return }
+        selectProfile(name)
+        if restartRequired { restart() }
     }
 
     func saveProfile() {
@@ -2002,6 +2030,11 @@ struct WebcamModsApp: App {
             Button(model.paused ? "Resume video" : "Pause video", action: model.togglePause)
                 .keyboardShortcut("p", modifiers: [.control, .option])
                 .disabled(model.state != "running")
+            if !model.profiles.isEmpty {
+                Picker("Profile", selection: Binding(get: { model.selectedProfile }, set: model.switchProfile)) {
+                    ForEach(model.profiles) { profile in Text(profile.name).tag(profile.name) }
+                }.disabled(!model.connected || model.state == "stopping")
+            }
             Button("Open window") { delegate.showControls() }.keyboardShortcut("o")
             Divider()
             Button("Quit Webcam Mods", action: model.quit).keyboardShortcut("q")

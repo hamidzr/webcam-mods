@@ -25,8 +25,11 @@ Launch Webcam Mods to open its resizable main window. Choose a camera and
 background effect, optionally enable face tracking, then adjust brightness and
 press Start camera. Settings and saved profiles live beside the video preview in wide windows,
 and below it in narrow windows.
-The menu bar contains status, Start/Stop, Pause video, Open window and Quit; Open
-window or reopening the app brings back the same window.
+The menu bar contains status, Start/Stop, Pause video, Profile, Open window and
+Quit; Open window or reopening the app brings back the same window. Profile lists
+saved profiles. Choosing one applies it at once, replacing unsaved edits in the
+window; a running camera restarts by itself when the profile changes camera or
+output shape.
 
 Output defaults to **Preview only**, which tests camera and effects without OBS.
 Choose **OBS Virtual Camera** to publish video to conferencing clients while

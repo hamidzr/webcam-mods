@@ -166,7 +166,7 @@ just verify
 E2E uses real models and deterministic image input through the production loop,
 writing PNG output and metrics under `dist/e2e`. It needs no camera, OBS or display.
 Native app opens a settings window with processed video preview. Preview-only
-mode tests without OBS; the menu bar provides status, Start/Stop, Pause video and Open window.
+mode tests without OBS; the menu bar provides status, Start/Stop, Pause video, profile switching and Open window.
 Native app setup and checks: [macOS app guide](docs/macos-menu.md).
 
 These checks establish processing and lifecycle behavior. They do not establish
