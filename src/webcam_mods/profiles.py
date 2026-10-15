@@ -31,6 +31,9 @@ RESTART_FIELDS = frozenset(
 )
 
 
+# keep in step with mods/looks.py BUILTIN_LOOKS; custom reads look_path
+LOOKS = ("none", "warm", "cool", "mono", "fade", "vivid", "film", "custom")
+
 NUMBER_RANGES: tuple[tuple[str, float, float], ...] = (
     ("track_face_height", 0.1, 0.9),
     ("track_target_y", 0.2, 0.8),
@@ -87,6 +90,10 @@ class Profile:
     sharpness: int = 0
     # lifts dark pictures toward a target brightness over about a second, 0 off
     auto_light: int = 0
+    # final color grade: a built-in look or a .cube LUT file, blended by strength
+    look: str = "none"
+    look_path: str = ""
+    look_strength: int = 100
     camera_id: str | None = None
     output_width: int | None = None
     output_height: int | None = None
@@ -108,6 +115,7 @@ class Profile:
             ("auto_light", 0, 100),
             ("spotlight_dim", 0, 100),
             ("spotlight_lift", 0, 100),
+            ("look_strength", 0, 100),
         ):
             value = getattr(self, key)
             if type(value) is not int or not lower <= value <= upper:
@@ -168,6 +176,7 @@ class Profile:
             ("segmentation", ("mediapipe", "vision")),
             ("processing", ("opencv", "coreimage")),
             ("capture", ("auto", "opencv", "avfoundation")),
+            ("look", LOOKS),
         ):
             if getattr(self, key) not in choices:
                 raise ValueError(f"invalid {key}")
@@ -175,6 +184,10 @@ class Profile:
             raise ValueError("image_path must be a path string")
         if self.effect == "image" and not self.image_path:
             raise ValueError("image effect requires image_path")
+        if not isinstance(self.look_path, str) or len(self.look_path) > 4096:
+            raise ValueError("look_path must be a path string")
+        if self.look == "custom" and not self.look_path:
+            raise ValueError("custom look requires look_path")
 
     @property
     def oriented_size(self) -> tuple[int, int]:
@@ -216,6 +229,10 @@ def _crop(value: object) -> tuple[float, float, float, float]:
     ):
         raise ValueError("crop must be fractions inside the frame, at least 0.02 wide")
     return x, y, width, height
+
+
+def _absolute(path: str) -> str:
+    return str(Path(path).expanduser().resolve())
 
 
 MAX_STORED_CONFIG_BYTES = 65536
@@ -277,9 +294,9 @@ class ProfileStore:
         name = validate_name(name)
         profile = Profile.parse(config)
         if profile.image_path:
-            profile = replace(
-                profile, image_path=str(Path(profile.image_path).expanduser().resolve())
-            )
+            profile = replace(profile, image_path=_absolute(profile.image_path))
+        if profile.look_path:
+            profile = replace(profile, look_path=_absolute(profile.look_path))
         with self._connect() as db:
             db.execute(
                 "INSERT INTO profiles VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET config=excluded.config",

@@ -60,7 +60,7 @@ Root help lists frequent grouped options; command help exposes all common option
 | `session.py` | Validated frame preparation, ordered command application, recording ownership |
 | `loopback.py` | Adapter selection, metadata validation, synchronous/repeated delivery, cooperative stop and error behavior |
 | `frame_producer.py` | Worker-owned capture/effects, latest snapshot, bounded shutdown |
-| `effects.py` | Live profile pipeline: orientation, crop, tracking, auto light, background, brightness, color; preview views and white-balance sampling |
+| `effects.py` | Live profile pipeline: orientation, crop, tracking, auto light, background, brightness, color, look; preview views and white-balance sampling |
 | `profiles.py` | Validated launch profiles and transactional SQLite persistence |
 | `control.py` | One-session lifecycle controller and local JSONL request/event protocol |
 | `macos/MenuBar/WebcamMods.swift` | Native menu, managed helper transport and settings UI |
@@ -79,6 +79,7 @@ Root help lists frequent grouped options; command help exposes all common option
 | `mods/person_segmentation.py` | Instance-owned MediaPipe/Vision effects (blur, color, image, spotlight) and float32 blending |
 | `mods/camera_motion.py` | Instance-owned crop interpolation |
 | `mods/record_replay.py` | Bounded recorder and looping replay |
+| `mods/looks.py` | `.cube` 3D LUT parsing, built-in looks and 7-bit table application with strength |
 | `mods/color.py` | Exposure/contrast/white balance lookup tables, saturation, sharpening, neutral-balance solver, auto light |
 | `stats.py` | Thread-safe sliding-window frame rate and duration meters |
 | `uses/interactive_controls.py` | Lazy optional keyboard/control adapters |

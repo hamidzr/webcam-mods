@@ -88,8 +88,8 @@ curve set by Lift you, where black and white stay put; both apply live without
 reloading segmentation. Tracking combines
 with background and brightness. Effect order: rotation, mirror and vertical flip,
 manual crop, tracking inside
-the crop, auto light, fixed-size background processing, brightness, color, final
-output sizing. Mirror video flips the
+the crop, auto light, fixed-size background processing, brightness, color, look,
+final output sizing. Mirror video flips the
 camera left to right for both preview and OBS output, so receivers see the
 mirrored view; background images stay readable. Background effects keep the
 picture orientation, so only Mirror video flips it. Flip upside down turns the picture
@@ -115,6 +115,10 @@ tint so it turns neutral. Cancel or stopping the camera ends picking. Low light
 (0..100, 0 off) brightens dark framed pictures toward a mid-tone target over about a
 second, rolling off highlights; it never darkens. It runs before segmentation, so
 masks see the brighter picture while background images stay as chosen.
+Look is a final color grade: None, Warm, Cool, Mono, Fade, Vivid, Film, or Custom LUT,
+which opens a `.cube` 3D lookup table (sizes 2..65, up to 16 MiB; domain headers
+honored, 1D tables rejected). Strength blends it with the picture, 0..100. Looks
+apply live; an unreadable or invalid file is refused and the current look stays.
 Image mode includes an offline thumbnail gallery: Warm study, Quiet office and
 Soft shelves. Entering Image with no previous image selects Warm study; click a
 thumbnail to switch, or Choose your own to open an image file. Saved profiles
@@ -241,6 +245,9 @@ Profile fields and defaults:
 | temperature, tint | 0 | White balance, -100..100: positive warmer, positive tint magenta |
 | sharpness | 0 | Unsharp mask amount, 0..100 |
 | auto_light | 0 | Low-light lift strength, 0..100; 0 off, never darkens |
+| look | none | none, warm, cool, mono, fade, vivid, film or custom |
+| look_path | empty | `.cube` file required for the custom look; saved as an absolute path |
+| look_strength | 100 | Look blend, 0..100 |
 | smoothing | false | Opt-in motion-aware mask stabilization |
 
 ## Local protocol

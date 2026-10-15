@@ -1,6 +1,7 @@
 import SwiftUI
 import AVFoundation
 import AppKit
+import UniformTypeIdentifiers
 
 struct Camera: Decodable, Identifiable {
     let index: Int
@@ -53,6 +54,10 @@ struct Configuration: Codable, Equatable {
     var sharpness = 0
     // lifts dark pictures gradually, 0 off
     var auto_light = 0
+    // final grade: none, a built-in look, or custom with a .cube file
+    var look = "none"
+    var look_path = ""
+    var look_strength = 100
 
     var tracking: Bool { track || effect == "track" }
 
@@ -805,6 +810,8 @@ final class SessionModel: ObservableObject {
             model.config.saturation = 10
             model.config.auto_light = 40
             model.config.effect = "spotlight"
+            model.config.look = "film"
+            model.config.look_strength = 70
             running(model, view: "output")
             model.beginWhitePick()
             model.previewImage = image
@@ -1082,6 +1089,12 @@ final class SessionModel: ObservableObject {
         spotlight.effect = "spotlight"
         spotlight.spotlight_dim = 80
         let spotlightDecoded = try JSONDecoder().decode(Configuration.self, from: JSONEncoder().encode(spotlight))
+        var graded = Configuration()
+        graded.look = "film"
+        graded.look_strength = 70
+        let gradedDecoded = try JSONDecoder().decode(Configuration.self, from: JSONEncoder().encode(graded))
+        try check(gradedDecoded.look == "film" && gradedDecoded.look_strength == 70 && gradedDecoded.look_path.isEmpty && !graded.needsRestart(from: Configuration()) && (Configuration().json["look"] as? String) == "none", "Looks encode and apply live")
+        try check(ControlPanel.looks.allSatisfy { !["none", "custom"].contains($0) } && ControlPanel.looks.count == 6, "Built-in looks list")
         try check(spotlightDecoded.spotlight_dim == 80 && spotlightDecoded.spotlight_lift == 20 && !spotlight.needsRestart(from: Configuration()), "Spotlight settings encode and apply live")
         model.previewView = "output"
         model.beginWhitePick()
@@ -1160,7 +1173,7 @@ final class SessionModel: ObservableObject {
         try pipe.fileHandleForWriting.close()
         try pipe.fileHandleForReading.close()
         try helperSelfTest()
-        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats, orientation, compare, color, spotlight).")
+        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats, orientation, compare, color, spotlight, looks).")
     }
 
     private static func helperSelfTest() throws {
@@ -1353,6 +1366,19 @@ final class SessionModel: ObservableObject {
         }
     }
 
+    // sets path and look together so the worker never sees custom without a file
+    func chooseLook() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [UTType(filenameExtension: "cube") ?? .data]
+        panel.allowsMultipleSelection = false
+        panel.message = "Choose a .cube color lookup table"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        var next = config
+        next.look_path = url.path
+        next.look = "custom"
+        config = next
+    }
+
     func chooseImage() {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.image]
@@ -1389,6 +1415,9 @@ struct ControlPanel: View {
         self.model = model
         _colorExpanded = State(initialValue: model.config.colorAdjusted)
     }
+
+    // keep in step with LOOKS in profiles.py
+    static let looks = ["warm", "cool", "mono", "fade", "vivid", "film"]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -1492,6 +1521,21 @@ struct ControlPanel: View {
                         }.padding(.leading, 20)
                     }
                     slider("Brightness", value: $model.config.brightness, range: 0...255)
+                    Picker("Look", selection: Binding(get: { model.config.look }, set: { look in
+                        if look == "custom" { model.chooseLook() } else { model.config.look = look }
+                    })) {
+                        Text("None").tag("none")
+                        ForEach(Self.looks, id: \.self) { look in Text(look.capitalized).tag(look) }
+                        Text(model.config.look_path.isEmpty ? "Custom LUT..." : "Custom: \(URL(fileURLWithPath: model.config.look_path).deletingPathExtension().lastPathComponent)").tag("custom")
+                    }.help("A finishing color grade. Custom loads a .cube lookup table file.")
+                    if model.config.look != "none" {
+                        HStack {
+                            slider("Strength", value: $model.config.look_strength, range: 0...100)
+                            if model.config.look == "custom" {
+                                Button("Choose...", action: model.chooseLook).help("Pick another .cube file")
+                            }
+                        }
+                    }
                     DisclosureGroup("Color", isExpanded: $colorExpanded) {
                         VStack(alignment: .leading, spacing: 4) {
                             slider("Low light", value: $model.config.auto_light, range: 0...100)

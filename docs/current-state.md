@@ -33,7 +33,8 @@ remain supported. Native macOS menu is optional; installed CLI works independent
   Color (exposure, contrast, saturation, warmth, tint, sharpness) applies live from
   profiles; Pick white sets warmth and tint from a clicked camera point. Low light
   gradually brightens dark pictures before segmentation. Spotlight background dims
-  the room and lifts the person using the segmentation mask.
+  the room and lifts the person using the segmentation mask. Looks (six built-in
+  grades or a `.cube` LUT file) finish the picture with adjustable strength.
   Profiles store a manual crop edited by zoom, drag and pinch in the camera view;
   tracking stays inside it. Framing preferences (face size, head height, max zoom,
   follow time, steadiness) are profile fields that apply live.

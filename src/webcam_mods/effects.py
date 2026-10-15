@@ -15,6 +15,7 @@ from webcam_mods.mods.color import (
     ColorSettings,
     neutral_balance,
 )
+from webcam_mods.mods.looks import ColorLook, builtin_look, load_cube
 from webcam_mods.mods.video_mods import brighten, crop_rect, resize_and_pad
 from webcam_mods.output.native_preview import Guides
 from webcam_mods.profiles import Profile
@@ -260,7 +261,7 @@ class ProfileEffect:
     """Profile pipeline whose settings can change between frames.
 
     Order: orientation, manual crop with optional tracking inside it, auto light,
-    fixed-size background, brightness, color. Updates are
+    fixed-size background, brightness, color, look. Updates are
     queued by any thread and applied on the processing thread before a frame.
     Source, original and mask preview frames are encoded only while the app shows
     them.
@@ -282,6 +283,8 @@ class ProfileEffect:
         self._lock = threading.Lock()
         self._pending: Profile | None = None
         self._image: tuple[str, Frame] | None = None
+        self._cube: tuple[str, ColorLook] | None = None
+        self.look: ColorLook | None = None
         self._initialized = False
         self._closed = False
         self.background: "BackgroundEffect | None" = None
@@ -301,6 +304,8 @@ class ProfileEffect:
             raise RuntimeError("profile effect is closed")
         if profile.effect == "image":
             self._load_image(profile.image_path)
+        if profile.look == "custom":
+            self._load_cube(profile.look_path)
         with self._lock:
             self._pending = profile
 
@@ -313,6 +318,21 @@ class ProfileEffect:
         with self._lock:
             self._image = (path, image)
         return image
+
+    def _load_cube(self, path: str) -> ColorLook:
+        with self._lock:
+            cached = self._cube
+        if cached is not None and cached[0] == path:
+            return cached[1]
+        try:
+            look = load_cube(path)
+        except OSError as error:
+            raise ValueError(
+                f"look file could not be read: {error.strerror}"
+            ) from error
+        with self._lock:
+            self._cube = (path, look)
+        return look
 
     def _apply(self, profile: Profile, previous: Profile | None) -> None:
         from webcam_mods.entry import Common, BackgroundEffect
@@ -372,6 +392,12 @@ class ProfileEffect:
             self.tracking.configure(**options)
         self.color.configure(_color_settings(profile))
         self.auto_light.configure(profile.auto_light)
+        if profile.look == "none" or profile.look_strength == 0:
+            self.look = None
+        elif profile.look == "custom":
+            self.look = self._load_cube(profile.look_path)
+        else:
+            self.look = builtin_look(profile.look)
         self._profile = profile
 
     def _apply_pending(self) -> None:
@@ -435,6 +461,8 @@ class ProfileEffect:
         if profile.brightness:
             frame = brighten(frame, profile.brightness)
         frame = self.color(frame)
+        if self.look is not None:
+            frame = self.look(frame, profile.look_strength / 100)
         self.stats.tick(time.perf_counter() - started)
         return frame
 
