@@ -117,6 +117,8 @@ class Profile:
     auto_light: int = 0
     # smooths skin while eyes, brows and lips stay sharp, 0 off
     touchup: int = 0
+    # averages camera noise over frames where nothing moves, 0 off
+    denoise: int = 0
     # final color grade: a built-in look or a .cube LUT file, blended by strength
     look: str = "none"
     look_path: str = ""
@@ -161,6 +163,7 @@ class Profile:
             ("sharpness", 0, 100),
             ("auto_light", 0, 100),
             ("touchup", 0, 100),
+            ("denoise", 0, 100),
             ("spotlight_dim", 0, 100),
             ("spotlight_lift", 0, 100),
             ("look_strength", 0, 100),

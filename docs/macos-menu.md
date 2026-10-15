@@ -66,9 +66,9 @@ Show camera puts a camera over the shared screen, with its own camera picker. Bu
 shows the middle of the camera picture in a circle; Cutout shows only the person,
 standing on the bottom edge, using the profile's segmentation (Green screen keys a
 backdrop instead). Corner and Size (camera height, 10..80 percent of the picture)
-apply live; turning it on or off restarts. Mirror, flip, rotation, low light,
-touch up, brightness, color and look apply to the camera picture, never to the screen. The
-camera opens and closes with the session, so Pause turns it off.
+apply live; turning it on or off restarts. Mirror, flip, rotation, denoise, low
+light, touch up, brightness, color and look apply to the camera picture, never to
+the screen. The camera opens and closes with the session, so Pause turns it off.
 
 Zoom (1x..4x) crops the camera to what calls see. The crop keeps the output aspect,
 so output fills without bars. In Camera view the crop is a white box with the rest
@@ -166,7 +166,13 @@ second, rolling off highlights; it never darkens. It runs before segmentation, s
 masks see the brighter picture while background images stay as chosen. Touch up
 (0..100, 0 off) smooths skin tones with an edge-preserving filter after low light;
 strong edges such as eyes, brows and lips keep their detail, and non-skin colors
-stay untouched. It costs about 7 ms per 720p frame and applies live.
+stay untouched. It costs about 7 ms per 720p frame and applies live. Denoise
+(0..100, 0 off) averages each pixel over recent frames where the picture holds
+still, right after orientation and before framing, so zooming or tracking never
+restarts it; moving areas and scene changes pass through without ghosts. It costs
+about 4 ms per 720p frame (9 ms at 1080p) and applies live; turning it off drops
+the history. Camera view and white balance use the raw picture; Compare keeps
+noise reduction on.
 Look is a final color grade: None, Warm, Cool, Mono, Fade, Vivid, Film, or Custom LUT,
 which opens a `.cube` 3D lookup table (sizes 2..65, up to 16 MiB; domain headers
 honored, 1D tables rejected). Strength blends it with the picture, 0..100. Looks
@@ -318,6 +324,7 @@ Profile fields and defaults:
 | sharpness | 0 | Unsharp mask amount, 0..100 |
 | auto_light | 0 | Low-light lift strength, 0..100; 0 off, never darkens |
 | touchup | 0 | Skin smoothing strength, 0..100; 0 off |
+| denoise | 0 | Temporal noise reduction strength, 0..100; 0 off |
 | look | none | none, warm, cool, mono, fade, vivid, film or custom |
 | look_path | empty | `.cube` file required for the custom look; saved as an absolute path |
 | look_strength | 100 | Look blend, 0..100 |

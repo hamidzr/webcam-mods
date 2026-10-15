@@ -36,10 +36,11 @@ remain supported. Native macOS menu is optional; installed CLI works independent
   Color (exposure, contrast, saturation, warmth, tint, sharpness) applies live from
   profiles; Pick white sets warmth and tint from a clicked camera point. Low light
   gradually brightens dark pictures before segmentation; Touch up smooths skin
-  while eyes, brows and lips stay sharp. Solid backgrounds take any
-  color, with a screen eyedropper; image backgrounds fill without stretching at a
-  chosen position and can be looping videos. Green screen keying (any key color, tolerance, softness, spill)
-  replaces person segmentation when chosen. Spotlight background dims
+  while eyes, brows and lips stay sharp; Denoise averages grain over still frames.
+  Solid backgrounds take any color, with a screen eyedropper; image backgrounds
+  fill without stretching at a chosen position and can be looping videos. Green
+  screen keying (any key color, tolerance, softness, spill) replaces person
+  segmentation when chosen. Spotlight background dims
   the room and lifts the person using the segmentation mask. Looks (six built-in
   grades or a `.cube` LUT file) finish the picture with adjustable strength.
   Overlays (name caption with a second line, logo or watermark with size and
