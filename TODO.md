@@ -51,7 +51,7 @@ Phase 2, image look:
 
 Phase 3, call controls:
 
-12. Pause video from the menu bar and a global hotkey (S).
+12. Pause video from the menu bar and a global hotkey (S). Done.
 13. Switch profiles from the menu bar (S).
 
 Phase 4, backgrounds:

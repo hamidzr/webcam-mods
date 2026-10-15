@@ -27,8 +27,9 @@ keeps repeating the previous frame; strict or bounded runs raise instead.
 Effect failures retain the existing error-image / `--freeze-on-error` policy.
 Capture and output failures stop the run.
 
-On-demand mode closes paused capture and continues delivering the no-signal image
-at output FPS. Initial setup retains capture until the first activation decision;
+On-demand mode closes capture while no consumer reads output and delivers the
+no-signal image every half second. A user pause (`should_pause`, the app's Pause
+video) also closes capture but keeps delivering that image at output FPS. Initial setup retains capture until the first activation decision;
 it does not reopen the camera before processing the first frame.
 
 Shutdown signals the worker and interrupts pending AVFoundation frame waits

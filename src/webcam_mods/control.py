@@ -32,6 +32,7 @@ def run_profile(
     on_effect: Callable[["ProfileEffect"], None] | None = None,
     on_warning: Callable[[str], None] | None = None,
     preview: "PreviewSink | None" = None,
+    should_pause: Callable[[], bool] | None = None,
 ) -> None:
     from webcam_mods.capture import camera_index_for_id, create_camera
     from webcam_mods.effects import ProfileEffect
@@ -84,6 +85,7 @@ def run_profile(
             strict_errors=True,
             on_frame=on_frame,
             on_output_ready=on_output_ready,
+            should_pause=should_pause,
         )
     except WorkerShutdownTimeout:
         # backend process must exit; it cannot safely start another session
@@ -130,6 +132,8 @@ class Controller:
         self.profile: Profile | None = None
         self.effect: ProfileEffect | None = None
         self.sent = RateMeter()
+        # user pause: capture closes and output shows the loading picture
+        self.paused = threading.Event()
 
     def _clear_preview(self) -> None:
         self.output_fps = None
@@ -147,6 +151,11 @@ class Controller:
                 **(
                     {"output_fps": self.output_fps}
                     if self.output_fps is not None
+                    else {}
+                ),
+                **(
+                    {"paused": True}
+                    if self.paused.is_set() and self.state == "running"
                     else {}
                 ),
             }
@@ -189,6 +198,7 @@ class Controller:
             self._clear_preview()
             preview = self.preview = NativePreview()
             sent = self.sent = RateMeter()
+            paused = self.paused = threading.Event()
             self.profile = profile
             self._state("starting")
 
@@ -239,6 +249,7 @@ class Controller:
                             on_effect=effect_ready,
                             on_warning=warning,
                             preview=preview,
+                            should_pause=paused.is_set,
                         )
                     else:
                         self.runner(profile, self.stop_event, ready, source_ready)
@@ -280,6 +291,19 @@ class Controller:
                 raise ValueError(f"restart required to change {', '.join(changed)}")
             effect.update(profile)
             self.profile = profile
+            return self.status()
+
+    def pause(self, paused: bool) -> dict[str, Any]:
+        """Pause or resume the running session's video; output stays open."""
+        with self.lock:
+            if self.state != "running":
+                raise RuntimeError("camera is not running")
+            if paused != self.paused.is_set():
+                if paused:
+                    self.paused.set()
+                else:
+                    self.paused.clear()
+                self.emit({"event": "status", "data": self.status()})
             return self.status()
 
     def stats(self) -> dict[str, float | None] | None:
@@ -352,6 +376,10 @@ class Controller:
             if params:
                 raise ValueError("session.stats params must be empty")
             return self.stats()
+        if method == "session.pause":
+            if set(params) != {"paused"} or not isinstance(params["paused"], bool):
+                raise ValueError("session.pause needs paused true or false")
+            return self.pause(params["paused"])
         if method == "session.white_balance":
             if set(params) != {"x", "y"} or not all(
                 isinstance(params[key], (int, float))

@@ -91,8 +91,13 @@ def live_loop(
     on_ready: Callable[[], None] | None = None,
     on_frame: Callable[[Frame], None] | None = None,
     on_output_ready: Callable[[AdapterMetadata], None] | None = None,
+    should_pause: Callable[[], bool] | None = None,
 ) -> None:
-    """Pass frames through a mod; bounded runs raise on missing input."""
+    """Pass frames through a mod; bounded runs raise on missing input.
+
+    While should_pause returns true, capture closes and output repeats the
+    loading picture at full output FPS, like on-demand idle but for a user pause.
+    """
     if max_frames is not None and max_frames < 1:
         raise ValueError("max_frames must be positive")
     settings = settings or load_settings()
@@ -173,7 +178,8 @@ def live_loop(
                 ):
                     if before_frame is not None:
                         before_frame()
-                    paused = on_demand and not cam.is_in_use()
+                    idle = on_demand and not cam.is_in_use()
+                    paused = idle or (should_pause is not None and should_pause())
                     if paused:
                         fIn.teardown()
                         delivered = signals.frame()
@@ -204,7 +210,7 @@ def live_loop(
                             )
 
                         if not pacer.wait(
-                            interval=0.5 if paused else None,
+                            interval=0.5 if idle else None,
                             process_events=bounded_events,
                         ):
                             break
@@ -240,7 +246,8 @@ def live_loop(
             while (max_frames is None or sent_frames < max_frames) and not (
                 should_stop is not None and should_stop()
             ):
-                paused = on_demand and not cam.is_in_use()
+                idle = on_demand and not cam.is_in_use()
+                paused = idle or (should_pause is not None and should_pause())
                 producer.enable(not paused)
                 if paused:
                     requested = False
@@ -287,7 +294,7 @@ def live_loop(
                     sent_frames += 1
                 if pace:
                     if not pacer.wait(
-                        interval=0.5 if paused else None,
+                        interval=0.5 if idle else None,
                         process_events=process_output_events,
                     ):
                         break

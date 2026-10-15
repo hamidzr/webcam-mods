@@ -25,8 +25,8 @@ Launch Webcam Mods to open its resizable main window. Choose a camera and
 background effect, optionally enable face tracking, then adjust brightness and
 press Start camera. Settings and saved profiles live beside the video preview in wide windows,
 and below it in narrow windows.
-The menu bar contains status, Start/Stop, Open window and Quit; Open window or
-reopening the app brings back the same window.
+The menu bar contains status, Start/Stop, Pause video, Open window and Quit; Open
+window or reopening the app brings back the same window.
 
 Output defaults to **Preview only**, which tests camera and effects without OBS.
 Choose **OBS Virtual Camera** to publish video to conferencing clients while
@@ -81,6 +81,12 @@ size/FPS, processing FPS, repeat mode and loading picture shape the session. Edi
 while running shows Restart camera, which stops, refreshes camera inventory and
 starts with the edited settings.
 The menu does not automatically activate when another application opens a camera.
+
+Pause video, in the window, the menu bar or Control-Option-P from any app, keeps
+the session and output open but closes the camera, so its light turns off, and
+sends the loading picture at output FPS. Resume video reopens the camera; Stop
+ends the pause. The menu bar icon shows a crossed-out camera while paused. The
+shortcut is registered when the app launches; if macOS refuses it, use the menu bar.
 
 Background choices are original, blur, solid gray, image and spotlight. Spotlight
 keeps the room but darkens it by Dim room percent and brightens you with a gentle
@@ -286,9 +292,10 @@ the helper available.
 | preview.get | optional view: output (default), source, mask or original | Latest {jpeg: base64, width, height, view, optional guides}, or null |
 | session.update | config | Current state; applies live fields to the running session |
 | session.stats | {} | {processed_fps, sent_fps, effect_ms}, each null until measured; null when idle |
+| session.pause | {paused: true or false} | Current state; a paused session closes capture and sends the loading picture at output FPS. Requires a running session |
 | session.white_balance | {x, y} fractions of the camera view, 0..1 | {temperature, tint} that make a small patch of the latest camera frame neutral; the app applies them as a live update |
 | stop | {} | State after bounded shutdown |
-| status | {} | Current state, optional error and negotiated output_fps once output opens |
+| status | {} | Current state, optional error, negotiated output_fps once output opens and paused: true while paused |
 | shutdown | {} | Stop result, then helper exits |
 
 `session.update` takes a complete configuration. It fails without a starting or

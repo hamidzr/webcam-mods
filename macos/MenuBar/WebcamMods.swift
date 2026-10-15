@@ -1,6 +1,7 @@
 import SwiftUI
 import AVFoundation
 import AppKit
+import Carbon.HIToolbox
 import UniformTypeIdentifiers
 
 struct Camera: Decodable, Identifiable {
@@ -297,6 +298,7 @@ final class SessionModel: ObservableObject {
             if !previewing {
                 stats = nil
                 comparing = false
+                paused = false
                 cancelWhitePick()
             }
             if !active { endLiveSession() }
@@ -322,6 +324,8 @@ final class SessionModel: ObservableObject {
     // click-to-white-balance: the next click in Camera view sets temperature and tint
     @Published var pickingWhite = false
     private var viewBeforePick: String?
+    // a paused session keeps the output open and sends the loading picture with the camera off
+    @Published var paused = false
     // normalized boxes drawn over the preview, never into the video
     @Published var previewGuides: [String: CGRect] = [:]
     @Published var stats: SessionStats?
@@ -712,6 +716,7 @@ final class SessionModel: ObservableObject {
             if message["event"] as? String == "status", let data = message["data"] as? [String: Any] {
                 state = data["state"] as? String ?? "idle"
                 outputFPS = (data["output_fps"] as? NSNumber)?.doubleValue
+                paused = data["paused"] as? Bool ?? false
                 error = data["error"] as? String
             } else if message["event"] as? String == "warning", let data = message["data"] as? [String: Any] {
                 error = data["message"] as? String
@@ -1169,11 +1174,23 @@ final class SessionModel: ObservableObject {
         trackedShape.output_width = 1000
         trackedShape.output_height = 500
         try check(trackedShape.outputShape == "custom", "Typed output size shows as custom")
+        let pauseID = model.nextID + 1
+        model.togglePause()
+        let pauseRequest = try lastRequest()
+        try check(model.paused && pauseRequest?["method"] as? String == "session.pause" && (pauseRequest?["params"] as? [String: Any])?["paused"] as? Bool == true, "Pause shows at once and asks the worker")
+        model.consume(Data("{\"id\":\(pauseID),\"result\":{\"state\":\"running\"}}\n".utf8))
+        try check(!model.paused, "Worker status decides pause")
+        model.consume(Data("{\"event\":\"status\",\"data\":{\"state\":\"running\",\"paused\":true}}\n".utf8))
+        try check(model.paused, "Status event carries pause")
+        model.state = "idle"
+        try check(!model.paused, "Stopping clears pause")
+        model.togglePause()
+        try check(!model.paused && model.nextID == pauseID, "Pause needs a running camera")
         model.state = "idle"
         try pipe.fileHandleForWriting.close()
         try pipe.fileHandleForReading.close()
         try helperSelfTest()
-        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats, orientation, compare, color, spotlight, looks).")
+        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats, orientation, compare, color, spotlight, looks, pause).")
     }
 
     private static func helperSelfTest() throws {
@@ -1362,6 +1379,21 @@ final class SessionModel: ObservableObject {
             case .failure(let issue):
                 self?.state = "error"
                 self?.error = issue.localizedDescription
+            }
+        }
+    }
+
+    // shows the new state at once; the worker's status confirms it
+    func togglePause() {
+        guard state == "running" else { return }
+        paused.toggle()
+        request("session.pause", params: ["paused": paused]) { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success(let value):
+                if let status = value as? [String: Any] { self.paused = status["paused"] as? Bool ?? false }
+            case .failure(let issue):
+                self.error = issue.localizedDescription
             }
         }
     }
@@ -1648,6 +1680,10 @@ struct ControlPanel: View {
             HStack {
                 Button(model.active ? "Stop camera" : "Start camera", action: model.active ? model.stop : model.start)
                     .buttonStyle(.borderedProminent).disabled(!model.connected || model.state == "stopping" || (!model.active && (model.cameraUnavailable || model.outputUnavailable)))
+                if model.state == "running" {
+                    Button(model.paused ? "Resume video" : "Pause video", action: model.togglePause)
+                        .help("Control-Option-P from any app")
+                }
                 Spacer()
                 Button("Quit", action: model.quit)
             }
@@ -1798,6 +1834,7 @@ struct PreviewPanel: View {
 
 extension PreviewPanel {
     var caption: String {
+        if model.paused { return "Paused: calls see the loading picture and the camera is off." }
         switch model.previewView {
         case "source" where model.pickingWhite:
             return "Click something white or gray to balance color."
@@ -1958,13 +1995,39 @@ struct WebcamModsApp: App {
         }
     }
     var body: some Scene {
-        MenuBarExtra("Webcam Mods", systemImage: model.state == "running" ? "video.fill" : "video") {
-            Text("Camera: \(model.state.capitalized)")
+        MenuBarExtra("Webcam Mods", systemImage: model.paused ? "video.slash" : model.state == "running" ? "video.fill" : "video") {
+            Text("Camera: \(model.paused ? "Paused" : model.state.capitalized)")
             Button(model.active ? "Stop camera" : "Start camera", action: model.active ? model.stop : model.start)
                 .disabled(!model.connected || model.state == "stopping" || (!model.active && (model.cameraUnavailable || model.outputUnavailable)))
+            Button(model.paused ? "Resume video" : "Pause video", action: model.togglePause)
+                .keyboardShortcut("p", modifiers: [.control, .option])
+                .disabled(model.state != "running")
             Button("Open window") { delegate.showControls() }.keyboardShortcut("o")
             Divider()
             Button("Quit Webcam Mods", action: model.quit).keyboardShortcut("q")
+        }
+    }
+}
+
+// Control-Option-P toggles pause from any app; Carbon hot keys need no
+// accessibility permission and only fire for this exact combination
+enum PauseHotKey {
+    private static var hotKey: EventHotKeyRef?
+
+    static func register() {
+        guard hotKey == nil else { return }
+        var pressed = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
+        let installed = InstallEventHandler(GetApplicationEventTarget(), { _, _, _ in
+            Task { @MainActor in SessionModel.current?.togglePause() }
+            return noErr
+        }, 1, &pressed, nil, nil)
+        // 'WCMP'
+        let id = EventHotKeyID(signature: 0x5743_4D50, id: 1)
+        let status = installed == noErr
+            ? RegisterEventHotKey(UInt32(kVK_ANSI_P), UInt32(controlKey | optionKey), id, GetApplicationEventTarget(), 0, &hotKey)
+            : installed
+        if status != noErr {
+            FileHandle.standardError.write(Data("Pause shortcut Control-Option-P unavailable (\(status)); use the menu bar.\n".utf8))
         }
     }
 }
@@ -1977,6 +2040,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         showControls()
         schedulePreview()
+        PauseHotKey.register()
     }
 
     private func schedulePreview() {

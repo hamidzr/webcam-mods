@@ -38,7 +38,9 @@ remain supported. Native macOS menu is optional; installed CLI works independent
   Profiles store a manual crop edited by zoom, drag and pinch in the camera view;
   tracking stays inside it. Framing preferences (face size, head height, max zoom,
   follow time, steadiness) are profile fields that apply live.
-  Menu bar exposes status, Start/Stop, Open window and Quit. Bounded settings
+  Menu bar exposes status, Start/Stop, Pause video, Open window and Quit. Pause
+  (also Control-Option-P from any app) closes the camera and sends the loading
+  picture while output stays open. Bounded settings
   scrolling and helper reconnection are available. Saved macOS camera identities
   prevent substitution after enumeration changes; independent profile output
   overrides inherit capture settings when absent. Local protocol accepts bounded
