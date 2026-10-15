@@ -118,6 +118,8 @@ class PersonEffects:
         self._background_source: Frame | None = None
         self._background: Frame | None = None
         self._background_blur_kernel = 1
+        # latest mask, aligned with the effect output, for the mask preview
+        self.last_mask: Mask | None = None
 
     def mask(self, frame: Frame) -> tuple[Frame, Mask]:
         if self._closed:
@@ -131,6 +133,7 @@ class PersonEffects:
             result = sigmoid(result)
         if self.stabilizer is not None:
             result = self.stabilizer.apply(image, result)
+        self.last_mask = result
         return image, result[:, :, None]
 
     def color_bg(self, frame: Frame, color: Color = BG_COLOR) -> Frame:
@@ -196,6 +199,7 @@ class PersonEffects:
     def close(self) -> None:
         self._closed = True
         self._background_source = self._background = None
+        self.last_mask = None
         if self.stabilizer is not None:
             self.stabilizer.reset()
         try:

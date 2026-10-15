@@ -86,6 +86,10 @@ menu-check: menu-build
     plutil -lint "dist/Webcam Mods.app/Contents/Info.plist"
     codesign --verify --strict "dist/Webcam Mods.app"
 
+# render the main window in sample states to PNGs, offscreen, without a camera
+menu-snapshot dir="dist/snapshots": menu-build
+    "dist/Webcam Mods.app/Contents/MacOS/WebcamMods" --snapshot "{{ dir }}" tests/fixtures/astronaut.png
+
 # install the native shell alongside the user-level Python runtime
 menu-install: install
     macos/build-menu-app.sh --output "$HOME/Applications/Webcam Mods.app"

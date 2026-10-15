@@ -30,9 +30,9 @@ Shared design:
 
 Phase 0, foundation:
 
-1. Live settings updates while running (M).
-2. Preview views: output, raw camera, mask; app-drawn guides (M).
-3. Stats: input/output FPS, processing time (S).
+1. Live settings updates while running (M). Done.
+2. Preview views: output, raw camera, mask; app-drawn guides (M). Done.
+3. Stats: input/output FPS, processing time (S). Done.
 
 Phase 1, framing:
 

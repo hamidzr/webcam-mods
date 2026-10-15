@@ -7,18 +7,39 @@ from typing import TYPE_CHECKING, Callable, Literal, Protocol, cast
 
 import cv2
 from loguru import logger
+import numpy as np
+from webcam_mods.geometry import Rect
 from webcam_mods.mods.video_mods import brighten, crop_rect, resize_and_pad
+from webcam_mods.output.native_preview import Guides
 from webcam_mods.profiles import Profile
+from webcam_mods.stats import RateMeter
 from webcam_mods.utils.video import Frame
 from webcam_mods.settings import StartupSettings
 
 if TYPE_CHECKING:
     from webcam_mods.entry import BackgroundEffect
+    from webcam_mods.mods.person_segmentation import Mask
 
 
 class Effect(Protocol):
     def __call__(self, frame: Frame) -> Frame | None: ...
     def close(self) -> None: ...
+
+
+class PreviewSink(Protocol):
+    def wants(self, view: str) -> bool: ...
+    def publish(
+        self, frame: Frame, view: str = "output", guides: Guides | None = None
+    ) -> None: ...
+
+
+def _normalized(rect: Rect, width: int, height: int) -> list[float]:
+    return [
+        round(rect.left / width, 4),
+        round(rect.top / height, 4),
+        round(rect.width / width, 4),
+        round(rect.height / height, 4),
+    ]
 
 
 class TrackingEffect:
@@ -67,6 +88,8 @@ class TrackingEffect:
             self.resources.callback(self.tracker.close)
             self.background = background
             self.padding = padding
+            self.face: Rect | None = None
+            self.crop: Rect | None = None
             self.width, self.height = settings.out_width, settings.out_height
         except BaseException:
             self.resources.close()
@@ -76,12 +99,12 @@ class TrackingEffect:
         now = time.monotonic()
         prediction = self.detector.predict(frame, now=now)
         height, width = frame.shape[:2]
-        result = crop_rect(
-            frame,
-            self.tracker.generate_crop(
-                prediction, self.padding, frame_size=(width, height), now=now
-            ),
+        crop = self.tracker.generate_crop(
+            prediction, self.padding, frame_size=(width, height), now=now
         )
+        # last face and crop in input pixels, for preview guides
+        self.face, self.crop = prediction, crop
+        result = crop_rect(frame, crop)
         if result is None:
             return None
         # fixed segmentation dimensions avoid rebuilding models on each zoom step
@@ -92,6 +115,14 @@ class TrackingEffect:
 
     def close(self) -> None:
         self.resources.close()
+
+
+def _mask_frame(mask: "Mask") -> Frame:
+    alpha = np.asarray(mask, dtype=np.float32)
+    if alpha.ndim == 3:
+        alpha = alpha[:, :, 0]
+    gray = np.clip(alpha * 255, 0, 255).astype(np.uint8)
+    return cast(Frame, cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR))
 
 
 def _read_image(path: str) -> Frame:
@@ -122,6 +153,7 @@ class ProfileEffect:
 
     Order: orientation, tracking, fixed-size background, brightness. Updates are
     queued by any thread and applied on the processing thread before a frame.
+    Source and mask preview frames are encoded only while the app shows them.
     """
 
     def __init__(
@@ -130,9 +162,13 @@ class ProfileEffect:
         settings: StartupSettings,
         *,
         on_warning: Callable[[str], None] | None = None,
+        preview: PreviewSink | None = None,
     ) -> None:
         self._profile, self._settings = profile, settings
         self._on_warning = on_warning
+        self._preview = preview
+        # processed frames per second and effect time
+        self.stats = RateMeter()
         self._lock = threading.Lock()
         self._pending: Profile | None = None
         self._image: tuple[str, Frame] | None = None
@@ -223,6 +259,7 @@ class ProfileEffect:
     def __call__(self, frame: Frame) -> Frame | None:
         if self._closed:
             raise RuntimeError("profile effect is closed")
+        started = time.perf_counter()
         if not self._initialized:
             try:
                 self._apply(self._profile, None)
@@ -234,18 +271,39 @@ class ProfileEffect:
         profile = self._profile
         if profile.mirror:
             frame = cast(Frame, cv2.flip(frame, 1))
+        source = frame
         if self.tracking is not None:
             tracked = self.tracking(frame)
             if tracked is None:
                 return None
             frame = tracked
+        preview = self._preview
+        if preview is not None and preview.wants("source"):
+            preview.publish(source, "source", self._guides(source))
         if self.background is not None:
             # fixed segmentation dimensions avoid rebuilding models on crop changes
             frame = resize_and_pad(
                 frame, sw=self._settings.out_width, sh=self._settings.out_height
             )
             frame = self.background(frame)
-        return brighten(frame, profile.brightness) if profile.brightness else frame
+            mask = self.background.mask
+            if preview is not None and mask is not None and preview.wants("mask"):
+                preview.publish(_mask_frame(mask), "mask")
+        if profile.brightness:
+            frame = brighten(frame, profile.brightness)
+        self.stats.tick(time.perf_counter() - started)
+        return frame
+
+    def _guides(self, source: Frame) -> Guides:
+        """Tracking face and framing boxes as fractions of the source frame."""
+        height, width = source.shape[:2]
+        guides: Guides = {}
+        if self.tracking is not None:
+            if self.tracking.face is not None:
+                guides["face"] = _normalized(self.tracking.face, width, height)
+            if self.tracking.crop is not None:
+                guides["framing"] = _normalized(self.tracking.crop, width, height)
+        return guides
 
     def _close_components(self) -> None:
         tracking, self.tracking = self.tracking, None

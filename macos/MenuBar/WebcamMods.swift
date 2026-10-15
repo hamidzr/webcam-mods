@@ -67,6 +67,19 @@ struct Configuration: Codable, Equatable {
     }
 }
 
+struct SessionStats: Equatable {
+    var processedFPS: Double?
+    var sentFPS: Double?
+    var effectMS: Double?
+
+    var summary: String {
+        func value(_ number: Double?, _ unit: String) -> String {
+            number.map { "\($0.formatted(.number.precision(.fractionLength(0...1)))) \(unit)" } ?? "--"
+        }
+        return "Processed \(value(processedFPS, "fps")), sent \(value(sentFPS, "fps")), effects \(value(effectMS, "ms"))"
+    }
+}
+
 struct ProfileIssue: Decodable {
     let name: String
     let error: String
@@ -124,7 +137,11 @@ enum OBSReadiness {
 final class SessionModel: ObservableObject {
     static weak var current: SessionModel?
     @Published var config = Configuration() {
-        didSet { if config != oldValue { pushLiveSettings() } }
+        didSet {
+            guard config != oldValue else { return }
+            if previewView == "mask" && !maskAvailable { previewView = "output" }
+            pushLiveSettings()
+        }
     }
     @Published var cameras: [Camera] = []
     @Published var profiles: [Profile] = []
@@ -133,6 +150,7 @@ final class SessionModel: ObservableObject {
     @Published var state = "idle" {
         didSet {
             if !previewing || (state == "starting" && oldValue != "starting") { clearPreview() }
+            if !previewing { stats = nil }
             if !active { endLiveSession() }
         }
     }
@@ -141,6 +159,15 @@ final class SessionModel: ObservableObject {
     @Published var obsReadiness = OBSReadiness.setupRequired
     @Published var previewImage: NSImage?
     @Published var previewError: String?
+    // output, source (camera before framing and effects) or mask
+    @Published var previewView = "output" {
+        didSet { if previewView != oldValue { clearPreview() } }
+    }
+    // normalized boxes drawn over the preview, never into the video
+    @Published var previewGuides: [String: CGRect] = [:]
+    @Published var stats: SessionStats?
+    private var statsPending = false
+    private var statsRequestedAt: Date?
     private var previewPending = false
     private var previewVisible = false
     private var previewGeneration = 0
@@ -220,8 +247,11 @@ final class SessionModel: ObservableObject {
     private func clearPreview() {
         previewGeneration += 1
         previewImage = nil
+        previewGuides = [:]
         previewError = nil
     }
+
+    var maskAvailable: Bool { ["blur", "color", "image"].contains(config.effect) }
 
     func pollPreview(visible: Bool) {
         if previewVisible != visible {
@@ -231,12 +261,37 @@ final class SessionModel: ObservableObject {
         guard visible, connected, previewing, !previewPending else { return }
         previewPending = true
         let generation = previewGeneration
-        request("preview.get") { [weak self] result in
+        request("preview.get", params: ["view": previewView]) { [weak self] result in
             guard let self else { return }
             self.previewPending = false
             guard self.previewVisible, self.previewing, generation == self.previewGeneration else { return }
             self.acceptPreview(result)
         }
+    }
+
+    // about once a second while the window shows a running session
+    func pollStats(visible: Bool, now: Date = Date()) {
+        guard visible, connected, previewing, !statsPending,
+              statsRequestedAt.map({ now.timeIntervalSince($0) >= 1 }) ?? true else { return }
+        statsPending = true
+        statsRequestedAt = now
+        request("session.stats") { [weak self] result in
+            guard let self else { return }
+            self.statsPending = false
+            guard self.previewing else { return }
+            self.acceptStats(result)
+        }
+    }
+
+    private func acceptStats(_ result: Result<Any, Error>) {
+        guard case .success(let value) = result, let data = value as? [String: Any] else {
+            stats = nil
+            return
+        }
+        func number(_ key: String) -> Double? {
+            (data[key] as? Double).flatMap { $0.isFinite && $0 >= 0 ? $0 : nil }
+        }
+        stats = SessionStats(processedFPS: number("processed_fps"), sentFPS: number("sent_fps"), effectMS: number("effect_ms"))
     }
 
     private func acceptPreview(_ result: Result<Any, Error>) {
@@ -253,7 +308,22 @@ final class SessionModel: ObservableObject {
                   let image = bitmap.cgImage else {
                 throw failure("Invalid preview frame. Reinstall app if this repeats.")
             }
+            if let view = frame["view"] as? String, view != previewView { return }
+            var guides: [String: CGRect] = [:]
+            if let raw = frame["guides"] {
+                guard let boxes = raw as? [String: Any], boxes.count <= 8 else {
+                    throw failure("Invalid preview guides. Reinstall app if this repeats.")
+                }
+                for (name, value) in boxes {
+                    guard let box = value as? [Double], box.count == 4,
+                          box.allSatisfy({ $0.isFinite && (-1...2).contains($0) }) else {
+                        throw failure("Invalid preview guides. Reinstall app if this repeats.")
+                    }
+                    guides[name] = CGRect(x: box[0], y: box[1], width: box[2], height: box[3])
+                }
+            }
             previewImage = NSImage(cgImage: image, size: NSSize(width: bitmap.pixelsWide, height: bitmap.pixelsHigh))
+            previewGuides = guides
             previewError = nil
         } catch { previewError = error.localizedDescription }
     }
@@ -345,7 +415,7 @@ final class SessionModel: ObservableObject {
     var buildDate: String { Bundle.main.object(forInfoDictionaryKey: "BuildDate") as? String ?? "unknown" }
 
     func connect() {
-        guard process == nil else { return }
+        guard process == nil, !Self.snapshotMode else { return }
         workerGeneration += 1
         let generation = workerGeneration
         do {
@@ -473,6 +543,64 @@ final class SessionModel: ObservableObject {
     private func expireRequest(_ id: Int) {
         guard let callback = pending.removeValue(forKey: id) else { return }
         callback(.failure(failure("Worker did not respond. Restart app; check installed CLI if this repeats.")))
+    }
+
+    // offscreen renders never start the worker or open a camera
+    static var snapshotMode = false
+
+    @MainActor static func renderSnapshots(to directory: URL, image: NSImage?) throws {
+        snapshotMode = true
+        // accessory windows never activate the app or take focus from the user
+        NSApplication.shared.setActivationPolicy(.accessory)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        func render(_ name: String, width: CGFloat, height: CGFloat, _ configure: (SessionModel) -> Void) throws {
+            let model = SessionModel()
+            model.connected = true
+            model.backendVersion = "snapshot"
+            model.cameras = [Camera(index: 0, name: "FaceTime HD Camera", id: "snapshot-camera")]
+            model.inventoryCapture = model.config.capture
+            model.config.camera_id = "snapshot-camera"
+            configure(model)
+            let size = NSSize(width: width, height: height)
+            let view = NSHostingView(rootView: MainWindow(model: model))
+            // borderless windows may sit off every display; ordering one in lets AppKit controls draw
+            let window = NSWindow(contentRect: NSRect(x: -20_000, y: -20_000, width: size.width, height: size.height), styleMask: [.borderless], backing: .buffered, defer: false)
+            window.backgroundColor = .windowBackgroundColor
+            window.contentView = view
+            window.orderFrontRegardless()
+            defer { window.orderOut(nil) }
+            RunLoop.main.run(until: Date().addingTimeInterval(0.5))
+            // window server capture draws AppKit controls that cacheDisplay leaves blank;
+            // the SDK hides this API, but capturing the app's own window needs no permission
+            typealias WindowCapture = @convention(c) (CGRect, UInt32, UInt32, UInt32) -> Unmanaged<CGImage>?
+            guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "CGWindowListCreateImage"),
+                  let image = unsafeBitCast(symbol, to: WindowCapture.self)(.null, 1 << 3, UInt32(window.windowNumber), 1 << 0 | 1 << 3)?.takeRetainedValue(),
+                  let data = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) else {
+                throw NSError(domain: "WebcamModsSnapshot", code: 1, userInfo: [NSLocalizedDescriptionKey: "Could not render \(name)"])
+            }
+            try data.write(to: directory.appendingPathComponent("\(name).png"))
+        }
+        func running(_ model: SessionModel, view: String) {
+            model.state = "running"
+            model.sessionConfig = model.config
+            model.previewView = view
+            model.previewImage = image
+            model.stats = SessionStats(processedFPS: 29.9, sentFPS: 30, effectMS: 11.4)
+        }
+        try render("desktop-output", width: 1100, height: 720) { model in
+            model.config.effect = "blur"
+            running(model, view: "output")
+        }
+        try render("desktop-camera-guides", width: 1100, height: 720) { model in
+            model.config.track = true
+            running(model, view: "source")
+            model.previewGuides = ["face": CGRect(x: 0.36, y: 0.12, width: 0.26, height: 0.34), "framing": CGRect(x: 0.2, y: 0.02, width: 0.6, height: 0.6)]
+        }
+        try render("narrow-camera-guides", width: 440, height: 900) { model in
+            model.config.track = true
+            running(model, view: "source")
+            model.previewGuides = ["face": CGRect(x: 0.36, y: 0.12, width: 0.26, height: 0.34), "framing": CGRect(x: 0.2, y: 0.02, width: 0.6, height: 0.6)]
+        }
     }
 
     static func selfTest() throws {
@@ -690,10 +818,42 @@ final class SessionModel: ObservableObject {
         try check(model.restartRequired, "Output destination change requires restart")
         model.state = "idle"
         try check(model.sessionConfig == nil && !model.restartRequired, "Stopping clears live session state")
+        model.outputMode = "preview"
+        model.state = "running"
+        model.previewView = "source"
+        model.pollPreview(visible: true)
+        let viewRequest = try lastRequest()
+        try check((viewRequest?["params"] as? [String: Any])?["view"] as? String == "source", "Preview requests the chosen view")
+        let guided: [String: Any] = ["jpeg": jpeg, "width": 2, "height": 2, "view": "source", "guides": ["face": [0.25, 0.5, 0.25, 0.25]]]
+        model.consume(try JSONSerialization.data(withJSONObject: ["id": model.nextID, "result": guided]) + Data([10]))
+        try check(model.previewImage != nil && model.previewGuides["face"] == CGRect(x: 0.25, y: 0.5, width: 0.25, height: 0.25), "Source view decodes normalized guides")
+        model.previewView = "output"
+        try check(model.previewImage == nil && model.previewGuides.isEmpty, "Changing view clears the previous picture and guides")
+        model.acceptPreview(.success(guided))
+        try check(model.previewImage == nil, "Frames for another view are ignored")
+        model.previewView = "source"
+        model.acceptPreview(.success(["jpeg": jpeg, "width": 2, "height": 2, "view": "source", "guides": ["face": [0.1, 0.2]]]))
+        try check(model.previewError != nil && model.previewGuides.isEmpty, "Malformed guides are rejected")
+        model.config.effect = "blur"
+        model.previewView = "mask"
+        model.config.effect = "plain"
+        try check(model.previewView == "output" && !model.maskAvailable, "Mask view falls back when segmentation turns off")
+        let statsID = model.nextID + 1
+        let statsTime = Date()
+        model.pollStats(visible: true, now: statsTime)
+        model.pollStats(visible: true, now: statsTime.addingTimeInterval(2))
+        let statsRequest = try lastRequest()
+        try check(model.nextID == statsID && statsRequest?["method"] as? String == "session.stats", "One stats request in flight")
+        model.consume(Data("{\"id\":\(statsID),\"result\":{\"processed_fps\":29.94,\"sent_fps\":30,\"effect_ms\":null}}\n".utf8))
+        try check(model.stats?.summary == "Processed 29.9 fps, sent 30 fps, effects --", "Stats decode and format")
+        model.pollStats(visible: true, now: statsTime.addingTimeInterval(0.5))
+        try check(model.nextID == statsID, "Stats poll at most once a second")
+        model.state = "idle"
+        try check(model.stats == nil, "Stopping clears stats")
         try pipe.fileHandleForWriting.close()
         try pipe.fileHandleForReading.close()
         try helperSelfTest()
-        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence, OBS readiness, live updates).")
+        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats).")
     }
 
     private static func helperSelfTest() throws {
@@ -1148,6 +1308,12 @@ struct PreviewPanel: View {
             HStack {
                 Text("Video preview").font(.headline)
                 Spacer()
+                Picker("View", selection: $model.previewView) {
+                    Text("Output").tag("output")
+                    Text("Camera").tag("source")
+                    if model.maskAvailable { Text("Mask").tag("mask") }
+                }.pickerStyle(.segmented).labelsHidden().fixedSize()
+                    .help("Output: what calls receive. Camera: full camera picture before framing and effects. Mask: what background effects keep.")
                 Text(model.outputMode == "preview" ? "Preview only" : "OBS Virtual Camera")
                     .font(.caption).foregroundStyle(.secondary)
             }
@@ -1155,6 +1321,7 @@ struct PreviewPanel: View {
                 Color.black
                 if let image = model.previewImage {
                     Image(nsImage: image).resizable().scaledToFit()
+                        .overlay { GuideOverlay(guides: model.previewGuides) }
                 } else {
                     VStack(spacing: 12) {
                         Image(systemName: "video").font(.system(size: 36))
@@ -1165,13 +1332,53 @@ struct PreviewPanel: View {
                 }
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
-                .accessibilityLabel("Processed video preview")
+                .accessibilityLabel(model.previewView == "output" ? "Processed video preview" : model.previewView == "source" ? "Camera preview" : "Segmentation mask preview")
             if let error = model.previewError {
                 Label(error, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange)
             }
-            Text("Preview shows final framing and effects at the output frame rate.")
-                .font(.caption).foregroundStyle(.secondary)
+            Text(caption).font(.caption).foregroundStyle(.secondary)
+            if let stats = model.stats {
+                Text(stats.summary).font(.caption).monospacedDigit().foregroundStyle(.secondary)
+            }
         }.padding(20).frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+extension PreviewPanel {
+    var caption: String {
+        switch model.previewView {
+        case "source":
+            return model.previewGuides.isEmpty
+                ? "Camera view shows the full picture before framing and effects."
+                : "Camera view: yellow box is the detected face, green dashes are auto framing."
+        case "mask":
+            return "Mask view: white is kept as you, black gets the background effect."
+        default:
+            return "Preview shows final framing and effects at the output frame rate."
+        }
+    }
+}
+
+struct GuideOverlay: View {
+    let guides: [String: CGRect]
+
+    var body: some View {
+        GeometryReader { geometry in
+            ForEach(guides.keys.sorted(), id: \.self) { name in
+                let box = guides[name] ?? .zero
+                let size = geometry.size
+                Path(CGRect(x: box.minX * size.width, y: box.minY * size.height, width: box.width * size.width, height: box.height * size.height))
+                    .stroke(Self.color(name), style: StrokeStyle(lineWidth: 2, dash: name == "framing" ? [6, 4] : []))
+            }
+        }.allowsHitTesting(false)
+    }
+
+    static func color(_ name: String) -> Color {
+        switch name {
+        case "face": return .yellow
+        case "framing": return .green
+        default: return .white
+        }
     }
 }
 
@@ -1201,6 +1408,15 @@ struct WebcamModsApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @StateObject private var model = SessionModel()
     init() {
+        let arguments = CommandLine.arguments
+        if let index = arguments.firstIndex(of: "--snapshot"), index + 1 < arguments.count {
+            let image = index + 2 < arguments.count ? NSImage(contentsOfFile: arguments[index + 2]) : nil
+            do { try MainActor.assumeIsolated { try SessionModel.renderSnapshots(to: URL(fileURLWithPath: arguments[index + 1]), image: image) }; exit(0) }
+            catch {
+                FileHandle.standardError.write(Data("Snapshot failed: \(error.localizedDescription)\n".utf8))
+                exit(1)
+            }
+        }
         if CommandLine.arguments.contains("--self-test") {
             do { try SessionModel.selfTest(); exit(0) }
             catch {
@@ -1237,6 +1453,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let self else { return }
                 let visible = self.controlsWindow.map { $0.isVisible && !$0.isMiniaturized } ?? false
                 SessionModel.current?.pollPreview(visible: visible)
+                SessionModel.current?.pollStats(visible: visible)
                 if let model = SessionModel.current, timer.timeInterval != model.previewInterval {
                     timer.invalidate()
                     self.schedulePreview()

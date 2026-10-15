@@ -5,7 +5,7 @@ import importlib.util
 import os
 import sys
 from pathlib import Path
-from typing import Callable, Literal, cast
+from typing import TYPE_CHECKING, Callable, Literal, cast
 from webcam_mods.utils.video import Frame
 from webcam_mods.input.input import FrameInput
 from webcam_mods.input.screen import (
@@ -30,6 +30,9 @@ from webcam_mods.loopback import live_loop
 from webcam_mods.mods.video_mods import brighten as brighten_mod
 from webcam_mods.session import RunSession
 from webcam_mods.uses.interactive_controls import ControlAdapters
+
+if TYPE_CHECKING:
+    from webcam_mods.mods.person_segmentation import Mask
 
 app = typer.Typer(
     cls=SharedOptionsGroup,
@@ -220,6 +223,11 @@ class BackgroundEffect:
     def __call__(self, frame: Frame) -> Frame:
         result = self.transform(frame)
         return brighten_mod(result, self.brightness) if self.brightness else result
+
+    @property
+    def mask(self) -> "Mask | None":
+        """Latest foreground mask, aligned with the last output frame."""
+        return self.effects.last_mask
 
     def close(self) -> None:
         self.effects.close()

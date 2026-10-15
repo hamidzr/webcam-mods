@@ -8,7 +8,8 @@ from typing import TYPE_CHECKING, Any, Callable
 
 from webcam_mods.profiles import RESTART_FIELDS, Profile, ProfileStore
 from webcam_mods.protocol import RequestFailure, read_requests
-from webcam_mods.output.native_preview import NativePreview
+from webcam_mods.output.native_preview import VIEWS, NativePreview
+from webcam_mods.stats import RateMeter
 from webcam_mods.utils.video import Frame
 
 _STOP_TIMEOUT = 12
@@ -16,7 +17,7 @@ from webcam_mods.input.input import AdapterMetadata, FrameInput
 from webcam_mods.settings import StartupSettings
 
 if TYPE_CHECKING:
-    from webcam_mods.effects import ProfileEffect
+    from webcam_mods.effects import PreviewSink, ProfileEffect
 
 
 def run_profile(
@@ -30,6 +31,7 @@ def run_profile(
     on_output_ready: Callable[[AdapterMetadata], None] | None = None,
     on_effect: Callable[["ProfileEffect"], None] | None = None,
     on_warning: Callable[[str], None] | None = None,
+    preview: "PreviewSink | None" = None,
 ) -> None:
     from webcam_mods.capture import camera_index_for_id, create_camera
     from webcam_mods.effects import ProfileEffect
@@ -56,7 +58,7 @@ def run_profile(
         signal_pattern=profile.signal_pattern,  # type: ignore[arg-type]
     )
     # the effect owns mirroring so it can change while running
-    effect = ProfileEffect(profile, settings, on_warning=on_warning)
+    effect = ProfileEffect(profile, settings, on_warning=on_warning, preview=preview)
     if on_effect is not None:
         on_effect(effect)
     transferred = False
@@ -126,6 +128,7 @@ class Controller:
         self.output_fps: float | None = None
         self.profile: Profile | None = None
         self.effect: ProfileEffect | None = None
+        self.sent = RateMeter()
 
     def _clear_preview(self) -> None:
         self.output_fps = None
@@ -184,6 +187,7 @@ class Controller:
             self.source = None
             self._clear_preview()
             preview = self.preview = NativePreview()
+            sent = self.sent = RateMeter()
             self.profile = profile
             self._state("starting")
 
@@ -206,6 +210,10 @@ class Controller:
                     if not self.stop_event.is_set() and self.state == "starting":
                         self._state("running")
 
+            def deliver(frame: Frame) -> None:
+                sent.tick()
+                preview.publish(frame)
+
             def output_ready(metadata: AdapterMetadata) -> None:
                 with self.lock:
                     if (
@@ -225,10 +233,11 @@ class Controller:
                             ready,
                             source_ready,
                             output=output,
-                            on_frame=preview.publish,
+                            on_frame=deliver,
                             on_output_ready=output_ready,
                             on_effect=effect_ready,
                             on_warning=warning,
+                            preview=preview,
                         )
                     else:
                         self.runner(profile, self.stop_event, ready, source_ready)
@@ -272,6 +281,26 @@ class Controller:
             self.profile = profile
             return self.status()
 
+    def stats(self) -> dict[str, float | None] | None:
+        """Processed and sent frame rates plus mean effect time, or None when idle."""
+        with self.lock:
+            effect, sent = self.effect, self.sent
+            if self.state not in ("starting", "running") or effect is None:
+                return None
+        processed_fps, effect_seconds = effect.stats.snapshot()
+        sent_fps, _ = sent.snapshot()
+
+        def rounded(value: float | None, digits: int = 1) -> float | None:
+            return None if value is None else round(value, digits)
+
+        return {
+            "processed_fps": rounded(processed_fps),
+            "sent_fps": rounded(sent_fps),
+            "effect_ms": rounded(
+                None if effect_seconds is None else effect_seconds * 1000
+            ),
+        }
+
     def stop(self) -> dict[str, Any]:
         with self.lock:
             thread = self.thread
@@ -302,10 +331,17 @@ class Controller:
         if method == "status":
             return self.status()
         if method == "preview.get":
-            if params:
-                raise ValueError("preview.get params must be empty")
+            if set(params) - {"view"}:
+                raise ValueError("preview.get accepts only view")
+            view = params.get("view", "output")
+            if view not in VIEWS:
+                raise ValueError(f"view must be one of {', '.join(VIEWS)}")
             with self.lock:
-                return self.preview.get() if self.preview is not None else None
+                return self.preview.get(view) if self.preview is not None else None
+        if method == "session.stats":
+            if params:
+                raise ValueError("session.stats params must be empty")
+            return self.stats()
         if method == "profiles.list":
             return self.store.list()
         if method == "profiles.seed_defaults":

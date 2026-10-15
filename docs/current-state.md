@@ -25,6 +25,8 @@ remain supported. Native macOS menu is optional; installed CLI works independent
   settings and errors. Preview-only output tests without OBS; virtual-camera
   output also supports preview. Preview uses a bounded latest JPEG in memory,
   up to 640x480/10 FPS, and pauses encoding when window hides or minimizes.
+  Preview switches between output, camera (with face and framing guides drawn by
+  the app) and segmentation mask views, and shows processed/sent FPS and effect time.
   Menu bar exposes status, Start/Stop, Open window and Quit. Bounded settings
   scrolling and helper reconnection are available. Saved macOS camera identities
   prevent substitution after enumeration changes; independent profile output

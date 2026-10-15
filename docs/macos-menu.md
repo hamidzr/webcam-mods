@@ -39,6 +39,15 @@ output FPS, including independent output rates and nearby native rates such as
 29.97 FPS. It shows final output framing and effects at
 reduced resolution; output delivery retains configured dimensions and FPS.
 
+The preview header switches views. **Output** is what calls receive. **Camera**
+shows the full camera picture after mirroring but before framing and effects; with
+tracking on, a yellow box marks the detected face and green dashes mark the auto
+framing crop. **Mask** appears with blur, color or image backgrounds and shows the
+segmentation confidence aligned with the output: white is kept, black is replaced.
+Guides are drawn by the app over the preview and never enter the video. Only the
+selected view is encoded. Below the preview, stats refresh about once a second:
+processed frames per second, sent frames per second and mean effect time.
+
 Camera permission is requested on Start. Enable Webcam Mods under System Settings >
 Privacy & Security > Camera if access is denied. OBS extension setup is separate;
 see [installation](installation.md). The window checks for the modern OBS camera
@@ -214,8 +223,9 @@ the helper available.
 | profiles.save | name, config | true |
 | profiles.delete | name | true |
 | start | config, or profile name; optional output: virtualcam (default) or preview | Current state |
-| preview.get | {} | Latest {jpeg: base64, width, height}, or null |
+| preview.get | optional view: output (default), source or mask | Latest {jpeg: base64, width, height, view, optional guides}, or null |
 | session.update | config | Current state; applies live fields to the running session |
+| session.stats | {} | {processed_fps, sent_fps, effect_ms}, each null until measured; null when idle |
 | stop | {} | State after bounded shutdown |
 | status | {} | Current state, optional error and negotiated output_fps once output opens |
 | shutdown | {} | Stop result, then helper exits |
@@ -227,6 +237,13 @@ Accepted updates apply on the processing thread before the next frame; the lates
 update wins. If applying fails there, the session keeps running with its previous
 components and emits `{"event":"warning","data":{"message":...}}`.
 
+`preview.get` encodes only the requested view; requesting a different view drops the
+held frame. Source frames carry `guides`, a map of name to normalized
+`[x, y, width, height]` boxes in source-frame fractions: `face` and `framing` while
+tracking. Mask frames exist only while a background effect runs. Stats cover the
+last two seconds: `processed_fps` counts frames through the effect pipeline,
+`sent_fps` counts frames delivered to output, `effect_ms` is mean pipeline time.
+
 EOF also stops the session. Simultaneous sessions are rejected. Configuration
 validation occurs before acquiring resources. The controller refuses restart
 following an unsafe shutdown timeout. Status then includes `restart_required:
@@ -237,7 +254,10 @@ replace the helper process before another session.
 
 `just menu-check` compiles and runs native transport/model tests, including JPEG
 decoding, single in-flight preview requests, stale-response rejection, stop/hide
-cleanup, OBS readiness, negotiated preview cadence and timeouts. Python regressions
+cleanup, preview views and guides, stats cadence, OBS readiness, negotiated preview
+cadence and timeouts. `just menu-snapshot` renders the main window in sample states
+to `dist/snapshots/*.png` (desktop and narrow widths) using an off-display window that
+never activates the app, starts the worker or opens a camera. Python regressions
 verify final-frame routing in direct and repeat modes, preview-only output without
 OBS, bounded encoding and session
 cleanup. These checks do not establish physical-camera permission behavior,
