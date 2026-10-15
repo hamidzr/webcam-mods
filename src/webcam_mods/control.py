@@ -1,5 +1,6 @@
 """Local JSONL control worker. Stdout contains protocol messages only."""
 
+from dataclasses import replace
 from importlib.metadata import version
 import json
 import sys
@@ -44,7 +45,7 @@ def run_profile(
     screen = profile.screen_region if profile.source == "screen" else None
     input_device = (
         camera_index_for_id(profile.camera_id, profile.capture)  # type: ignore[arg-type]
-        if profile.camera_id is not None and screen is None
+        if profile.camera_id is not None and (screen is None or profile.presenting)
         else profile.input_device
     )
     capture_width, capture_height = profile.capture_size
@@ -76,6 +77,17 @@ def run_profile(
             source = Screen(
                 top=top, left=left, width=width, height=height, fps=profile.fps
             )
+            if profile.presenting:
+                from webcam_mods.input.presenter import CameraFeed, PresenterInput
+
+                camera = create_camera(
+                    replace(settings, in_width=profile.width, in_height=profile.height),
+                    profile.capture,  # type: ignore[arg-type]
+                    device_id=profile.camera_id,
+                )
+                feed = CameraFeed(camera)
+                source = PresenterInput(source, feed)
+                effect.camera_feed = feed.latest
         else:
             source = create_camera(
                 settings, profile.capture, device_id=profile.camera_id  # type: ignore[arg-type]

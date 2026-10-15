@@ -17,7 +17,8 @@ class ScreenSourceProfileTests(unittest.TestCase):
         )
         self.assertEqual(profile.screen_region, (-1920, -120, 1920, 1080))
         self.assertEqual(profile.capture_size, (1920, 1080))
-        self.assertEqual(replace(profile, rotate=90).oriented_size, (1080, 1920))
+        # rotation turns cameras, never the screen
+        self.assertEqual(replace(profile, rotate=90).oriented_size, (1920, 1080))
         # a saved region stays with the profile while the camera is in use
         camera = Profile(screen_region=(0, 0, 800, 600))
         self.assertEqual(camera.capture_size, (640, 480))

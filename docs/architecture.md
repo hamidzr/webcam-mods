@@ -60,7 +60,7 @@ Root help lists frequent grouped options; command help exposes all common option
 | `session.py` | Validated frame preparation, ordered command application, recording ownership |
 | `loopback.py` | Adapter selection, metadata validation, synchronous/repeated delivery, cooperative stop and error behavior |
 | `frame_producer.py` | Worker-owned capture/effects, latest snapshot, bounded shutdown |
-| `effects.py` | Live profile pipeline: orientation, crop, tracking, auto light, background, brightness, color, look, overlays; preview views and white-balance sampling |
+| `effects.py` | Live profile pipeline: orientation, crop, tracking, auto light, background, brightness, color, look, presenter, overlays; preview views and white-balance sampling |
 | `profiles.py` | Validated launch profiles and transactional SQLite persistence |
 | `control.py` | One-session lifecycle controller and local JSONL request/event protocol |
 | `macos/MenuBar/WebcamMods.swift` | Native menu, managed helper transport and settings UI |
@@ -68,6 +68,7 @@ Root help lists frequent grouped options; command help exposes all common option
 | `input/input.py` | Adapter protocol and partial-setup context cleanup |
 | `input/video_dev.py` | OpenCV capture, configured FPS and retry logic |
 | `input/screen.py` | Typed MSS screen-region capture and complete adapter metadata |
+| `input/presenter.py` | Screen input that runs the presenter camera on its own thread, newest frame only |
 | `macos/capture.py` | Optional AVFoundation callback capture and newest-frame mailbox |
 | `macos/vision.py` | Optional instance-owned Vision person masks |
 | `macos/core_image.py` | Optional Core Image background compositing/Gaussian blur |
@@ -81,6 +82,7 @@ Root help lists frequent grouped options; command help exposes all common option
 | `mods/record_replay.py` | Bounded recorder and looping replay |
 | `mods/video_background.py` | Looping video background decoded at its own frame rate, repeating frames when processing runs faster |
 | `mods/chroma.py` | Lighting-robust chroma key segmenter (CrCb distance) and edge despill for green screen |
+| `mods/presenter.py` | Presenter bubble and cutout layers placed in a corner of the screen |
 | `mods/overlay.py` | Logo and caption overlays rendered once per frame size (Pillow text) and composited as premultiplied patches |
 | `mods/looks.py` | `.cube` 3D LUT parsing, built-in looks and 7-bit table application with strength |
 | `mods/color.py` | Exposure/contrast/white balance lookup tables, saturation, sharpening, neutral-balance solver, auto light |

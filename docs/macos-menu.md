@@ -59,7 +59,16 @@ message when that area is on no connected display. The first screen start asks f
 Screen Recording permission (System Settings > Privacy & Security > Screen & System
 Audio Recording); the worker inherits it from the app. Output defaults to the
 display size; Shape picks a smaller preset. Changing source or display restarts the
-session. With Screen, labels that say Camera read Screen.
+session. With Screen, labels that say Camera read Screen. Screens skip background
+effects, face tracking and orientation; brightness, color, look and overlays apply.
+
+Show camera puts a camera over the shared screen, with its own camera picker. Bubble
+shows the middle of the camera picture in a circle; Cutout shows only the person,
+standing on the bottom edge, using the profile's segmentation (Green screen keys a
+backdrop instead). Corner and Size (camera height, 10..80 percent of the picture)
+apply live; turning it on or off restarts. Mirror, flip, rotation, low light,
+brightness, color and look apply to the camera picture, never to the screen. The
+camera opens and closes with the session, so Pause turns it off.
 
 Zoom (1x..4x) crops the camera to what calls see. The crop keeps the output aspect,
 so output fills without bars. In Camera view the crop is a white box with the rest
@@ -256,6 +265,10 @@ Profile fields and defaults:
 | camera_id | null | Stable macOS device identity; legacy index selection when absent |
 | source | camera | camera or screen; restarts |
 | screen_region | null | [left, top, width, height] in global screen points, required for screen; width and height 16..8192 replace the capture size |
+| presenter | false | Screen sources only: open the camera too and place it over the screen; restarts |
+| presenter_style | bubble | bubble or cutout |
+| presenter_position | bottom-right | Corner, as caption_position |
+| presenter_size | 30 | Camera height as 10..80 percent of the picture |
 | output_width, output_height | null | Independent delivery dimensions; inherit rotated capture when null |
 | output_fps | null | Independent delivery cap; inherit capture when null |
 | effect | plain | plain, blur, color, image, spotlight, track |

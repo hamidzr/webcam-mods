@@ -31,6 +31,7 @@ RESTART_FIELDS = frozenset(
         "rotate",
         "source",
         "screen_region",
+        "presenter",
     }
 )
 
@@ -131,6 +132,13 @@ class Profile:
     # from the main display's top-left corner; crop then picks part of it
     source: str = "camera"
     screen_region: tuple[int, int, int, int] | None = None
+    # with a screen source, show the camera over it as a round bubble or a person
+    # cutout in a corner, sized as a percent of the picture height; orientation and
+    # color settings then apply to the camera, never the screen
+    presenter: bool = False
+    presenter_style: str = "bubble"
+    presenter_position: str = "bottom-right"
+    presenter_size: int = 30
     camera_id: str | None = None
     output_width: int | None = None
     output_height: int | None = None
@@ -158,6 +166,7 @@ class Profile:
             ("key_spill", 0, 100),
             ("logo_scale", 5, 60),
             ("logo_opacity", 0, 100),
+            ("presenter_size", 10, 80),
         ):
             value = getattr(self, key)
             if type(value) is not int or not lower <= value <= upper:
@@ -213,6 +222,7 @@ class Profile:
             "image_blur",
             "mirror",
             "flip_vertical",
+            "presenter",
         ):
             if type(getattr(self, key)) is not bool:
                 raise ValueError(f"{key} must be a boolean")
@@ -226,6 +236,8 @@ class Profile:
             ("logo_position", OVERLAY_POSITIONS),
             ("caption_position", OVERLAY_POSITIONS),
             ("source", ("camera", "screen")),
+            ("presenter_style", ("bubble", "cutout")),
+            ("presenter_position", OVERLAY_POSITIONS),
         ):
             if getattr(self, key) not in choices:
                 raise ValueError(f"invalid {key}")
@@ -283,10 +295,15 @@ class Profile:
         return self.width, self.height
 
     @property
+    def presenting(self) -> bool:
+        """Screen shared with the camera over it."""
+        return self.source == "screen" and self.presenter
+
+    @property
     def oriented_size(self) -> tuple[int, int]:
-        """Capture width and height after rotation."""
+        """Capture width and height after rotation, which turns cameras only."""
         width, height = self.capture_size
-        if self.rotate in (90, 270):
+        if self.rotate in (90, 270) and self.source == "camera":
             return height, width
         return width, height
 

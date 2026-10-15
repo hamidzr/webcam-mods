@@ -122,7 +122,8 @@ click-through border follows later crop changes. `--no-border` hides it.
 Screen runs use fresh crop state, MSS capture and the same output/control path.
 Grant Screen Recording permission to the launching application. The macOS app
 shares a display from Source > Screen without `select-region`; saved profiles keep
-the area for `profile-run`.
+the area for `profile-run`. Show camera adds the camera over the screen as a round
+bubble or a cutout of the person.
 
 ## Configuration and models
 

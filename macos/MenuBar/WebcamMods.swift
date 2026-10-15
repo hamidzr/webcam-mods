@@ -104,6 +104,12 @@ struct Configuration: Codable, Equatable {
     var caption = ""
     var caption_detail = ""
     var caption_position = "bottom-left"
+    // screen sources only: the camera as a round bubble or a cutout of you in a
+    // corner, its height in percent of the picture; the switch restarts
+    var presenter = false
+    var presenter_style = "bubble"
+    var presenter_position = "bottom-right"
+    var presenter_size = 30
 
     var tracking: Bool { track || effect == "track" }
 
@@ -191,6 +197,7 @@ struct Configuration: Codable, Equatable {
         copy.rotate = other.rotate
         copy.source = other.source
         copy.screen_region = other.screen_region
+        copy.presenter = other.presenter
         return copy
     }
 
@@ -238,10 +245,14 @@ extension Configuration {
     var captureWidth: Int { screenSource ? screen_region![2] : width }
     var captureHeight: Int { screenSource ? screen_region![3] : height }
     var sourceName: String { source == "screen" ? "Screen" : "Camera" }
+    // a camera opens for the source or for the presenter overlay
+    var usesCamera: Bool { source == "camera" || presenter }
+    var presenting: Bool { screenSource && presenter }
 
-    // capture size after rotation; output defaults to it
-    var orientedWidth: Int { rotate == 90 || rotate == 270 ? captureHeight : captureWidth }
-    var orientedHeight: Int { rotate == 90 || rotate == 270 ? captureWidth : captureHeight }
+    // capture size after rotation, which turns cameras only; output defaults to it
+    private var turned: Bool { source == "camera" && (rotate == 90 || rotate == 270) }
+    var orientedWidth: Int { turned ? captureHeight : captureWidth }
+    var orientedHeight: Int { turned ? captureWidth : captureHeight }
 
     // "camera" while output follows capture, a preset id, or "custom"
     var outputShape: String {
@@ -486,7 +497,7 @@ final class SessionModel: ObservableObject {
         return current != original
     }
     var cameraUnavailable: Bool {
-        guard config.source == "camera" else { return false }
+        guard config.usesCamera else { return false }
         guard !inventoryPending, inventoryCapture == config.capture else { return true }
         if let id = config.camera_id { return !cameras.contains(where: { $0.id == id }) }
         return !cameras.contains(where: { $0.index == config.input_device })
@@ -537,7 +548,8 @@ final class SessionModel: ObservableObject {
         previewError = nil
     }
 
-    var maskAvailable: Bool { ["blur", "color", "image", "spotlight"].contains(config.effect) }
+    // screens skip background effects
+    var maskAvailable: Bool { config.source == "camera" && ["blur", "color", "image", "spotlight"].contains(config.effect) }
 
     func pollPreview(visible: Bool) {
         if previewVisible != visible {
@@ -967,6 +979,8 @@ final class SessionModel: ObservableObject {
             model.displays = [Display(id: "1", name: "Built-in Retina Display", region: [0, 0, 1512, 982]), Display(id: "2", name: "Studio Display", region: [1512, -229, 2560, 1440])]
             model.selectSource("screen")
             model.config.setCrop(zoom: 1.5, center: CGPoint(x: 0.4, y: 0.45))
+            model.config.presenter = true
+            model.config.presenter_style = "cutout"
             running(model, view: "source")
         }
         try render("narrow-camera-guides", width: 440, height: 900) { model in
@@ -1354,6 +1368,20 @@ final class SessionModel: ObservableObject {
         try check(!sharing.screenUnavailable && sharing.selectedDisplayID == "1" && sharing.config.screen_region == [0, 0, 1512, 982], "Choosing a display shares all of it")
         sharing.config.screen_region = [5000, 0, 800, 600]
         try check(sharing.screenUnavailable && sharing.selectedDisplayID.isEmpty, "Areas off every display cannot start")
+        var presenting = shared
+        presenting.presenter = true
+        try check(presenting.presenting && presenting.usesCamera && !shared.usesCamera && presenting.needsRestart(from: shared), "Showing the camera on a screen restarts")
+        var restyled = presenting
+        restyled.presenter_style = "cutout"
+        restyled.presenter_position = "top-left"
+        restyled.presenter_size = 50
+        restyled.rotate = 90
+        try check(!restyled.withRestartFields(from: presenting).needsRestart(from: presenting) && restyled.json["presenter_size"] as? Int == 50 && restyled.orientedWidth == 1512, "Presenter style, corner and size apply live; rotation turns only the camera")
+        sharing.config.screen_region = [0, 0, 1512, 982]
+        sharing.config.effect = "blur"
+        try check(!sharing.cameraUnavailable && !sharing.maskAvailable, "Screens skip background effects")
+        sharing.config.presenter = true
+        try check(sharing.cameraUnavailable, "The presenter overlay needs its camera")
         try check(longCaption.unicodeScalars.count == Configuration.captionLimit && Configuration.captionText("Ada\tLove\nlace\u{00A0}\u{200D}") == "AdaLovelace\u{00A0}\u{200D}", "Captions stay one short line, counted like the worker")
         let switcher = SessionModel()
         let switchPipe = Pipe()
@@ -1392,7 +1420,7 @@ final class SessionModel: ObservableObject {
         try pipe.fileHandleForWriting.close()
         try pipe.fileHandleForReading.close()
         try helperSelfTest()
-        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats, orientation, compare, color, spotlight, looks, pause, menu profiles, background color, green screen, overlays, screen source).")
+        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats, orientation, compare, color, spotlight, looks, pause, menu profiles, background color, green screen, overlays, screen source, presenter).")
     }
 
     private static func helperSelfTest() throws {
@@ -1564,7 +1592,7 @@ final class SessionModel: ObservableObject {
         state = "starting"
         startGeneration += 1
         let generation = startGeneration
-        guard config.source == "camera" else { launch(generation: generation); return }
+        guard config.usesCamera else { launch(generation: generation); return }
         AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
             Task { @MainActor in
                 guard let self else { return }
@@ -1755,14 +1783,23 @@ struct ControlPanel: View {
                              ? "The saved area is not on a connected display. Choose a display."
                              : "Zoom in and drag the box in Screen view to share part of the display. Needs Screen Recording permission.")
                             .font(.caption).foregroundStyle(.secondary)
-                    } else {
-                        Picker("Camera", selection: Binding(get: { model.selectedCameraID }, set: model.selectCamera)) {
-                            if model.cameraUnavailable { Text(model.cameras.isEmpty ? "No cameras found" : "Saved camera unavailable").tag(model.selectedCameraID) }
-                            ForEach(model.cameras) { camera in Text(camera.name).tag(camera.id) }
-                        }.disabled(model.inventoryPending)
-                        if model.cameraUnavailable {
-                            Text(model.inventoryPending ? "Refreshing camera inventory..." : "Reconnect saved camera or choose another camera.").font(.caption).foregroundStyle(.secondary)
+                        Toggle("Show camera", isOn: $model.config.presenter)
+                            .help("Put your camera picture in a corner of the shared screen. Applies after a restart.")
+                        if model.config.presenter {
+                            VStack(alignment: .leading, spacing: 6) {
+                                cameraPicker
+                                Picker("Style", selection: $model.config.presenter_style) {
+                                    Text("Bubble").tag("bubble")
+                                    Text("Cutout").tag("cutout")
+                                }.pickerStyle(.segmented)
+                                    .help("Bubble shows a round camera picture. Cutout shows only you, standing on the bottom edge.")
+                                cornerPicker(selection: $model.config.presenter_position)
+                                slider("Size", value: $model.config.presenter_size, range: 10...80)
+                                    .help("Camera height as a percent of the picture height.")
+                            }.padding(.leading, 20)
                         }
+                    } else {
+                        cameraPicker
                     }
                     HStack {
                         Picker("Profile", selection: Binding(get: { model.selectedProfile }, set: model.selectProfile)) {
@@ -1779,40 +1816,42 @@ struct ControlPanel: View {
                         Button { confirmDelete = true } label: { Image(systemName: "trash") }.disabled(model.selectedProfile.isEmpty).help("Delete selected profile")
                     }
                     Divider()
-                    Picker("Background", selection: $model.config.effect) {
-                        Text("Original").tag("plain")
-                        Text("Blur").tag("blur")
-                        Text("Solid color").tag("color")
-                        Text("Image or video").tag("image")
-                        Text("Spotlight").tag("spotlight")
-                        Text("Face tracking").tag("track")
-                    }
-                    if model.config.effect == "blur" || (model.config.effect == "image" && model.config.image_blur) {
-                        Stepper("Blur: \(model.config.blur_kernel)", value: $model.config.blur_kernel, in: 1...151, step: 2)
-                    }
-                    if model.config.effect == "color" {
-                        HStack {
-                            ColorPicker("Color", selection: Binding(get: { Color(nsColor: model.config.backgroundColor) }, set: { model.config.setBackgroundColor(NSColor($0)) }), supportsOpacity: false)
-                            Button { model.sampleColor { $0.setBackgroundColor($1) } } label: { Image(systemName: "eyedropper") }
-                                .help("Pick a color from anywhere on screen, such as your wall in the preview")
-                                .accessibilityLabel("Pick color from screen")
+                    if model.config.source == "camera" {
+                        Picker("Background", selection: $model.config.effect) {
+                            Text("Original").tag("plain")
+                            Text("Blur").tag("blur")
+                            Text("Solid color").tag("color")
+                            Text("Image or video").tag("image")
+                            Text("Spotlight").tag("spotlight")
+                            Text("Face tracking").tag("track")
+                        }
+                        if model.config.effect == "blur" || (model.config.effect == "image" && model.config.image_blur) {
+                            Stepper("Blur: \(model.config.blur_kernel)", value: $model.config.blur_kernel, in: 1...151, step: 2)
+                        }
+                        if model.config.effect == "color" {
+                            HStack {
+                                ColorPicker("Color", selection: Binding(get: { Color(nsColor: model.config.backgroundColor) }, set: { model.config.setBackgroundColor(NSColor($0)) }), supportsOpacity: false)
+                                Button { model.sampleColor { $0.setBackgroundColor($1) } } label: { Image(systemName: "eyedropper") }
+                                    .help("Pick a color from anywhere on screen, such as your wall in the preview")
+                                    .accessibilityLabel("Pick color from screen")
+                            }
+                        }
+                        if model.config.effect == "spotlight" {
+                            slider("Dim room", value: $model.config.spotlight_dim, range: 0...100)
+                                .help("How much darker the background gets, in percent.")
+                            slider("Lift you", value: $model.config.spotlight_lift, range: 0...100)
+                                .help("Brightens you while black and white stay put.")
+                        }
+                        if model.config.effect == "image" {
+                            BackgroundGallery(model: model)
+                            decimalSlider("Horizontal", value: $model.config.image_x, range: 0...1, text: { "\(Int(($0 * 100).rounded()))%" })
+                                .help("Which part of the image shows when its shape differs from the video, from left to right.")
+                            decimalSlider("Vertical", value: $model.config.image_y, range: 0...1, text: { "\(Int(($0 * 100).rounded()))%" })
+                                .help("Which part of the image shows when its shape differs from the video, from top to bottom.")
+                            Toggle("Blur image background", isOn: $model.config.image_blur)
                         }
                     }
-                    if model.config.effect == "spotlight" {
-                        slider("Dim room", value: $model.config.spotlight_dim, range: 0...100)
-                            .help("How much darker the background gets, in percent.")
-                        slider("Lift you", value: $model.config.spotlight_lift, range: 0...100)
-                            .help("Brightens you while black and white stay put.")
-                    }
-                    if model.config.effect == "image" {
-                        BackgroundGallery(model: model)
-                        decimalSlider("Horizontal", value: $model.config.image_x, range: 0...1, text: { "\(Int(($0 * 100).rounded()))%" })
-                            .help("Which part of the image shows when its shape differs from the video, from left to right.")
-                        decimalSlider("Vertical", value: $model.config.image_y, range: 0...1, text: { "\(Int(($0 * 100).rounded()))%" })
-                            .help("Which part of the image shows when its shape differs from the video, from top to bottom.")
-                        Toggle("Blur image background", isOn: $model.config.image_blur)
-                    }
-                    if model.maskAvailable {
+                    if model.maskAvailable || (model.config.presenting && model.config.presenter_style == "cutout") {
                         Toggle("Green screen", isOn: Binding(get: { model.config.segmentation == "chroma" }, set: { model.config.segmentation = $0 ? "chroma" : "mediapipe" }))
                             .help("Key out a solid backdrop color instead of detecting you.")
                         if model.config.segmentation == "chroma" {
@@ -1830,20 +1869,22 @@ struct ControlPanel: View {
                                 .help("Removes backdrop color reflected onto your hair and edges.")
                         }
                     }
-                    Toggle("Track face", isOn: $model.config.track).disabled(model.config.effect == "track")
-                    if model.config.tracking {
-                        VStack(alignment: .leading, spacing: 4) {
-                            decimalSlider("Face size", value: $model.config.track_face_height, range: 0.1...0.9, text: { "\(Int(($0 * 100).rounded()))%" })
-                                .help("Face height as a share of the picture.")
-                            decimalSlider("Head height", value: $model.config.track_target_y, range: 0.2...0.8, text: { "\(Int(($0 * 100).rounded()))%" })
-                                .help("Where your face sits, measured from the top of the picture.")
-                            decimalSlider("Max zoom", value: $model.config.track_max_zoom, range: 1...4, text: { "\($0.formatted(.number.precision(.fractionLength(1))))x" })
-                            decimalSlider("Follow", value: $model.config.track_follow_seconds, range: 0.05...3, text: { "\($0.formatted(.number.precision(.fractionLength(2)))) s" })
-                                .help("How long framing takes to catch up. Shorter follows faster.")
-                            decimalSlider("Steadiness", value: $model.config.track_deadzone, range: 0...0.4, text: { "\(Int(($0 * 100).rounded()))%" })
-                                .help("Movement ignored before framing follows, as a share of the picture.")
-                            Button("Default framing") { model.config.resetFramingPreferences() }
-                        }.padding(.leading, 20)
+                    if model.config.source == "camera" {
+                        Toggle("Track face", isOn: $model.config.track).disabled(model.config.effect == "track")
+                        if model.config.tracking {
+                            VStack(alignment: .leading, spacing: 4) {
+                                decimalSlider("Face size", value: $model.config.track_face_height, range: 0.1...0.9, text: { "\(Int(($0 * 100).rounded()))%" })
+                                    .help("Face height as a share of the picture.")
+                                decimalSlider("Head height", value: $model.config.track_target_y, range: 0.2...0.8, text: { "\(Int(($0 * 100).rounded()))%" })
+                                    .help("Where your face sits, measured from the top of the picture.")
+                                decimalSlider("Max zoom", value: $model.config.track_max_zoom, range: 1...4, text: { "\($0.formatted(.number.precision(.fractionLength(1))))x" })
+                                decimalSlider("Follow", value: $model.config.track_follow_seconds, range: 0.05...3, text: { "\($0.formatted(.number.precision(.fractionLength(2)))) s" })
+                                    .help("How long framing takes to catch up. Shorter follows faster.")
+                                decimalSlider("Steadiness", value: $model.config.track_deadzone, range: 0...0.4, text: { "\(Int(($0 * 100).rounded()))%" })
+                                    .help("Movement ignored before framing follows, as a share of the picture.")
+                                Button("Default framing") { model.config.resetFramingPreferences() }
+                            }.padding(.leading, 20)
+                        }
                     }
                     slider("Brightness", value: $model.config.brightness, range: 0...255)
                     Picker("Look", selection: Binding(get: { model.config.look }, set: { look in
@@ -1913,14 +1954,16 @@ struct ControlPanel: View {
                             Text("Overlays are drawn into the video calls see, never mirrored.").font(.caption).foregroundStyle(.secondary)
                         }.padding(.top, 4)
                     }
-                    Toggle("Mirror video", isOn: $model.config.mirror)
-                        .help("Flip left to right. Preview and OBS Virtual Camera both show the mirrored view.")
-                    Toggle("Flip upside down", isOn: $model.config.flip_vertical)
-                        .help("For cameras mounted upside down.")
-                    Picker("Rotate", selection: Binding(get: { model.config.rotate }, set: { model.config.setRotation($0) })) {
-                        Text("0").tag(0); Text("90").tag(90); Text("180").tag(180); Text("270").tag(270)
-                    }.pickerStyle(.segmented)
-                        .help("Turn the camera picture clockwise, in degrees, for a sideways or upside-down camera. Applies after a restart.")
+                    if model.config.usesCamera {
+                        Toggle("Mirror video", isOn: $model.config.mirror)
+                            .help("Flip left to right. Preview and OBS Virtual Camera both show the mirrored view.")
+                        Toggle("Flip upside down", isOn: $model.config.flip_vertical)
+                            .help("For cameras mounted upside down.")
+                        Picker("Rotate", selection: Binding(get: { model.config.rotate }, set: { model.config.setRotation($0) })) {
+                            Text("0").tag(0); Text("90").tag(90); Text("180").tag(180); Text("270").tag(270)
+                        }.pickerStyle(.segmented)
+                            .help("Turn the camera picture clockwise, in degrees, for a sideways or upside-down camera. Applies after a restart.")
+                    }
                     Picker("Shape", selection: Binding(get: { model.config.outputShape }, set: { model.config.setOutputShape($0) })) {
                         Text("Same as \(model.config.sourceName.lowercased())").tag("camera")
                         ForEach(OutputShape.presets) { shape in Text(shape.label).tag(shape.id) }
@@ -2045,6 +2088,16 @@ struct ControlPanel: View {
             // two decimals keep saved profiles readable and live updates sparse
             Slider(value: Binding(get: { value.wrappedValue }, set: { value.wrappedValue = ($0 * 100).rounded() / 100 }), in: range)
             Text(text(value.wrappedValue)).monospacedDigit().frame(width: 44, alignment: .trailing)
+        }
+    }
+
+    @ViewBuilder private var cameraPicker: some View {
+        Picker("Camera", selection: Binding(get: { model.selectedCameraID }, set: model.selectCamera)) {
+            if model.cameraUnavailable { Text(model.cameras.isEmpty ? "No cameras found" : "Saved camera unavailable").tag(model.selectedCameraID) }
+            ForEach(model.cameras) { camera in Text(camera.name).tag(camera.id) }
+        }.disabled(model.inventoryPending)
+        if model.cameraUnavailable {
+            Text(model.inventoryPending ? "Refreshing camera inventory..." : "Reconnect saved camera or choose another camera.").font(.caption).foregroundStyle(.secondary)
         }
     }
 

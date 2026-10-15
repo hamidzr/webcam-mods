@@ -17,6 +17,7 @@ from webcam_mods.mods.color import (
 )
 from webcam_mods.mods.looks import ColorLook, builtin_look, load_cube
 from webcam_mods.mods.overlay import Logo, Overlay, OverlaySettings, Position, load_logo
+from webcam_mods.mods.presenter import Alpha, bubble, cutout, place
 from webcam_mods.mods.video_background import LoopingVideo
 from webcam_mods.mods.video_mods import brighten, crop_rect, resize_and_pad
 from webcam_mods.output.native_preview import Guides
@@ -27,7 +28,7 @@ from webcam_mods.settings import StartupSettings
 
 if TYPE_CHECKING:
     from webcam_mods.entry import BackgroundEffect, BackgroundMode
-    from webcam_mods.mods.person_segmentation import Mask
+    from webcam_mods.mods.person_segmentation import Mask, PersonEffects
 
 
 class Effect(Protocol):
@@ -256,7 +257,13 @@ def _read_background(path: str) -> Frame | None:
 
 
 def _background_key(profile: Profile) -> tuple[object, ...] | None:
-    if profile.effect not in ("blur", "color", "image", "spotlight"):
+    # screens get no background effect; a presenter cutout segments the camera
+    if profile.source != "camera" or profile.effect not in (
+        "blur",
+        "color",
+        "image",
+        "spotlight",
+    ):
         return None
     return (
         profile.effect,
@@ -279,7 +286,10 @@ class ProfileEffect:
     """Profile pipeline whose settings can change between frames.
 
     Order: orientation, manual crop with optional tracking inside it, auto light,
-    fixed-size background, brightness, color, look, overlays. Updates are
+    fixed-size background, brightness, color, look, overlays. A screen source
+    skips orientation, tracking and background; with the presenter on, the camera
+    picture is oriented, lit and graded, then placed over the output-sized screen
+    before overlays. Updates are
     queued by any thread and applied on the processing thread before a frame.
     Source, original and mask preview frames are encoded only while the app shows
     them.
@@ -307,6 +317,12 @@ class ProfileEffect:
         self.look: ColorLook | None = None
         self._logo: tuple[str, Logo] | None = None
         self.overlay: Overlay | None = None
+        # newest presenter camera frame, wired by the session for screen sources
+        self.camera_feed: Callable[[], Frame | None] | None = None
+        # person segmentation for the presenter cutout
+        self.presenter_effects: "PersonEffects | None" = None
+        # camera frame and profile behind the last presenter layer
+        self._presented: tuple[Frame, Profile, Frame, Alpha] | None = None
         self._initialized = False
         self._closed = False
         self.background: "BackgroundEffect | None" = None
@@ -445,7 +461,34 @@ class ProfileEffect:
             if self._video is not None:
                 self._video.close()
             self._video = video
-        tracked = profile.track or profile.effect == "track"
+        cutout_on = profile.presenting and profile.presenter_style == "cutout"
+        if self.presenter_effects is not None and (
+            not cutout_on
+            or previous is None
+            or any(
+                getattr(previous, name) != getattr(profile, name)
+                for name in _SEGMENTATION_FIELDS
+            )
+        ):
+            effects, self.presenter_effects = self.presenter_effects, None
+            effects.close()
+        if cutout_on and self.presenter_effects is None:
+            from webcam_mods.mods.person_segmentation import PersonEffects
+
+            self.presenter_effects = PersonEffects(
+                backend=profile.segmentation,  # type: ignore[arg-type]
+                smoothing=profile.smoothing,
+            )
+        if self.presenter_effects is not None and profile.segmentation == "chroma":
+            self.presenter_effects.configure_key(
+                profile.key_bgr,
+                profile.key_tolerance,
+                profile.key_softness,
+                profile.key_spill,
+            )
+        tracked = profile.source == "camera" and (
+            profile.track or profile.effect == "track"
+        )
         if self.tracking is not None and not tracked:
             tracking, self.tracking = self.tracking, None
             tracking.close()
@@ -500,7 +543,8 @@ class ProfileEffect:
             self._initialized = True
         self._apply_pending()
         profile = self._profile
-        frame = _orient(frame, profile)
+        if profile.source == "camera":
+            frame = _orient(frame, profile)
         source = self._source = frame
         height, width = frame.shape[:2]
         region = (
@@ -519,6 +563,12 @@ class ProfileEffect:
         if preview is not None and preview.wants("original"):
             # same framing as output without image effects, for hold-to-compare
             preview.publish(frame, "original")
+        if profile.presenting:
+            frame = self._present(frame, profile)
+            if self.overlay is not None:
+                frame = self.overlay(frame)
+            self.stats.tick(time.perf_counter() - started)
+            return frame
         # before segmentation so masks see the lifted picture; images stay as chosen
         frame = self.auto_light(frame, time.monotonic())
         if self.background is not None:
@@ -532,15 +582,52 @@ class ProfileEffect:
             mask = self.background.mask
             if preview is not None and mask is not None and preview.wants("mask"):
                 preview.publish(_mask_frame(mask), "mask")
+        frame = self._grade(frame, profile)
+        if self.overlay is not None:
+            frame = self.overlay(frame)
+        self.stats.tick(time.perf_counter() - started)
+        return frame
+
+    def _grade(self, frame: Frame, profile: Profile) -> Frame:
+        """Brightness, color and look."""
         if profile.brightness:
             frame = brighten(frame, profile.brightness)
         frame = self.color(frame)
         if self.look is not None:
             frame = self.look(frame, profile.look_strength / 100)
-        if self.overlay is not None:
-            frame = self.overlay(frame)
-        self.stats.tick(time.perf_counter() - started)
         return frame
+
+    def _present(self, screen: Frame, profile: Profile) -> Frame:
+        """Output-sized screen with the newest camera picture in a corner."""
+        width, height = self._settings.out_width, self._settings.out_height
+        frame = resize_and_pad(screen, sw=width, sh=height)
+        camera = None if self.camera_feed is None else self.camera_feed()
+        if camera is None:
+            return frame
+        presented = self._presented
+        if presented is not None and presented[0] is camera and presented[1] is profile:
+            # the camera runs slower than the screen; reuse the graded layer
+            layer, alpha = presented[2], presented[3]
+        else:
+            picture = self.auto_light(_orient(camera, profile), time.monotonic())
+            size = max(2, round(height * profile.presenter_size / 100))
+            if self.presenter_effects is not None:
+                # segmentation flips once for legacy CLI commands; pre-flip cancels it
+                image, mask = self.presenter_effects.mask(
+                    cast(Frame, cv2.flip(picture, 1))
+                )
+                layer, alpha = cutout(image, mask, size)
+            else:
+                layer, alpha = bubble(picture, size)
+            layer = self._grade(layer, profile)
+            self._presented = (camera, profile, layer, alpha)
+        return place(
+            frame,
+            layer,
+            alpha,
+            profile.presenter_position,
+            standing=self.presenter_effects is not None,
+        )
 
     def white_balance(self, x: float, y: float) -> tuple[int, int]:
         """Temperature and tint that turn a patch of the camera picture neutral gray.
@@ -577,6 +664,8 @@ class ProfileEffect:
         tracking, self.tracking = self.tracking, None
         background, self.background = self.background, None
         video, self._video = self._video, None
+        presenter, self.presenter_effects = self.presenter_effects, None
+        self._presented = None
         try:
             if tracking is not None:
                 tracking.close()
@@ -585,8 +674,12 @@ class ProfileEffect:
                 if background is not None:
                     background.close()
             finally:
-                if video is not None:
-                    video.close()
+                try:
+                    if video is not None:
+                        video.close()
+                finally:
+                    if presenter is not None:
+                        presenter.close()
 
     def close(self) -> None:
         self._closed = True

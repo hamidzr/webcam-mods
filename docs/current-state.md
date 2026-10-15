@@ -10,7 +10,8 @@ remain supported. Native macOS menu is optional; installed CLI works independent
 - Screen sharing: explicit region or macOS area/screen/visible picker, fresh crop
   state, optional outside border, preview or virtual-camera output. Profiles and
   the app can use a screen area as the source instead of a camera; the app picks a
-  display and crops part of it with the preview crop box.
+  display and crops part of it with the preview crop box. A presenter overlay puts
+  the camera over the screen as a round bubble or a person cutout in a corner.
 - Per-run crop/padding, ordered bounded controls and 256 MiB default recording cap.
   Keyboard/stdin adapters start explicitly; import/help starts no listeners.
 - Stable face selection/framing with bounded zoom and independent pan/zoom response.
