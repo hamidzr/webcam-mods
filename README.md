@@ -140,8 +140,8 @@ against the former six-worker approach using cached models and synthetic input,
 without opening a camera or changing calibration caches.
 
 Interactive sessions open output before capture/model startup. Both preview and
-virtual camera receive TV color bars with a startup message until the first
-processed frame. Choose animated TV static with `--signal-pattern noise` (or
+virtual camera receive TV color bars until the first processed frame. Loading
+frames are picture-only; status text stays in the terminal or app window. Choose animated TV static with `--signal-pattern noise` (or
 `SIGNAL_PATTERN=noise`); native profiles expose Loading picture in Advanced.
 Color bars are cached; static refreshes at most 8 times/second and stops when
 live video arrives. Bounded capture/export runs contain only live frames.

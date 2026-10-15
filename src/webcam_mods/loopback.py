@@ -137,7 +137,7 @@ def live_loop(
             error_frame = resize_and_pad(
                 cast(Frame, failure_image), sw=fOut.width, sh=fOut.height
             )
-            last_frame = signals.frame("Opening camera...")
+            last_frame = signals.frame()
             ready_reported = False
 
             def produce(frame: Frame) -> Frame:
@@ -173,7 +173,7 @@ def live_loop(
                     paused = on_demand and not cam.is_in_use()
                     if paused:
                         fIn.teardown()
-                        delivered = signals.frame("Camera paused")
+                        delivered = signals.frame()
                     else:
                         if not fIn.is_setup():
                             _validate_metadata(fIn.setup(), "input")
@@ -269,16 +269,9 @@ def live_loop(
                             pacer = FramePacer(delivered_fps)
                             if on_output_ready is not None:
                                 on_output_ready({**outp_props, "fps": delivered_fps})
-                if paused:
-                    delivered = signals.frame("Camera paused")
-                elif completed is None:
-                    delivered = signals.frame(
-                        "Opening camera..."
-                        if inp_props is None
-                        else "Preparing camera and effects..."
-                    )
-                else:
-                    delivered = completed
+                delivered = (
+                    signals.frame() if paused or completed is None else completed
+                )
                 cam.send(delivered)
                 if on_frame is not None:
                     on_frame(delivered)

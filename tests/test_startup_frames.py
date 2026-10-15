@@ -1,22 +1,27 @@
 """Loading frames reach every output while setup and first inference are blocked."""
 
 import threading
+from typing import cast
 import unittest
 from unittest.mock import Mock, patch
 
+import cv2
 import numpy as np
 from typer.testing import CliRunner
 
 from cli_fixtures import HeadlessCliTestCase
 
 from webcam_mods import entry
+from webcam_mods.config import NO_SIGNAL_IMAGE
 from webcam_mods.effects import ProfileEffect
 from webcam_mods.frame_producer import FrameProducer
 from webcam_mods.input.input import FrameInput, FrameOutput
 from webcam_mods.loopback import live_loop
+from webcam_mods.mods.video_mods import resize_and_pad
 from webcam_mods.profiles import Profile
 from webcam_mods.settings import StartupSettings, load_settings
 from webcam_mods.signals import SignalFrames
+from webcam_mods.utils.video import Frame
 
 
 class StartupSource(FrameInput):
@@ -201,10 +206,10 @@ class SignalFrameTests(HeadlessCliTestCase):
         for pattern in ("color-bars", "noise"):
             with self.subTest(pattern=pattern):
                 signals = SignalFrames(320, 240, pattern)
-                first = signals.frame("Preparing effects...", now=0)
+                first = signals.frame(now=0)
                 owned = first.copy()
-                self.assertIs(signals.frame("Preparing effects...", now=0.1), first)
-                later = signals.frame("Preparing effects...", now=0.126)
+                self.assertIs(signals.frame(now=0.1), first)
+                later = signals.frame(now=0.126)
                 self.assertEqual(later.dtype, np.uint8)
                 self.assertEqual(later.shape, (240, 320, 3))
                 np.testing.assert_array_equal(first, owned)
@@ -212,8 +217,14 @@ class SignalFrameTests(HeadlessCliTestCase):
                     self.assertIs(later, first)
                 else:
                     self.assertFalse(np.array_equal(later, first))
-                changed = signals.frame("Camera paused", now=0.127)
-                self.assertIsNot(changed, later)
+
+    def test_bars_are_picture_only_without_status_band(self):
+        image = cv2.imread(str(NO_SIGNAL_IMAGE))
+        assert image is not None
+        expected = resize_and_pad(cast(Frame, image), sw=320, sh=240)
+        np.testing.assert_array_equal(
+            SignalFrames(320, 240, "color-bars").frame(now=0), expected
+        )
 
     def test_profile_env_and_cli_choose_same_pattern(self):
         self.assertEqual(Profile.parse({}).signal_pattern, "color-bars")
