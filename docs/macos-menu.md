@@ -76,7 +76,16 @@ dimmed: drag to move it or pinch to zoom. Center recenters it; Show whole camera
 removes it. Crop is saved per profile as frame fractions and applies live. With face
 tracking on, tracking frames you inside the crop; detection still sees the whole
 frame, so moving the crop never reloads the face model. Interactive CLI crop in
-`~/.webcam-mods.conf` is separate. Only the
+`~/.webcam-mods.conf` is separate.
+Desk view (camera source) straightens a desk, whiteboard or page seen at an angle.
+Turning it on shows Camera view with four corner handles; drag each onto the
+matching corner of the area. A corner never moves where the area would fold or
+cover less than 1% of the frame. The area is warped to an upright rectangle with
+the shape of its mean edge lengths, then fit to the output with bars, for about
+0.3 ms per 720p frame. It applies live and is saved per profile as corner
+fractions of the oriented camera frame. While it is on, crop and face tracking
+pause and Camera view shows no crop box; Mirror video still flips the picture
+first, so turn it off for readable writing. Only the
 selected view is encoded. Below the preview, stats refresh about once a second:
 processed frames per second, sent frames per second and mean effect time.
 
@@ -136,9 +145,9 @@ keeps the room but darkens it by Dim room percent and brightens you with a gentl
 curve set by Lift you, where black and white stay put; both apply live without
 reloading segmentation. Tracking combines
 with background and brightness. Effect order: rotation, mirror and vertical flip,
-manual crop, tracking inside
-the crop, auto light, fixed-size background processing, brightness, color, look,
-overlays, final output sizing. Mirror video flips the
+denoise, desk view or manual crop with tracking inside the crop, auto light, touch
+up, fixed-size background processing, brightness, color, look, overlays, final
+output sizing. Mirror video flips the
 camera left to right for both preview and OBS output, so receivers see the
 mirrored view; background images stay readable. Background effects keep the
 picture orientation, so only Mirror video flips it. Flip upside down turns the picture
@@ -331,6 +340,7 @@ Profile fields and defaults:
 | track_follow_seconds | 0.25 | Pan time constant, 0.05..3; zoom uses 2.4 times this |
 | track_deadzone | 0.08 | Ignored pan and zoom drift as a crop fraction, 0..0.4 |
 | crop | null | Manual crop `[x, y, width, height]` as fractions of the oriented camera frame; each size at least 0.02 and inside the frame |
+| perspective | null | Desk view corners `[[x, y], ...]` clockwise from top-left as fractions of the oriented camera frame; a convex area over 1% of the frame, straightened to fill the picture. Replaces crop and tracking; camera source only |
 | exposure | 0 | Exposure in stops, -2..2; +1 doubles the light |
 | contrast, saturation | 0 | -100..100 around the unchanged picture; saturation -100 is grayscale |
 | temperature, tint | 0 | White balance, -100..100: positive warmer, positive tint magenta |

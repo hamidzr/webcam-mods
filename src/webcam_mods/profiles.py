@@ -4,6 +4,7 @@ from dataclasses import asdict, dataclass, fields, replace
 from contextlib import contextmanager
 import json
 import math
+import numbers
 import os
 from pathlib import Path
 import re
@@ -59,6 +60,11 @@ NUMBER_RANGES: tuple[tuple[str, float, float], ...] = (
 
 _HEX_COLOR = re.compile(r"#[0-9a-fA-F]{6}")
 
+Point = tuple[float, float]
+# (x, y) fractions in 0..1: top-left, top-right, bottom-right, bottom-left
+Quad = tuple[Point, Point, Point, Point]
+MIN_QUAD_AREA = 0.01
+
 
 @dataclass(frozen=True)
 class Profile:
@@ -101,6 +107,10 @@ class Profile:
     rotate: int = 0
     # manual crop as [x, y, width, height] fractions of the oriented camera frame
     crop: tuple[float, float, float, float] | None = None
+    # desk view: corners of a desk, whiteboard or page seen at an angle, as
+    # fractions of the oriented camera frame; the area is straightened to fill the
+    # picture and replaces crop and face tracking
+    perspective: Quad | None = None
     # auto-framing: face height and head center as output fractions, zoom limit,
     # follow time constant in seconds, and ignored drift as a crop fraction
     track_face_height: float = 0.4
@@ -212,6 +222,8 @@ class Profile:
             object.__setattr__(
                 self, "screen_region", _screen_region(self.screen_region)
             )
+        if self.perspective is not None:
+            object.__setattr__(self, "perspective", validate_quad(self.perspective))
         if self.blur_kernel % 2 == 0:
             raise ValueError("blur_kernel must be odd")
         if type(self.rotate) is not int or self.rotate not in (0, 90, 180, 270):
@@ -361,6 +373,42 @@ def _crop(value: object) -> tuple[float, float, float, float]:
     ):
         raise ValueError("crop must be fractions inside the frame, at least 0.02 wide")
     return x, y, width, height
+
+
+def validate_quad(quad: object) -> Quad:
+    """Return a clean quad or raise ValueError; accepts nested lists from JSON."""
+    if not isinstance(quad, (list, tuple)) or len(quad) != 4:
+        raise ValueError("perspective must be 4 [x, y] corners or null")
+    points: list[Point] = []
+    for raw in quad:
+        if not isinstance(raw, (list, tuple)) or len(raw) != 2:
+            raise ValueError("perspective must be 4 [x, y] corners or null")
+        coords: list[float] = []
+        for value in raw:
+            if isinstance(value, bool) or not isinstance(value, numbers.Real):
+                raise ValueError("perspective corners must be numbers in 0..1")
+            coord = float(value)
+            if not math.isfinite(coord) or not 0 <= coord <= 1:
+                raise ValueError("perspective corners must be numbers in 0..1")
+            coords.append(coord)
+        points.append((coords[0], coords[1]))
+    # clockwise on screen (y down) means every turn has a positive cross product
+    for i in range(4):
+        (ax, ay), (bx, by), (cx, cy) = (
+            points[i],
+            points[(i + 1) % 4],
+            points[(i + 2) % 4],
+        )
+        if (bx - ax) * (cy - by) - (by - ay) * (cx - bx) <= 1e-9:
+            raise ValueError(
+                "perspective must be a convex area, corners clockwise from top-left"
+            )
+    area = sum(
+        ax * by - bx * ay for (ax, ay), (bx, by) in zip(points, points[1:] + points[:1])
+    )
+    if area / 2 <= MIN_QUAD_AREA:
+        raise ValueError("perspective must cover more than 1% of the frame")
+    return points[0], points[1], points[2], points[3]
 
 
 def _screen_region(value: object) -> tuple[int, int, int, int]:

@@ -48,7 +48,8 @@ remain supported. Native macOS menu is optional; installed CLI works independent
   Overlays (name caption with a second line, logo or watermark with size and
   opacity, each in a corner) draw last, unmirrored.
   Profiles store a manual crop edited by zoom, drag and pinch in the camera view;
-  tracking stays inside it. Framing preferences (face size, head height, max zoom,
+  tracking stays inside it. Desk view straightens a desk, whiteboard or page from
+  four corners dragged in the camera view, in place of crop and tracking. Framing preferences (face size, head height, max zoom,
   follow time, steadiness) are profile fields that apply live.
   Menu bar exposes status, Start/Stop, Pause video, profile switching, Open window
   and Quit; switching restarts only when camera or output shape changes. Pause

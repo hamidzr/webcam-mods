@@ -90,6 +90,9 @@ struct Configuration: Codable, Equatable {
     var rotate = 0
     // [x, y, width, height] fractions of the oriented camera frame; nil shows it all
     var crop: [Double]?
+    // desk view: [x, y] corners clockwise from top-left of an area seen at an angle,
+    // straightened to fill the picture; replaces crop and face tracking while set
+    var perspective: [[Double]]?
     var track_face_height = 0.4
     var track_target_y = 0.42
     var track_max_zoom = 2.0
@@ -349,6 +352,28 @@ extension Configuration {
         func rounded(_ value: Double) -> Double { (value * 10_000).rounded() / 10_000 }
         crop = [rounded(x), rounded(y), rounded(width), rounded(height)]
     }
+
+    static let deskCorners: [[Double]] = [[0.2, 0.3], [0.8, 0.3], [0.9, 0.85], [0.1, 0.85]]
+
+    // keep in step with validate_quad in profiles.py
+    static func validCorners(_ quad: [[Double]]) -> Bool {
+        guard quad.count == 4, quad.allSatisfy({ $0.count == 2 && $0.allSatisfy { (0...1).contains($0) } }) else { return false }
+        var area = 0.0
+        for index in 0..<4 {
+            let a = quad[index], b = quad[(index + 1) % 4], c = quad[(index + 2) % 4]
+            // clockwise on screen: every turn bends the same way
+            if (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]) <= 1e-9 { return false }
+            area += a[0] * b[1] - b[0] * a[1]
+        }
+        return area / 2 > 0.01
+    }
+
+    // a corner moves only where the area stays convex and large enough
+    mutating func moveCorner(_ index: Int, to point: CGPoint) {
+        guard var quad = perspective, quad.indices.contains(index) else { return }
+        quad[index] = [Double(point.x), Double(point.y)].map { (min(max($0, 0), 1) * 1000).rounded() / 1000 }
+        if Self.validCorners(quad) { perspective = quad }
+    }
 }
 
 struct ProfileIssue: Decodable {
@@ -601,6 +626,12 @@ final class SessionModel: ObservableObject {
             guard self.previewVisible, self.previewing, generation == self.previewGeneration else { return }
             self.acceptPreview(result)
         }
+    }
+
+    // turning desk view on shows Camera view, where its corners are dragged
+    func setDeskView(_ on: Bool) {
+        config.perspective = on ? config.perspective ?? Configuration.deskCorners : nil
+        if on && previewing && !pickingWhite { previewView = "source" }
     }
 
     func beginWhitePick() {
@@ -1062,6 +1093,10 @@ final class SessionModel: ObservableObject {
             model.beginWhitePick()
             model.previewImage = image
         }
+        try render("desktop-desk-view", width: 1100, height: 1400) { model in
+            model.config.perspective = [[0.22, 0.35], [0.78, 0.33], [0.92, 0.9], [0.08, 0.92]]
+            running(model, view: "source")
+        }
         try render("narrow-camera-hardware", width: 440, height: 1100) { model in
             model.config.camera_exposure = 40
             model.config.anti_flicker = "50hz"
@@ -1451,6 +1486,19 @@ final class SessionModel: ObservableObject {
         model.cameras = []
         model.config.camera_id = nil
         model.connected = wasConnected
+        var desk = Configuration()
+        desk.perspective = Configuration.deskCorners
+        let deskDecoded = try JSONDecoder().decode(Configuration.self, from: JSONEncoder().encode(desk))
+        try check(deskDecoded.perspective == Configuration.deskCorners && Configuration.validCorners(Configuration.deskCorners) && !desk.needsRestart(from: Configuration()) && Configuration().json["perspective"] == nil, "Desk view corners encode and apply live")
+        try check(!Configuration.validCorners([[0, 0], [0, 1], [1, 1], [1, 0]]) && !Configuration.validCorners([[0.1, 0.1], [0.9, 0.9], [0.9, 0.1], [0.1, 0.9]]) && !Configuration.validCorners([[0.4, 0.4], [0.45, 0.4], [0.45, 0.45], [0.4, 0.45]]), "Desk view refuses reversed, crossed and tiny areas")
+        desk.moveCorner(0, to: CGPoint(x: -0.2, y: 0.1234))
+        try check(desk.perspective?[0] == [0, 0.123], "Desk corners stay in the picture")
+        desk.moveCorner(0, to: CGPoint(x: 0.95, y: 0.95))
+        try check(desk.perspective?[0] == [0, 0.123], "Desk corners never fold the area")
+        model.setDeskView(true)
+        try check(model.config.perspective == Configuration.deskCorners && model.previewView == "output", "Desk view starts from default corners")
+        model.setDeskView(false)
+        try check(model.config.perspective == nil, "Desk view turns off")
         var tuned = Configuration()
         tuned.track_face_height = 0.3
         tuned.track_follow_seconds = 1.5
@@ -1580,7 +1628,7 @@ final class SessionModel: ObservableObject {
         try pipe.fileHandleForWriting.close()
         try pipe.fileHandleForReading.close()
         try helperSelfTest()
-        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats, orientation, compare, color, spotlight, looks, pause, menu profiles, background color, green screen, overlays, screen source, presenter, snapshot, record loop, touch-up, denoise, camera hardware).")
+        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats, orientation, compare, color, spotlight, looks, pause, menu profiles, background color, green screen, overlays, screen source, presenter, snapshot, record loop, touch-up, denoise, camera hardware, desk view).")
     }
 
     private static func helperSelfTest() throws {
@@ -2145,22 +2193,31 @@ struct ControlPanel: View {
                             Text("Custom \(model.config.output_width ?? model.config.orientedWidth)x\(model.config.output_height ?? model.config.orientedHeight)").tag("custom")
                         }
                     }.help("Output picture shape. Sizes fit the camera without upscaling; edit them under Advanced. Applies after a restart.")
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Text("Zoom").frame(width: 75, alignment: .leading)
-                            Slider(value: Binding(get: { model.config.cropZoom }, set: { model.config.setCrop(zoom: $0, center: model.config.cropCenter) }), in: 1...4)
-                            Text("\(model.config.cropZoom.formatted(.number.precision(.fractionLength(1))))x").monospacedDigit().frame(width: 36, alignment: .trailing)
-                        }
-                        HStack {
-                            Button("Center") { model.config.setCrop(zoom: model.config.cropZoom, center: CGPoint(x: 0.5, y: 0.5)) }
-                            Button("Show whole \(model.config.sourceName.lowercased())") { model.config.crop = nil }.disabled(model.config.crop == nil)
-                        }
-                        Text(model.config.crop == nil
-                             ? "Zoom in to crop. Drag the box in \(model.config.sourceName) view to choose what calls see."
-                             : model.config.track || model.config.effect == "track"
-                             ? "Face tracking stays inside the crop. Drag the box in \(model.config.sourceName) view to move it."
-                             : "Drag the box in \(model.config.sourceName) view, or pinch it, to adjust the crop.")
+                    if model.config.source == "camera" {
+                        Toggle("Desk view", isOn: Binding(get: { model.config.perspective != nil }, set: model.setDeskView))
+                            .help("Straighten a desk, whiteboard or page seen at an angle so it fills the picture.")
+                    }
+                    if model.config.source == "camera" && model.config.perspective != nil {
+                        Text("Drag the four corners in Camera view onto the desk, whiteboard or page. Crop and face tracking pause while Desk view is on; turn off Mirror video so writing reads the right way.")
                             .font(.caption).foregroundStyle(.secondary)
+                    } else {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text("Zoom").frame(width: 75, alignment: .leading)
+                                Slider(value: Binding(get: { model.config.cropZoom }, set: { model.config.setCrop(zoom: $0, center: model.config.cropCenter) }), in: 1...4)
+                                Text("\(model.config.cropZoom.formatted(.number.precision(.fractionLength(1))))x").monospacedDigit().frame(width: 36, alignment: .trailing)
+                            }
+                            HStack {
+                                Button("Center") { model.config.setCrop(zoom: model.config.cropZoom, center: CGPoint(x: 0.5, y: 0.5)) }
+                                Button("Show whole \(model.config.sourceName.lowercased())") { model.config.crop = nil }.disabled(model.config.crop == nil)
+                            }
+                            Text(model.config.crop == nil
+                                 ? "Zoom in to crop. Drag the box in \(model.config.sourceName) view to choose what calls see."
+                                 : model.config.track || model.config.effect == "track"
+                                 ? "Face tracking stays inside the crop. Drag the box in \(model.config.sourceName) view to move it."
+                                 : "Drag the box in \(model.config.sourceName) view, or pinch it, to adjust the crop.")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
                     }
                     DisclosureGroup("Advanced", isExpanded: $advanced) {
                         VStack(spacing: 9) {
@@ -2402,7 +2459,11 @@ struct PreviewPanel: View {
                             if model.pickingWhite {
                                 WhitePicker(model: model)
                             } else if model.previewView == "source" {
-                                CropEditor(model: model)
+                                if model.config.perspective != nil {
+                                    CornerEditor(model: model)
+                                } else {
+                                    CropEditor(model: model)
+                                }
                             }
                         }
                         .overlay(alignment: .topLeading) {
@@ -2602,6 +2663,41 @@ struct CropEditor: View {
                     .accessibilityHint("Drag to move what calls see")
             }
         }
+    }
+}
+
+struct CornerEditor: View {
+    @ObservedObject var model: SessionModel
+    static let names = ["Top-left corner", "Top-right corner", "Bottom-right corner", "Bottom-left corner"]
+
+    var body: some View {
+        GeometryReader { geometry in
+            let size = geometry.size
+            if let quad = model.config.perspective, quad.count == 4 {
+                let points = quad.map { CGPoint(x: $0[0] * size.width, y: $0[1] * size.height) }
+                Path { path in
+                    // dim everything outside the area
+                    path.addRect(CGRect(origin: .zero, size: size))
+                    path.addLines(points)
+                    path.closeSubpath()
+                }.fill(Color.black.opacity(0.5), style: FillStyle(eoFill: true))
+                Path { path in
+                    path.addLines(points)
+                    path.closeSubpath()
+                }.stroke(Color.white, lineWidth: 2)
+                ForEach(0..<4, id: \.self) { index in
+                    Circle().fill(Color.white).frame(width: 12, height: 12)
+                        .overlay(Circle().stroke(Color.accentColor, lineWidth: 2))
+                        .frame(width: 28, height: 28).contentShape(Circle())
+                        .position(points[index])
+                        .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .named("corners")).onChanged { value in
+                            model.config.moveCorner(index, to: CGPoint(x: value.location.x / max(size.width, 1), y: value.location.y / max(size.height, 1)))
+                        })
+                        .accessibilityLabel(Self.names[index])
+                        .accessibilityHint("Drag onto the matching corner of the desk, whiteboard or page")
+                }
+            }
+        }.coordinateSpace(name: "corners")
     }
 }
 

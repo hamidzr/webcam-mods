@@ -18,6 +18,7 @@ from webcam_mods.mods.color import (
 from webcam_mods.mods.denoise import TemporalDenoiser
 from webcam_mods.mods.looks import ColorLook, builtin_look, load_cube
 from webcam_mods.mods.overlay import Logo, Overlay, OverlaySettings, Position, load_logo
+from webcam_mods.mods.perspective import PerspectiveView
 from webcam_mods.mods.presenter import Alpha, bubble, cutout, place
 from webcam_mods.mods.record_replay import Recorder
 from webcam_mods.mods.touchup import smooth_skin
@@ -288,8 +289,8 @@ _SEGMENTATION_FIELDS = ("segmentation", "processing", "smoothing")
 class ProfileEffect:
     """Profile pipeline whose settings can change between frames.
 
-    Order: orientation, noise reduction, manual crop with optional tracking inside
-    it, auto light, skin touch-up, fixed-size background, brightness, color, look,
+    Order: orientation, noise reduction, desk view straightening or manual crop
+    with optional tracking inside it, auto light, skin touch-up, fixed-size background, brightness, color, look,
     overlays. A screen source skips orientation, noise reduction, tracking and
     background; with the presenter on, the camera picture is oriented, cleaned, lit
     and graded, then placed over the output-sized screen before overlays. The
@@ -331,6 +332,7 @@ class ProfileEffect:
         self._closed = False
         self.background: "BackgroundEffect | None" = None
         self.tracking: TrackingEffect | None = None
+        self.perspective: PerspectiveView | None = None
         self.color = ColorAdjuster()
         self.auto_light = AutoLight(0)
         self.denoiser = TemporalDenoiser(0)
@@ -494,8 +496,20 @@ class ProfileEffect:
                 profile.key_softness,
                 profile.key_spill,
             )
-        tracked = profile.source == "camera" and (
-            profile.track or profile.effect == "track"
+        desk = profile.perspective if profile.source == "camera" else None
+        if desk is None:
+            self.perspective = None
+        elif (
+            self.perspective is None
+            or previous is None
+            or (previous.perspective != desk)
+        ):
+            self.perspective = PerspectiveView(desk)
+        # desk view replaces framing, so tracking closes while it is on
+        tracked = (
+            profile.source == "camera"
+            and desk is None
+            and (profile.track or profile.effect == "track")
         )
         if self.tracking is not None and not tracked:
             tracking, self.tracking = self.tracking, None
@@ -595,9 +609,13 @@ class ProfileEffect:
             frame = self._denoise(frame, profile)
         height, width = frame.shape[:2]
         region = (
-            None if profile.crop is None else _crop_region(profile.crop, width, height)
+            None
+            if profile.crop is None or self.perspective is not None
+            else _crop_region(profile.crop, width, height)
         )
-        if self.tracking is not None:
+        if self.perspective is not None:
+            frame = self.perspective(frame)
+        elif self.tracking is not None:
             tracked = self.tracking(frame, region)
             if tracked is None:
                 return None

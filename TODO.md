@@ -75,7 +75,7 @@ Phase 6, enhancement:
 Phase 7, large or research:
 
 23. Hardware camera controls: exposure, focus, anti-flicker (support varies by camera). Done.
-24. Desk or whiteboard view: perspective correction of a chosen area.
+24. Desk or whiteboard view: perspective correction of a chosen area. Done.
 25. Eye-contact correction.
 26. Gesture reactions.
 27. Makeup filters.
