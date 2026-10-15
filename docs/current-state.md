@@ -30,6 +30,8 @@ remain supported. Native macOS menu is optional; installed CLI works independent
   Preview switches between output, camera (with face and framing guides drawn by
   the app) and segmentation mask views, and shows processed/sent FPS and effect time.
   Hold Compare to see the output framing without background or image effects.
+  Color (exposure, contrast, saturation, warmth, tint, sharpness) applies live from
+  profiles; Pick white sets warmth and tint from a clicked camera point.
   Profiles store a manual crop edited by zoom, drag and pinch in the camera view;
   tracking stays inside it. Framing preferences (face size, head height, max zoom,
   follow time, steadiness) are profile fields that apply live.

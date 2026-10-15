@@ -72,8 +72,8 @@ Status distinguishes Idle, Starting, Running, Stopping and Error. Running follow
 the first processed frame delivered to output. Starting can include model download
 or uncached CPU/Metal calibration. Stop releases capture and processing before
 another session starts. Effect settings apply live while the camera runs: background,
-blur, color, tracking, brightness, mirror, vertical flip, crop, framing, segmentation,
-processing and smoothing.
+blur, color, tracking, brightness, color adjustments, mirror, vertical flip, crop,
+framing, segmentation, processing and smoothing.
 Background mode changes keep the loaded segmentation model; segmentation, processing
 or smoothing changes reload it, and tracking loads or releases face detection.
 Camera, capture size/FPS, capture backend, rotation, output destination, output
@@ -85,7 +85,7 @@ The menu does not automatically activate when another application opens a camera
 Background choices are original, blur, solid gray and image. Tracking combines
 with background and brightness. Effect order: rotation, mirror and vertical flip,
 manual crop, tracking inside
-the crop, fixed-size background processing, brightness, final output sizing. Mirror video flips the
+the crop, fixed-size background processing, brightness, color, final output sizing. Mirror video flips the
 camera left to right for both preview and OBS output, so receivers see the
 mirrored view; background images stay readable. Flip upside down turns the picture
 over for a camera mounted upside down; Rotate turns it 90, 180 or 270 degrees
@@ -102,6 +102,11 @@ without reloading the face model; Default framing restores them. Follow time set
 pan response; zoom responds 2.4 times slower, matching the CLI defaults. Steadiness
 is the drift ignored before framing moves, for both pan and zoom. Legacy padding,
 horizontal target and loss timeout remain CLI-only through `track-face`.
+Color sets exposure, contrast, saturation, warmth, tint and sharpness for the whole
+picture, background included, after brightness; all apply live and Reset color
+restores neutral. Pick white switches to Camera view; click something white or gray
+and the worker samples a small patch of the raw camera frame, then sets warmth and
+tint so it turns neutral. Cancel or stopping the camera ends picking.
 Image mode includes an offline thumbnail gallery: Warm study, Quiet office and
 Soft shelves. Entering Image with no previous image selects Warm study; click a
 thumbnail to switch, or Choose your own to open an image file. Saved profiles
@@ -221,6 +226,10 @@ Profile fields and defaults:
 | track_follow_seconds | 0.25 | Pan time constant, 0.05..3; zoom uses 2.4 times this |
 | track_deadzone | 0.08 | Ignored pan and zoom drift as a crop fraction, 0..0.4 |
 | crop | null | Manual crop `[x, y, width, height]` as fractions of the oriented camera frame; each size at least 0.02 and inside the frame |
+| exposure | 0 | Exposure in stops, -2..2; +1 doubles the light |
+| contrast, saturation | 0 | -100..100 around the unchanged picture; saturation -100 is grayscale |
+| temperature, tint | 0 | White balance, -100..100: positive warmer, positive tint magenta |
+| sharpness | 0 | Unsharp mask amount, 0..100 |
 | smoothing | false | Opt-in motion-aware mask stabilization |
 
 ## Local protocol
@@ -259,6 +268,7 @@ the helper available.
 | preview.get | optional view: output (default), source, mask or original | Latest {jpeg: base64, width, height, view, optional guides}, or null |
 | session.update | config | Current state; applies live fields to the running session |
 | session.stats | {} | {processed_fps, sent_fps, effect_ms}, each null until measured; null when idle |
+| session.white_balance | {x, y} fractions of the camera view, 0..1 | {temperature, tint} that make a small patch of the latest camera frame neutral; the app applies them as a live update |
 | stop | {} | State after bounded shutdown |
 | status | {} | Current state, optional error and negotiated output_fps once output opens |
 | shutdown | {} | Stop result, then helper exits |

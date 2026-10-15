@@ -302,6 +302,15 @@ class Controller:
             ),
         }
 
+    def white_balance(self, x: float, y: float) -> dict[str, int]:
+        """Neutral temperature and tint for a camera point; the app applies them."""
+        with self.lock:
+            effect = self.effect
+            if self.state not in ("starting", "running") or effect is None:
+                raise RuntimeError("no running session")
+        temperature, tint = effect.white_balance(x, y)
+        return {"temperature": temperature, "tint": tint}
+
     def stop(self) -> dict[str, Any]:
         with self.lock:
             thread = self.thread
@@ -343,6 +352,15 @@ class Controller:
             if params:
                 raise ValueError("session.stats params must be empty")
             return self.stats()
+        if method == "session.white_balance":
+            if set(params) != {"x", "y"} or not all(
+                isinstance(params[key], (int, float))
+                and not isinstance(params[key], bool)
+                and 0 <= params[key] <= 1
+                for key in ("x", "y")
+            ):
+                raise ValueError("session.white_balance needs x and y in 0..1")
+            return self.white_balance(params["x"], params["y"])
         if method == "profiles.list":
             return self.store.list()
         if method == "profiles.seed_defaults":

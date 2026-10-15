@@ -42,8 +42,29 @@ struct Configuration: Codable, Equatable {
     var track_max_zoom = 2.0
     var track_follow_seconds = 0.25
     var track_deadzone = 0.08
+    // color after background and brightness; exposure in stops, 0 leaves the picture as is
+    var exposure = 0.0
+    var contrast = 0
+    var saturation = 0
+    var temperature = 0
+    var tint = 0
+    var sharpness = 0
 
     var tracking: Bool { track || effect == "track" }
+
+    var colorAdjusted: Bool {
+        exposure != 0 || contrast != 0 || saturation != 0 || temperature != 0 || tint != 0 || sharpness != 0
+    }
+
+    mutating func resetColor() {
+        let defaults = Configuration()
+        exposure = defaults.exposure
+        contrast = defaults.contrast
+        saturation = defaults.saturation
+        temperature = defaults.temperature
+        tint = defaults.tint
+        sharpness = defaults.sharpness
+    }
 
     mutating func resetFramingPreferences() {
         let defaults = Configuration()
@@ -266,6 +287,7 @@ final class SessionModel: ObservableObject {
             if !previewing {
                 stats = nil
                 comparing = false
+                cancelWhitePick()
             }
             if !active { endLiveSession() }
         }
@@ -287,6 +309,9 @@ final class SessionModel: ObservableObject {
     // the last picture stays up until the other view's first frame arrives
     @Published var comparing = false
     var requestedView: String { comparing && previewView == "output" ? "original" : previewView }
+    // click-to-white-balance: the next click in Camera view sets temperature and tint
+    @Published var pickingWhite = false
+    private var viewBeforePick: String?
     // normalized boxes drawn over the preview, never into the video
     @Published var previewGuides: [String: CGRect] = [:]
     @Published var stats: SessionStats?
@@ -390,6 +415,43 @@ final class SessionModel: ObservableObject {
             self.previewPending = false
             guard self.previewVisible, self.previewing, generation == self.previewGeneration else { return }
             self.acceptPreview(result)
+        }
+    }
+
+    func beginWhitePick() {
+        guard previewing, !pickingWhite else { return }
+        viewBeforePick = previewView
+        previewView = "source"
+        pickingWhite = true
+    }
+
+    func cancelWhitePick() {
+        guard pickingWhite else { return }
+        pickingWhite = false
+        if let view = viewBeforePick { previewView = view }
+        viewBeforePick = nil
+    }
+
+    // point is a fraction of the camera picture; the worker samples the raw frame
+    func pickWhite(at point: CGPoint) {
+        guard pickingWhite else { return }
+        cancelWhitePick()
+        let x = min(max(point.x, 0), 1), y = min(max(point.y, 0), 1)
+        request("session.white_balance", params: ["x": x, "y": y]) { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success(let value):
+                guard let balance = value as? [String: Any],
+                      let temperature = (balance["temperature"] as? NSNumber)?.intValue, (-100...100).contains(temperature),
+                      let tint = (balance["tint"] as? NSNumber)?.intValue, (-100...100).contains(tint) else {
+                    self.error = "Invalid white balance from worker. Reinstall app if this repeats."
+                    return
+                }
+                self.config.temperature = temperature
+                self.config.tint = tint
+            case .failure(let issue):
+                self.error = issue.localizedDescription
+            }
         }
     }
 
@@ -732,6 +794,14 @@ final class SessionModel: ObservableObject {
             running(model, view: "output")
             model.comparing = true
         }
+        try render("desktop-color-pick", width: 1100, height: 900) { model in
+            model.config.exposure = 0.3
+            model.config.temperature = 18
+            model.config.saturation = 10
+            running(model, view: "output")
+            model.beginWhitePick()
+            model.previewImage = image
+        }
         try render("narrow-camera-guides", width: 440, height: 900) { model in
             model.config.track = true
             running(model, view: "source")
@@ -993,6 +1063,29 @@ final class SessionModel: ObservableObject {
         model.state = "idle"
         try check(!model.comparing, "Stopping ends compare")
         model.state = "running"
+        var colored = Configuration()
+        colored.exposure = 0.5
+        colored.sharpness = 30
+        let coloredDecoded = try JSONDecoder().decode(Configuration.self, from: JSONEncoder().encode(colored))
+        try check(coloredDecoded.exposure == 0.5 && coloredDecoded.colorAdjusted && !colored.needsRestart(from: Configuration()) && (Configuration().json["tint"] as? Int) == 0, "Color settings encode and apply live")
+        colored.resetColor()
+        try check(!colored.colorAdjusted && colored == Configuration(), "Reset color restores neutral settings")
+        model.previewView = "output"
+        model.beginWhitePick()
+        try check(model.pickingWhite && model.previewView == "source", "White pick switches to Camera view")
+        model.pickWhite(at: CGPoint(x: 1.4, y: 0.25))
+        let pickParams = (try lastRequest())?["params"] as? [String: Any]
+        try check((pickParams?["x"] as? Double) == 1 && (pickParams?["y"] as? Double) == 0.25 && !model.pickingWhite && model.previewView == "output", "White pick sends a clamped camera point and restores the view")
+        model.consume(Data("{\"id\":\(model.nextID),\"result\":{\"temperature\":14,\"tint\":-6}}\n".utf8))
+        try check(model.config.temperature == 14 && model.config.tint == -6, "White pick sets warmth and tint")
+        model.beginWhitePick()
+        model.pickWhite(at: CGPoint(x: 0.5, y: 0.5))
+        model.consume(Data("{\"id\":\(model.nextID),\"result\":{\"temperature\":400,\"tint\":0}}\n".utf8))
+        try check(model.config.temperature == 14 && model.error != nil, "Out of range white balance is rejected")
+        model.error = nil
+        model.beginWhitePick()
+        model.cancelWhitePick()
+        try check(!model.pickingWhite && model.previewView == "output", "Cancel white pick restores the view")
         let statsID = model.nextID + 1
         let statsTime = Date()
         model.pollStats(visible: true, now: statsTime)
@@ -1054,7 +1147,7 @@ final class SessionModel: ObservableObject {
         try pipe.fileHandleForWriting.close()
         try pipe.fileHandleForReading.close()
         try helperSelfTest()
-        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats, orientation, compare).")
+        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats, orientation, compare, color).")
     }
 
     private static func helperSelfTest() throws {
@@ -1275,8 +1368,14 @@ final class SessionModel: ObservableObject {
 struct ControlPanel: View {
     @ObservedObject var model: SessionModel
     @State private var advanced = false
+    @State private var colorExpanded: Bool
     @State private var confirmDelete = false
     @State private var showError = false
+
+    init(model: SessionModel) {
+        self.model = model
+        _colorExpanded = State(initialValue: model.config.colorAdjusted)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -1373,6 +1472,24 @@ struct ControlPanel: View {
                         }.padding(.leading, 20)
                     }
                     slider("Brightness", value: $model.config.brightness, range: 0...255)
+                    DisclosureGroup("Color", isExpanded: $colorExpanded) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            decimalSlider("Exposure", value: $model.config.exposure, range: -2...2, text: { "\($0 > 0 ? "+" : "")\($0.formatted(.number.precision(.fractionLength(1))))" })
+                                .help("Exposure in stops: +1 doubles the light.")
+                            slider("Contrast", value: $model.config.contrast, range: -100...100)
+                            slider("Saturation", value: $model.config.saturation, range: -100...100)
+                            slider("Warmth", value: $model.config.temperature, range: -100...100)
+                                .help("Positive is warmer (more orange), negative cooler (more blue).")
+                            slider("Tint", value: $model.config.tint, range: -100...100)
+                                .help("Positive adds magenta, negative adds green.")
+                            slider("Sharpness", value: $model.config.sharpness, range: 0...100)
+                            HStack {
+                                Button("Pick white...", action: model.beginWhitePick).disabled(!model.previewing || model.pickingWhite)
+                                    .help("Click something white or gray in the camera picture to set warmth and tint.")
+                                Button("Reset color") { model.config.resetColor() }.disabled(!model.config.colorAdjusted)
+                            }
+                        }.padding(.top, 4)
+                    }
                     Toggle("Mirror video", isOn: $model.config.mirror)
                         .help("Flip left to right. Preview and OBS Virtual Camera both show the mirrored view.")
                     Toggle("Flip upside down", isOn: $model.config.flip_vertical)
@@ -1579,7 +1696,11 @@ struct PreviewPanel: View {
                         .overlay {
                             // the app draws its own crop so dragging needs no round trip
                             GuideOverlay(guides: model.previewGuides.filter { $0.key != "crop" })
-                            if model.previewView == "source" { CropEditor(model: model) }
+                            if model.pickingWhite {
+                                WhitePicker(model: model)
+                            } else if model.previewView == "source" {
+                                CropEditor(model: model)
+                            }
                         }
                         .overlay(alignment: .topLeading) {
                             if model.comparing {
@@ -1612,6 +1733,8 @@ struct PreviewPanel: View {
 extension PreviewPanel {
     var caption: String {
         switch model.previewView {
+        case "source" where model.pickingWhite:
+            return "Click something white or gray to balance color."
         case "source":
             return model.previewGuides.isEmpty
                 ? "Camera view shows the full picture before framing and effects."
@@ -1622,6 +1745,26 @@ extension PreviewPanel {
             return model.comparing
                 ? "Original: same framing without background or image effects. Release to see the output."
                 : "Preview shows final framing and effects at the output frame rate."
+        }
+    }
+}
+
+struct WhitePicker: View {
+    @ObservedObject var model: SessionModel
+
+    var body: some View {
+        GeometryReader { geometry in
+            Color.clear.contentShape(Rectangle())
+                .gesture(DragGesture(minimumDistance: 0).onEnded { value in
+                    let size = geometry.size
+                    model.pickWhite(at: CGPoint(x: value.location.x / max(size.width, 1), y: value.location.y / max(size.height, 1)))
+                })
+                .onHover { inside in inside ? NSCursor.crosshair.push() : NSCursor.pop() }
+                .overlay(alignment: .topTrailing) {
+                    Button("Cancel", action: model.cancelWhitePick).padding(8)
+                }
+                .accessibilityLabel("Camera picture")
+                .accessibilityHint("Click something white or gray to balance color")
         }
     }
 }

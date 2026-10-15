@@ -31,12 +31,13 @@ RESTART_FIELDS = frozenset(
 )
 
 
-TRACKING_RANGES: tuple[tuple[str, float, float], ...] = (
+NUMBER_RANGES: tuple[tuple[str, float, float], ...] = (
     ("track_face_height", 0.1, 0.9),
     ("track_target_y", 0.2, 0.8),
     ("track_max_zoom", 1, 4),
     ("track_follow_seconds", 0.05, 3),
     ("track_deadzone", 0, 0.4),
+    ("exposure", -2, 2),
 )
 
 
@@ -73,6 +74,14 @@ class Profile:
     track_max_zoom: float = 2.0
     track_follow_seconds: float = 0.25
     track_deadzone: float = 0.08
+    # color after background and brightness: exposure in stops, sharpness 0..100,
+    # the rest -100..100 with 0 unchanged
+    exposure: float = 0.0
+    contrast: int = 0
+    saturation: int = 0
+    temperature: int = 0
+    tint: int = 0
+    sharpness: int = 0
     camera_id: str | None = None
     output_width: int | None = None
     output_height: int | None = None
@@ -86,6 +95,11 @@ class Profile:
             ("brightness", 0, 255),
             ("color", 0, 255),
             ("blur_kernel", 1, 511),
+            ("contrast", -100, 100),
+            ("saturation", -100, 100),
+            ("temperature", -100, 100),
+            ("tint", -100, 100),
+            ("sharpness", 0, 100),
         ):
             value = getattr(self, key)
             if type(value) is not int or not lower <= value <= upper:
@@ -121,7 +135,7 @@ class Profile:
                 or not math.isfinite(value)
             ):
                 raise ValueError(f"{key} must be finite in 1..240")
-        for key, low, high in TRACKING_RANGES:
+        for key, low, high in NUMBER_RANGES:
             value = getattr(self, key)
             if (
                 isinstance(value, bool)

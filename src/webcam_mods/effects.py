@@ -9,6 +9,7 @@ import cv2
 from loguru import logger
 import numpy as np
 from webcam_mods.geometry import Rect
+from webcam_mods.mods.color import ColorAdjuster, ColorSettings, neutral_balance
 from webcam_mods.mods.video_mods import brighten, crop_rect, resize_and_pad
 from webcam_mods.output.native_preview import Guides
 from webcam_mods.profiles import Profile
@@ -199,6 +200,17 @@ def _orient(frame: Frame, profile: Profile) -> Frame:
     return frame
 
 
+def _color_settings(profile: Profile) -> ColorSettings:
+    return ColorSettings(
+        exposure=profile.exposure,
+        contrast=profile.contrast,
+        saturation=profile.saturation,
+        temperature=profile.temperature,
+        tint=profile.tint,
+        sharpness=profile.sharpness,
+    )
+
+
 def _region_pixels(frame: Frame, region: Rect) -> Frame:
     return frame[
         region.top : region.top + region.height,
@@ -241,7 +253,7 @@ class ProfileEffect:
     """Profile pipeline whose settings can change between frames.
 
     Order: orientation, manual crop with optional tracking inside it, fixed-size
-    background, brightness. Updates are
+    background, brightness, color. Updates are
     queued by any thread and applied on the processing thread before a frame.
     Source, original and mask preview frames are encoded only while the app shows
     them.
@@ -267,6 +279,9 @@ class ProfileEffect:
         self._closed = False
         self.background: "BackgroundEffect | None" = None
         self.tracking: TrackingEffect | None = None
+        self.color = ColorAdjuster()
+        # latest oriented camera frame, sampled for click-to-white-balance
+        self._source: Frame | None = None
 
     @property
     def profile(self) -> Profile:
@@ -339,6 +354,7 @@ class ProfileEffect:
             and _tracking_options(previous) != options
         ):
             self.tracking.configure(**options)
+        self.color.configure(_color_settings(profile))
         self._profile = profile
 
     def _apply_pending(self) -> None:
@@ -368,7 +384,7 @@ class ProfileEffect:
         self._apply_pending()
         profile = self._profile
         frame = _orient(frame, profile)
-        source = frame
+        source = self._source = frame
         height, width = frame.shape[:2]
         region = (
             None if profile.crop is None else _crop_region(profile.crop, width, height)
@@ -397,8 +413,27 @@ class ProfileEffect:
                 preview.publish(_mask_frame(mask), "mask")
         if profile.brightness:
             frame = brighten(frame, profile.brightness)
+        frame = self.color(frame)
         self.stats.tick(time.perf_counter() - started)
         return frame
+
+    def white_balance(self, x: float, y: float) -> tuple[int, int]:
+        """Temperature and tint that turn a patch of the camera picture neutral gray.
+
+        x and y are fractions of the oriented camera frame, as in the source view.
+        """
+        source = self._source
+        if source is None:
+            raise RuntimeError("no camera picture yet")
+        height, width = source.shape[:2]
+        radius = max(2, round(min(width, height) * 0.02))
+        column = min(max(round(x * width), 0), width - 1)
+        row = min(max(round(y * height), 0), height - 1)
+        patch = source[
+            max(0, row - radius) : row + radius + 1,
+            max(0, column - radius) : column + radius + 1,
+        ]
+        return neutral_balance(patch)
 
     def _guides(self, source: Frame, region: Rect | None) -> Guides:
         """Crop, face and framing boxes as fractions of the source frame."""
@@ -425,4 +460,5 @@ class ProfileEffect:
 
     def close(self) -> None:
         self._closed = True
+        self._source = None
         self._close_components()
