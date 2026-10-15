@@ -1348,7 +1348,7 @@ source = { git = "https://github.com/hamidzr/python-v4l2.git#443d42ce8e21fdf60bf
 
 [[package]]
 name = "webcam-mods"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "." }
 dependencies = [
     { name = "loguru" },
