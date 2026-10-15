@@ -42,7 +42,7 @@ reduced resolution; output delivery retains configured dimensions and FPS.
 The preview header switches views. **Output** is what calls receive. **Camera**
 shows the full camera picture after rotation and flips but before framing and effects; with
 tracking on, a yellow box marks the detected face and green dashes mark the auto
-framing crop. **Mask** appears with blur, color or image backgrounds and shows the
+framing crop. **Mask** appears with blur, color, image or spotlight backgrounds and shows the
 segmentation confidence aligned with the output: white is kept, black is replaced.
 Guides are drawn by the app over the preview and never enter the video. In Output
 view, press and hold Compare to see the same framing without background or image
@@ -82,7 +82,10 @@ while running shows Restart camera, which stops, refreshes camera inventory and
 starts with the edited settings.
 The menu does not automatically activate when another application opens a camera.
 
-Background choices are original, blur, solid gray and image. Tracking combines
+Background choices are original, blur, solid gray, image and spotlight. Spotlight
+keeps the room but darkens it by Dim room percent and brightens you with a gentle
+curve set by Lift you, where black and white stay put; both apply live without
+reloading segmentation. Tracking combines
 with background and brightness. Effect order: rotation, mirror and vertical flip,
 manual crop, tracking inside
 the crop, auto light, fixed-size background processing, brightness, color, final
@@ -209,13 +212,15 @@ Profile fields and defaults:
 | camera_id | null | Stable macOS device identity; legacy index selection when absent |
 | output_width, output_height | null | Independent delivery dimensions; inherit rotated capture when null |
 | output_fps | null | Independent delivery cap; inherit capture when null |
-| effect | plain | plain, blur, color, image, track |
+| effect | plain | plain, blur, color, image, spotlight, track |
 | track | false | Combine tracking with selected background |
 | brightness | 0 | Added HSV value, 0..255 |
 | blur_kernel | 31 | Positive odd box-blur kernel or Core Image radius mapping |
 | color | 192 | Gray background, 0..255 |
 | image_path | empty | Image required for image effect |
 | image_blur | false | Cache image background blur using blur_kernel |
+| spotlight_dim | 60 | Spotlight background darkening percent, 0..100 |
+| spotlight_lift | 20 | Spotlight person brightening, 0..100; black and white stay put |
 | capture | auto | auto, opencv, avfoundation; menu defaults avfoundation |
 | segmentation | mediapipe | mediapipe or vision |
 | processing | opencv | opencv or coreimage |

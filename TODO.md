@@ -46,7 +46,7 @@ Phase 2, image look:
 8. Color: exposure, contrast, saturation, temperature, tint, sharpness,
    click-to-white-balance (S). Done.
 9. Auto low-light and exposure (S-M). Done.
-10. Spotlight: dim background, lift person (S).
+10. Spotlight: dim background, lift person (S). Done.
 11. Looks: built-in color filters and `.cube` LUT import with strength (M).
 
 Phase 3, call controls:

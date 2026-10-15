@@ -1,5 +1,6 @@
 """Session-owned segmentation with portable and optional macOS backends."""
 
+from functools import lru_cache
 import time
 from typing import Any, Literal, cast
 from numpy.typing import NDArray
@@ -159,6 +160,19 @@ class PersonEffects:
             image, cast(Frame, cv2.blur(image, (kernel_size, kernel_size))), mask
         )
 
+    def spotlight(self, frame: Frame, dim: int, lift: int) -> Frame:
+        """Darken the background by dim percent and brighten the person by lift."""
+        if not 0 <= dim <= 100 or not 0 <= lift <= 100:
+            raise ValueError("spotlight dim and lift must be in 0..100")
+        image, mask = self.mask(frame)
+        background = cast(Frame, cv2.convertScaleAbs(image, alpha=1 - dim / 100))
+        foreground = cast(Frame, cv2.LUT(image, _lift_table(lift))) if lift else image
+        if self.processor is not None:
+            return self.processor.process(
+                foreground, mask[:, :, 0], background=background
+            )
+        return apply_alpha_mask(foreground, background, mask)
+
     def set_background(self, bg_image: Frame, *, blur_kernel: int = 1) -> None:
         """Own a background snapshot for repeated calls without a background argument."""
         if self._closed:
@@ -207,6 +221,14 @@ class PersonEffects:
         finally:
             if self.processor is not None:
                 self.processor.close()
+
+
+@lru_cache(maxsize=8)
+def _lift_table(lift: int) -> NDArray[np.uint8]:
+    # gamma curve lifts shadows and mid tones while black and white stay put
+    levels = np.arange(256, dtype=np.float64) / 255
+    curve = np.power(levels, 1 / (1 + lift / 100))
+    return np.rint(curve * 255).astype(np.uint8)
 
 
 def sigmoid(x: Mask, a: float = 5.0, b: float = -10.0) -> Mask:

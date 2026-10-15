@@ -53,6 +53,9 @@ class Profile:
     color: int = 192
     image_path: str = ""
     image_blur: bool = False
+    # spotlight background: percent darker background and percent lifted person
+    spotlight_dim: int = 60
+    spotlight_lift: int = 20
     track: bool = False
     segmentation: str = "mediapipe"
     processing: str = "opencv"
@@ -103,6 +106,8 @@ class Profile:
             ("tint", -100, 100),
             ("sharpness", 0, 100),
             ("auto_light", 0, 100),
+            ("spotlight_dim", 0, 100),
+            ("spotlight_lift", 0, 100),
         ):
             value = getattr(self, key)
             if type(value) is not int or not lower <= value <= upper:
@@ -159,7 +164,7 @@ class Profile:
                 raise ValueError(f"{key} must be a boolean")
         for key, choices in (
             ("signal_pattern", ("color-bars", "noise")),
-            ("effect", ("plain", "blur", "color", "image", "track")),
+            ("effect", ("plain", "blur", "color", "image", "spotlight", "track")),
             ("segmentation", ("mediapipe", "vision")),
             ("processing", ("opencv", "coreimage")),
             ("capture", ("auto", "opencv", "avfoundation")),

@@ -23,6 +23,8 @@ struct Configuration: Codable, Equatable {
     var color = 192
     var image_path = ""
     var image_blur = false
+    var spotlight_dim = 60
+    var spotlight_lift = 20
     var track = false
     var segmentation = "mediapipe"
     var processing = "opencv"
@@ -403,7 +405,7 @@ final class SessionModel: ObservableObject {
         previewError = nil
     }
 
-    var maskAvailable: Bool { ["blur", "color", "image"].contains(config.effect) }
+    var maskAvailable: Bool { ["blur", "color", "image", "spotlight"].contains(config.effect) }
 
     func pollPreview(visible: Bool) {
         if previewVisible != visible {
@@ -802,6 +804,7 @@ final class SessionModel: ObservableObject {
             model.config.temperature = 18
             model.config.saturation = 10
             model.config.auto_light = 40
+            model.config.effect = "spotlight"
             running(model, view: "output")
             model.beginWhitePick()
             model.previewImage = image
@@ -1075,6 +1078,11 @@ final class SessionModel: ObservableObject {
         try check(coloredDecoded.exposure == 0.5 && coloredDecoded.auto_light == 60 && coloredDecoded.colorAdjusted && !colored.needsRestart(from: Configuration()) && (Configuration().json["tint"] as? Int) == 0, "Color settings encode and apply live")
         colored.resetColor()
         try check(!colored.colorAdjusted && colored == Configuration(), "Reset color restores neutral settings")
+        var spotlight = Configuration()
+        spotlight.effect = "spotlight"
+        spotlight.spotlight_dim = 80
+        let spotlightDecoded = try JSONDecoder().decode(Configuration.self, from: JSONEncoder().encode(spotlight))
+        try check(spotlightDecoded.spotlight_dim == 80 && spotlightDecoded.spotlight_lift == 20 && !spotlight.needsRestart(from: Configuration()), "Spotlight settings encode and apply live")
         model.previewView = "output"
         model.beginWhitePick()
         try check(model.pickingWhite && model.previewView == "source", "White pick switches to Camera view")
@@ -1152,7 +1160,7 @@ final class SessionModel: ObservableObject {
         try pipe.fileHandleForWriting.close()
         try pipe.fileHandleForReading.close()
         try helperSelfTest()
-        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats, orientation, compare, color).")
+        print("Native model self-test passed (JSONL, profiles, backgrounds, camera identity, preview lifecycle/cadence/views/guides, OBS readiness, live updates, stats, orientation, compare, color, spotlight).")
     }
 
     private static func helperSelfTest() throws {
@@ -1449,6 +1457,7 @@ struct ControlPanel: View {
                         Text("Blur").tag("blur")
                         Text("Solid gray").tag("color")
                         Text("Image").tag("image")
+                        Text("Spotlight").tag("spotlight")
                         Text("Face tracking").tag("track")
                     }
                     if model.config.effect == "blur" || (model.config.effect == "image" && model.config.image_blur) {
@@ -1456,6 +1465,12 @@ struct ControlPanel: View {
                     }
                     if model.config.effect == "color" {
                         slider("Gray", value: $model.config.color, range: 0...255)
+                    }
+                    if model.config.effect == "spotlight" {
+                        slider("Dim room", value: $model.config.spotlight_dim, range: 0...100)
+                            .help("How much darker the background gets, in percent.")
+                        slider("Lift you", value: $model.config.spotlight_lift, range: 0...100)
+                            .help("Brightens you while black and white stay put.")
                     }
                     if model.config.effect == "image" {
                         BackgroundGallery(model: model)

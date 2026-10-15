@@ -3,7 +3,7 @@
 from contextlib import ExitStack
 import threading
 import time
-from typing import TYPE_CHECKING, Callable, Literal, Protocol, TypedDict, cast
+from typing import TYPE_CHECKING, Callable, Protocol, TypedDict, cast
 
 import cv2
 from loguru import logger
@@ -23,7 +23,7 @@ from webcam_mods.utils.video import Frame
 from webcam_mods.settings import StartupSettings
 
 if TYPE_CHECKING:
-    from webcam_mods.entry import BackgroundEffect
+    from webcam_mods.entry import BackgroundEffect, BackgroundMode
     from webcam_mods.mods.person_segmentation import Mask
 
 
@@ -239,7 +239,7 @@ def _read_image(path: str) -> Frame:
 
 
 def _background_key(profile: Profile) -> tuple[object, ...] | None:
-    if profile.effect not in ("blur", "color", "image"):
+    if profile.effect not in ("blur", "color", "image", "spotlight"):
         return None
     return (
         profile.effect,
@@ -247,6 +247,8 @@ def _background_key(profile: Profile) -> tuple[object, ...] | None:
         profile.color,
         profile.image_path,
         profile.image_blur,
+        profile.spotlight_dim,
+        profile.spotlight_lift,
     )
 
 
@@ -327,12 +329,14 @@ class ProfileEffect:
             background, self.background = self.background, None
             background.close()
         if key is not None:
-            mode: Literal["blur_bg", "color_bg", "swap_bg"]
+            mode: "BackgroundMode"
             value: int | Frame
             if profile.effect == "image":
                 mode, value = "swap_bg", self._load_image(profile.image_path)
             elif profile.effect == "blur":
                 mode, value = "blur_bg", profile.blur_kernel
+            elif profile.effect == "spotlight":
+                mode, value = "spotlight_bg", profile.spotlight_dim
             else:
                 mode, value = "color_bg", profile.color
             kernel = profile.blur_kernel if profile.image_blur else 1
@@ -343,10 +347,16 @@ class ProfileEffect:
                     mask_smoothing=profile.smoothing,
                 )
                 self.background = BackgroundEffect(
-                    common, mode, value, image_blur_kernel=kernel
+                    common,
+                    mode,
+                    value,
+                    image_blur_kernel=kernel,
+                    lift=profile.spotlight_lift,
                 )
             elif previous is not None and _background_key(previous) != key:
-                self.background.configure(mode, value, image_blur_kernel=kernel)
+                self.background.configure(
+                    mode, value, image_blur_kernel=kernel, lift=profile.spotlight_lift
+                )
         tracked = profile.track or profile.effect == "track"
         if self.tracking is not None and not tracked:
             tracking, self.tracking = self.tracking, None

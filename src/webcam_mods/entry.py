@@ -173,15 +173,19 @@ def _common(ctx: typer.Context) -> Common:
     return ctx.obj
 
 
+BackgroundMode = Literal["blur_bg", "color_bg", "swap_bg", "spotlight_bg"]
+
+
 class BackgroundEffect:
     def __init__(
         self,
         common: Common,
-        mode: Literal["blur_bg", "color_bg", "swap_bg"],
+        mode: BackgroundMode,
         value: int | Frame,
         brightness: int = 0,
         *,
         image_blur_kernel: int = 1,
+        lift: int = 0,
     ) -> None:
         from webcam_mods.mods.person_segmentation import PersonEffects
 
@@ -192,7 +196,7 @@ class BackgroundEffect:
             smoothing=common.mask_smoothing,
         )
         try:
-            self.configure(mode, value, image_blur_kernel=image_blur_kernel)
+            self.configure(mode, value, image_blur_kernel=image_blur_kernel, lift=lift)
         except BaseException:
             self.effects.close()
             raise
@@ -200,12 +204,17 @@ class BackgroundEffect:
 
     def configure(
         self,
-        mode: Literal["blur_bg", "color_bg", "swap_bg"],
+        mode: BackgroundMode,
         value: int | Frame,
         *,
         image_blur_kernel: int = 1,
+        lift: int = 0,
     ) -> None:
-        """Switch background treatment while keeping the loaded segmentation model."""
+        """Switch background treatment while keeping the loaded segmentation model.
+
+        value is the blur kernel, gray level or image; spotlight takes the background
+        dim percent as value and the person lift percent as lift.
+        """
         if mode == "swap_bg":
             if not isinstance(value, np.ndarray):
                 raise TypeError("background replacement requires an image")
@@ -213,12 +222,15 @@ class BackgroundEffect:
             self.transform: Callable[[Frame], Frame] = self.effects.swap_bg
         else:
             if not isinstance(value, int):
-                raise TypeError("background color and blur require an integer")
-            self.transform = (
-                (lambda frame: self.effects.blur_bg(frame, value))
-                if mode == "blur_bg"
-                else (lambda frame: self.effects.color_bg(frame, value))
-            )
+                raise TypeError("background color, blur and spotlight need an integer")
+            if mode == "blur_bg":
+                self.transform = lambda frame: self.effects.blur_bg(frame, value)
+            elif mode == "spotlight_bg":
+                self.transform = lambda frame: self.effects.spotlight(
+                    frame, value, lift
+                )
+            else:
+                self.transform = lambda frame: self.effects.color_bg(frame, value)
 
     def __call__(self, frame: Frame) -> Frame:
         result = self.transform(frame)
