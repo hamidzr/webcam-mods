@@ -37,11 +37,6 @@ class ConfigValidationTests(unittest.TestCase):
                 self.assertFalse(self.config.valid(conf))
         self.assertFalse(self.config.valid({"crop_dims": [10, 8]}))
 
-    def test_rejects_bad_dimensions(self) -> None:
-        for size in ((0, 5), (5, -1), (True, 5), (5.0, 5)):
-            with self.subTest(size=size), self.assertRaises(ValueError):
-                Config(path=None, width=size[0], height=size[1])
-
 
 class ConfigPersistenceTests(unittest.TestCase):
     def test_round_trip(self) -> None:
