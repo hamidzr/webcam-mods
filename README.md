@@ -190,7 +190,7 @@ Historical demos: [January 2022](https://youtu.be/FfD7lu_A1Dw),
 
 ## Support
 
-Webcam Mods is free. If it saves you time, you can [support us](https://latentbyte.com/support?app=webcam-mods) with a tip.
+Webcam Mods is free. If it saves you time, you can [support us](https://latentbyte.com/support-us?app=webcam-mods&utm_source=webcam-mods&utm_medium=github&utm_campaign=support) with a tip.
 
 ## Credits
 
