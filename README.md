@@ -188,6 +188,10 @@ the [backlog](TODO.md). Report bugs through [GitHub Issues](https://github.com/h
 Historical demos: [January 2022](https://youtu.be/FfD7lu_A1Dw),
 [earlier demo](https://youtu.be/idp7ei-pF40); they are not current acceptance evidence.
 
+## Support
+
+Webcam Mods is free. If it saves you time, you can [support us](https://latentbyte.com/support?app=webcam-mods) with a tip.
+
 ## Credits
 
 - [MediaPipe](https://github.com/google/mediapipe), face/person models.

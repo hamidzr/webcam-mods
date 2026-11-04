@@ -2332,6 +2332,7 @@ struct ControlPanel: View {
             }
             HStack {
                 Text(model.build).help("Built \(model.buildDate)")
+                Link("Support us", destination: URL(string: "https://latentbyte.com/support?app=webcam-mods")!)
                 Spacer()
                 Text(model.backendVersion.isEmpty ? "Worker disconnected" : "Backend \(model.backendVersion)")
             }.font(.caption2).foregroundStyle(.secondary)
