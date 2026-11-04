@@ -6,7 +6,7 @@ extra_flags := if extra == "" { "" } else { "--extra " + extra }
 uv_flags := env_var_or_default("UV_FLAGS", "")
 uv_run := "uv run --locked --python 3.14 " + extra_flags + " " + uv_flags
 
-# list available commands; setup instructions: docs/installation.md
+# list recipes
 default:
     @just --list
 
