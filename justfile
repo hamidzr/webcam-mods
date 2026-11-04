@@ -1,4 +1,4 @@
-set shell := ["bash", "-cu"]
+set shell := ["bash", "-euo", "pipefail", "-c"]
 set positional-arguments
 
 extra := if os() == "macos" { "macos" } else if os() == "linux" { "linux" } else { "" }
