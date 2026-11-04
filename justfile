@@ -17,14 +17,17 @@ deps:
 alias get-deps := deps
 
 # run the live checkout without changing the installed PATH snapshot
+[group('dev')]
 run *args:
     {{ uv_run }} webcam_mods "$@"
 
 # download and verify models ahead of first use
+[group('dev')]
 models:
     {{ uv_run }} python -m webcam_mods.models
 
 # build wheel and source distributions through uv
+[group('build')]
 build:
     uv build --python 3.14
 
@@ -48,6 +51,7 @@ install:
     uv tool install "${install_args[@]}" "$package"
     echo 'Installed webcam_mods snapshot. Live checkout: just run --help'
 
+# format with black
 fmt:
     {{ uv_run }} black src tests scripts
 
@@ -63,33 +67,42 @@ check:
 
 alias lint := check
 
+# run unit tests (headless)
 test:
     {{ uv_run }} python -m unittest discover -s tests
 
 # save repeatable headless pipeline outputs under dist/e2e
+[group('dev')]
 e2e:
     {{ uv_run }} python tests/test_pipeline.py --artifacts dist/e2e
 
+# run check and test
+[group('dev')]
 verify: check test
 
 # regenerate macos/AppIcon.icns from assets/icon.svg (needs rsvg-convert)
+[group('macos')]
 menu-icon:
     macos/build-icon.sh
 
 # build native menu against the installed Python snapshot (macOS only)
+[group('macos')]
 menu-build:
     macos/build-menu-app.sh
 
 # verify native transport/model behavior without opening a camera
+[group('macos')]
 menu-check: menu-build
     "dist/Webcam Mods.app/Contents/MacOS/WebcamMods" --self-test
     plutil -lint "dist/Webcam Mods.app/Contents/Info.plist"
     codesign --verify --strict "dist/Webcam Mods.app"
 
 # render the main window in sample states to PNGs, offscreen, without a camera
+[group('macos')]
 menu-snapshot dir="dist/snapshots": menu-build
     "dist/Webcam Mods.app/Contents/MacOS/WebcamMods" --snapshot "{{ dir }}" tests/fixtures/astronaut.png
 
 # install the native shell alongside the user-level Python runtime
+[group('macos')]
 menu-install: install
     macos/build-menu-app.sh --output "$HOME/Applications/Webcam Mods.app"
