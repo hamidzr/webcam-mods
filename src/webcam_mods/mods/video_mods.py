@@ -141,18 +141,6 @@ def pad_inward_centered(
     return padded
 
 
-# given a frame pad inward while keeping the image centered
-def pad_outward_centered(
-    frame: Frame, horizontal: int = 0, vertical: int = 0, color: Color = 0
-) -> Frame:
-    # TODO remove the need for even dims
-    assert horizontal % 2 == 0, "needs an even size"
-    assert vertical % 2 == 0, "needs an even size"
-    return pad(
-        frame, horizontal // 2, vertical // 2, horizontal // 2, vertical // 2, color
-    )
-
-
 def resize_to_box(img: Frame, tw: int, th: int) -> Frame:
     """
     Resize to a bounding box while keeping aspect ratio.

@@ -1,87 +1,8 @@
-from typing import Callable, Generator, Optional, List, Tuple
+from typing import Optional, Tuple
 import math
 import time
 from webcam_mods.settings import load_settings
-from webcam_mods.geometry import Number, Rect, Point
-
-
-def linear_transition(
-    a: Number, b: Number, steps: int
-) -> Generator[Number, None, None]:
-    """
-    linear transition
-    """
-    d = (b - a) / steps
-    for _ in range(steps):
-        yield a + d
-        a += d
-
-
-Transition = Callable[[Number, Number, int], Generator[Number, None, None]]
-
-
-def transition_nd(
-    transition: Transition,
-    start: List[Number],
-    end: List[Number],
-    steps: int,
-) -> Generator[List[Number], None, None]:
-    assert len(start) == len(end)
-    # g1 = transition(a1, a2, steps)
-    # g2 = transition(b1, b2, steps)
-    gs = [transition(start[i], end[i], steps) for i in range(len(start))]
-    for _ in range(steps):
-        yield [next(g) for g in gs]
-
-
-def transition_point(
-    start: Point, end: Point, over_frames: int = 30
-) -> Generator[Point, None, None]:
-    """
-    move a point from start to end over n frames in a linear fashion
-    """
-    diff = end - start
-    step_t, step_l = diff.t / over_frames, diff.l / over_frames
-    cur_pos = start.copy()
-    t_cum, l_cum = 0.0, 0.0
-    for _ in range(over_frames):
-        t_cum += step_t
-        l_cum += step_l
-        if int(t_cum) != 0:
-            cur_pos.top += int(t_cum)
-            t_cum -= int(t_cum)
-        if int(l_cum) != 0:
-            cur_pos.left += int(l_cum)
-            l_cum -= int(l_cum)
-        yield cur_pos.copy()
-
-
-def transition_rect(
-    start: Rect, end: Rect, over_frames: int = 30
-) -> Generator[Rect, None, None]:
-    """
-    transitions location as well as dimensions
-    """
-    g = transition_nd(
-        linear_transition,
-        start=[start.l, start.t, start.w, start.h],
-        end=[end.l, end.t, end.w, end.h],
-        steps=over_frames,
-    )
-    for _ in range(over_frames):
-        l, t, w, h = next(g)
-        yield Rect(l=int(l), w=int(w), h=int(h), t=int(t))
-
-
-def wrap_with_padding(box: Rect, wr: float, hr: float) -> Rect:
-    """
-    wrap a box with padding on all sides based on ratio.
-    wr: width ratio
-    hr: height ratio
-    """
-    output = Rect(w=math.floor(box.width * wr), h=math.floor(box.height * hr))
-    output.center_on(box.center)
-    return output
+from webcam_mods.geometry import Rect
 
 
 class CropTracker:
