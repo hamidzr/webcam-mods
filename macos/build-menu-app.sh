@@ -45,4 +45,7 @@ cat > "$OUTPUT/Contents/Info.plist" <<PLIST
 </dict></plist>
 PLIST
 codesign --force --sign - "$OUTPUT"
+# in-place rebuilds keep the bundle mtime, so icon and plist caches go stale
+touch "$OUTPUT"
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$OUTPUT"
 echo "$OUTPUT"
