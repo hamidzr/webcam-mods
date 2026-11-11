@@ -5,6 +5,8 @@ for a virtual camera. Python 3.14 processing runs on macOS and Linux. macOS also
 has an optional native menu bar app. Windows adapters exist but current Windows
 installation and hardware behavior are unverified.
 
+Product page: [Webcam Mods on Latent Byte](https://latentbyte.com/products/webcam-mods?utm_source=webcam-mods&utm_medium=github&utm_campaign=website).
+
 ## Install
 
 Requires [uv](https://docs.astral.sh/uv/) and [just](https://just.systems/).
