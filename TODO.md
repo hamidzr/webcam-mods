@@ -3,6 +3,16 @@
 Priorities and verification requirements: [improvement plan](docs/improvement-plan.md).
 Current supported behavior: [current state](docs/current-state.md).
 
+## Licensing
+
+- Noncommercial relicense (free personal, paid commercial) needs the GPL-2.0
+  `pyvirtualcam` dependency gone first: write our own OBS Virtual Camera sink
+  (CoreMediaIO, macOS) and v4l2 output. External contributions are already
+  replaced (`HOTKEYS`, 0.4.0).
+- First Homebrew release (0.4.0): tag, `just dist-app`, tap release upload,
+  formula and cask in `latentbyte/homebrew-tap`. Then verify on a clean Mac
+  that camera grants survive `brew upgrade --cask`.
+
 ## Deferred acceptance
 
 - Conferencing reception and 720p effects/output (review item 2).
