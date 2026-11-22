@@ -17,10 +17,15 @@ cask "webcam-mods-app" do
   homepage "https://latentbyte.com/products/webcam-mods"
 
   depends_on arch: :arm64
-  depends_on macos: ">= :ventura"
   depends_on formula: "latentbyte/tap/webcam-mods"
+  depends_on macos: :ventura
 
   app "WebcamMods.app"
+
+  # self-signed (no Apple Developer ID): a quarantined copy is blocked by Gatekeeper
+  postflight_steps do
+    run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{appdir}}/WebcamMods.app"]
+  end
 
   zap trash: [
     "~/.config/webcam_mods",

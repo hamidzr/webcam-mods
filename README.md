@@ -9,8 +9,15 @@ Product page: [Webcam Mods on Latent Byte](https://latentbyte.com/products/webca
 
 ## Install
 
-Requires [uv](https://docs.astral.sh/uv/) and [just](https://just.systems/).
-Run from this checkout:
+macOS on Apple silicon, with [Homebrew](https://brew.sh):
+
+```sh
+brew install latentbyte/tap/webcam-mods
+brew install --cask latentbyte/tap/webcam-mods-app  # optional menu bar app
+```
+
+From source, with [uv](https://docs.astral.sh/uv/) and [just](https://just.systems/),
+run from this checkout:
 
 ```sh
 just install

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "webcam-mods"
-version = "0.3.0"
+version = "0.4.0"
 description = "Face tracking, background effects, crop, zoom, and replay for virtual cameras"
 readme = "README.md"
 requires-python = ">=3.14,<3.15"

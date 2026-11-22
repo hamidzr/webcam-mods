@@ -76,3 +76,20 @@ can accept `--python /absolute/path/to/python` for a different runtime containin
 Start requests camera permission. Camera capture/output acceptance from the app
 is separate from native compilation and headless protocol checks. See the
 [menu guide](macos-menu.md) for settings, errors and profile behavior.
+
+## Homebrew release
+
+The `latentbyte/homebrew-tap` formula builds the locked environment
+(`uv export --frozen --extra macos`) from a source tag into its `libexec`. The
+menu app ships as a prebuilt cask instead: Homebrew builds with the Command Line
+Tools, whose `swiftc` lacks SwiftUI macros. The cask app is signed with the shared
+self-signed Latent Byte cert, so camera grants survive upgrades, and runs the
+formula's `/opt/homebrew/opt/webcam-mods/libexec/bin/python`.
+
+1. Bump `version` in `pyproject.toml`, commit, tag `vX.Y.Z` and push the tag.
+2. `just dist-app` writes `dist/release/webcam-mods-app-X.Y.Z.zip` (needs the
+   signing keychain in `~/.ssh/lb-macos-signing.*`).
+3. Upload the zip to a `webcam-mods-vX.Y.Z` release on `latentbyte/homebrew-tap`.
+4. `just brew-formula X.Y.Z > ../homebrew-tap/Formula/webcam-mods.rb` and
+   `just brew-cask X.Y.Z dist/release/webcam-mods-app-X.Y.Z.zip > ../homebrew-tap/Casks/webcam-mods-app.rb`,
+   then commit and push the tap.
