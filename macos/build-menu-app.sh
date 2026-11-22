@@ -3,12 +3,15 @@ set -eu
 # build local native shell around an installed webcam-mods Python runtime
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 PYTHON=""
+RECORD_PYTHON=""
 OUTPUT="$ROOT/dist/Webcam Mods.app"
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --python) PYTHON=$2; shift 2 ;;
         --output) OUTPUT=$2; shift 2 ;;
-        *) echo "Usage: $0 [--python /path/to/python] [--output /path/to/Webcam Mods.app]" >&2; exit 2 ;;
+        # path the app launches, when it differs from the build-time runtime (Homebrew opt path)
+        --record-python) RECORD_PYTHON=$2; shift 2 ;;
+        *) echo "Usage: $0 [--python /path/to/python] [--output /path/to/Webcam Mods.app] [--record-python /path/to/python]" >&2; exit 2 ;;
     esac
 done
 if [ "$(uname -s)" != Darwin ]; then echo "Menu app requires macOS." >&2; exit 1; fi
@@ -16,7 +19,8 @@ if [ -z "$PYTHON" ]; then PYTHON="$(uv tool dir)/webcam-mods/bin/python"; fi
 if [ ! -x "$PYTHON" ]; then echo "Python runtime missing. Run just install or pass --python." >&2; exit 1; fi
 "$PYTHON" -c 'import webcam_mods.control' >/dev/null
 VERSION=$("$PYTHON" -c 'import tomllib,sys; print(tomllib.load(open(sys.argv[1], "rb"))["project"]["version"])' "$ROOT/pyproject.toml")
-COMMIT=$(git -C "$ROOT" describe --always --dirty)
+# release tarballs have no git metadata
+COMMIT=${WEBCAM_MODS_COMMIT:-$(git -C "$ROOT" describe --always --dirty 2>/dev/null || echo unknown)}
 BUILD_DATE=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
 mkdir -p "$OUTPUT/Contents/MacOS" "$OUTPUT/Contents/Resources"
 mkdir -p "$OUTPUT/Contents/Resources/Backgrounds"
@@ -24,7 +28,7 @@ cp "$ROOT"/macos/Backgrounds/*.jpg "$ROOT/macos/Backgrounds/README.md" "$OUTPUT/
 cp "$ROOT/macos/AppIcon.icns" "$OUTPUT/Contents/Resources/AppIcon.icns"
 swiftc -parse-as-library -swift-version 5 -O -target "$(uname -m)-apple-macosx13.0" \
     "$ROOT/macos/MenuBar/WebcamMods.swift" -o "$OUTPUT/Contents/MacOS/WebcamMods"
-printf '%s\n' "$PYTHON" > "$OUTPUT/Contents/Resources/backend-python.txt"
+printf '%s\n' "${RECORD_PYTHON:-$PYTHON}" > "$OUTPUT/Contents/Resources/backend-python.txt"
 cat > "$OUTPUT/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

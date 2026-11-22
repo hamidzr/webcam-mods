@@ -97,6 +97,21 @@ menu-check: menu-build
     plutil -lint "dist/Webcam Mods.app/Contents/Info.plist"
     codesign --verify --strict "dist/Webcam Mods.app"
 
+# signed menu app zip for the Homebrew cask; needs the Latent Byte signing keychain
+[group('release')]
+dist-app:
+    scripts/dist-menu-app.sh
+
+# print the tap formula (CLI) for a pushed tag, e.g. just brew-formula 0.4.0
+[group('release')]
+brew-formula version:
+    scripts/homebrew-formula.sh "{{ version }}"
+
+# print the tap cask for the menu app zip from dist-app
+[group('release')]
+brew-cask version zip:
+    scripts/homebrew-cask.sh "{{ version }}" "{{ zip }}"
+
 # render the main window in sample states to PNGs, offscreen, without a camera
 [group('macos')]
 menu-snapshot dir="dist/snapshots": menu-build
