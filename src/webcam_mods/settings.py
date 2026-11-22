@@ -7,6 +7,21 @@ from typing import Any, Literal
 from collections.abc import Mapping
 
 SignalPattern = Literal["color-bars", "noise"]
+HOTKEY_GROUPS = ("crop", "pad")
+
+
+def hotkey_groups(raw: str) -> frozenset[str]:
+    """Parse a HOTKEYS value: comma-separated crop/pad, or none."""
+    value = raw.strip().lower()
+    if value in ("", "none"):
+        return frozenset()
+    groups = frozenset(part.strip() for part in value.split(","))
+    unknown = groups - set(HOTKEY_GROUPS)
+    if unknown:
+        raise ValueError(
+            f"HOTKEYS takes crop, pad or none, not {', '.join(sorted(unknown))}"
+        )
+    return groups
 
 
 @dataclass(frozen=True)
@@ -25,8 +40,7 @@ class StartupSettings:
     signal_pattern: SignalPattern = "color-bars"
     mirror: bool = False
     on_demand: bool = False
-    pan_control: bool = True
-    padding_control: bool = True
+    hotkeys: str = "crop,pad"
 
     def __post_init__(self) -> None:
         if self.signal_pattern not in ("color-bars", "noise"):
@@ -48,12 +62,13 @@ class StartupSettings:
                 raise ValueError(f"{name.upper()} must be finite and positive")
         if not isinstance(self.in_format, str) or len(self.in_format) != 4:
             raise ValueError("IN_FORMAT must contain exactly four characters")
+        if not isinstance(self.hotkeys, str):
+            raise ValueError("HOTKEYS must be a string")
+        hotkey_groups(self.hotkeys)
         if not isinstance(self.video_out, str) or not self.video_out:
             raise ValueError("VIDEO_OUT must not be empty")
         for name in (
             "on_demand",
-            "pan_control",
-            "padding_control",
             "repeat_frames",
             "mirror",
         ):

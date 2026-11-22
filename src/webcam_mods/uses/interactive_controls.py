@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from webcam_mods.settings import StartupSettings, load_settings
+from webcam_mods.settings import StartupSettings, hotkey_groups, load_settings
 from webcam_mods.session import Command, RunSession
 from webcam_mods.utils.cli_input import StdinControls
 
@@ -17,11 +17,12 @@ class KeyboardControls:
         self.settings = settings or load_settings()
         self.keys: set[Any] = set()
         self.listener = None
+        self.groups = hotkey_groups(self.settings.hotkeys)
 
     def start(self) -> None:
         if self.listener is not None:
             return
-        if not (self.settings.pan_control or self.settings.padding_control):
+        if not self.groups:
             return
         from pynput.keyboard import Key, Listener
 
@@ -48,12 +49,12 @@ class KeyboardControls:
         if key not in directions:
             return
         x, y = directions[key]
-        if self.settings.pan_control and Key.ctrl in self.keys:
+        if "crop" in self.groups and Key.ctrl in self.keys:
             if Key.shift in self.keys:
                 self.session.submit(Command("resize", x, y))
             else:
                 self.session.submit(Command("move", -x, -y))
-        if self.settings.padding_control and Key.alt in self.keys:
+        if "pad" in self.groups and Key.alt in self.keys:
             self.session.submit(Command("pad", x, y))
 
     def on_release(self, key: Any) -> None:

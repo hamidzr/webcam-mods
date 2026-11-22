@@ -718,12 +718,9 @@ def common(
     on_demand: bool | None = typer.Option(
         None, "--on-demand/--no-on-demand", rich_help_panel="Output", hidden=True
     ),
-    pan_control: bool | None = typer.Option(
-        None, "--pan-control/--no-pan-control", rich_help_panel="Controls", hidden=True
-    ),
-    padding_control: bool | None = typer.Option(
+    hotkeys: str | None = typer.Option(
         None,
-        "--padding-control/--no-padding-control",
+        help="Global hotkeys: crop, pad, crop,pad or none.",
         rich_help_panel="Controls",
         hidden=True,
     ),
@@ -749,8 +746,7 @@ def common(
             processing_fps=processing_fps,
             video_out=output_device,
             on_demand=on_demand,
-            pan_control=pan_control,
-            padding_control=padding_control,
+            hotkeys=hotkeys,
         )
     except ValueError as error:
         raise typer.BadParameter(str(error)) from error

@@ -11,7 +11,7 @@ from typer.testing import CliRunner
 from cli_fixtures import HeadlessCliTestCase
 
 from webcam_mods import entry
-from webcam_mods.settings import StartupSettings, load_settings
+from webcam_mods.settings import StartupSettings, hotkey_groups, load_settings
 from webcam_mods.loopback import default_frame_output
 from webcam_mods.input.video_dev import Webcam
 from webcam_mods.uses.interactive_controls import KeyboardControls
@@ -27,13 +27,40 @@ class SettingsTests(HeadlessCliTestCase):
                 "IN_WIDTH": "1280",
                 "IN_FPS": "29.97",
                 "ON_DEMAND": "true",
-                "PAN_CONTROL": "0",
+                "HOTKEYS": "pad",
             }
         )
         self.assertEqual(settings.in_width, 1280)
         self.assertEqual(settings.in_fps, 29.97)
         self.assertTrue(settings.on_demand)
-        self.assertFalse(settings.pan_control)
+        self.assertEqual(settings.hotkeys, "pad")
+
+    def test_hotkey_groups(self) -> None:
+        self.assertEqual(hotkey_groups("crop,pad"), {"crop", "pad"})
+        self.assertEqual(hotkey_groups(" Pad "), {"pad"})
+        self.assertEqual(hotkey_groups("none"), frozenset())
+        self.assertEqual(hotkey_groups(""), frozenset())
+        with self.assertRaisesRegex(ValueError, "zoom"):
+            hotkey_groups("zoom")
+
+    def test_hotkeys_limit_keyboard_groups(self) -> None:
+        from types import SimpleNamespace
+        from unittest.mock import Mock
+
+        keys = SimpleNamespace(
+            ctrl="ctrl", alt="alt", shift="shift", right="r", left="l", up="u", down="d"
+        )
+        session = Mock()
+        controls = KeyboardControls(session, load_settings({}, hotkeys="pad"))
+        controls.key_type = keys
+        for key in ("ctrl", "r"):
+            controls.on_press(key)
+        session.submit.assert_not_called()
+        controls.keys.clear()
+        for key in ("alt", "r"):
+            controls.on_press(key)
+        session.submit.assert_called_once()
+        self.assertEqual(session.submit.call_args.args[0].action, "pad")
 
     def test_override_wins_over_invalid_environment(self) -> None:
         self.assertEqual(load_settings({"IN_WIDTH": "bad"}, in_width=800).in_width, 800)
@@ -50,6 +77,7 @@ class SettingsTests(HeadlessCliTestCase):
             ("ON_DEMAND", "maybe"),
             ("VIDEO_OUT", ""),
             ("SIGNAL_PATTERN", "invalid"),
+            ("HOTKEYS", "crop,zoom"),
         ):
             with self.subTest(name=name), self.assertRaisesRegex(ValueError, name):
                 load_settings({name: value})
@@ -61,8 +89,7 @@ class SettingsTests(HeadlessCliTestCase):
             out_width=1024,
             in_fps=24,
             max_out_fps=20,
-            pan_control=False,
-            padding_control=False,
+            hotkeys="none",
         )
         with patch.dict(os.environ, {"IN_WIDTH": "bad", "OUT_WIDTH": "bad"}):
             camera = Webcam(settings=settings)

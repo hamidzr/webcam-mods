@@ -18,8 +18,8 @@ defaults to `auto`, preferring native macOS capture with installed bindings.
 MediaPipe segmentation and OpenCV processing remain defaults. Explicit backend
 choices are honored; native startup errors never fall back. `--no-controls`
 disables keyboard and stdin together.
-`PAN_CONTROL=False` and `PADDING_CONTROL=False` independently disable keyboard
-features. Vision segmentation requires macOS 12 or newer; Python bindings are
+`HOTKEYS=crop`, `HOTKEYS=pad` or `HOTKEYS=none` limit the global keyboard
+shortcuts. Vision segmentation requires macOS 12 or newer; Python bindings are
 optional in the `macos` extra and never imported by CLI help.
 
 Native capture requests camera permission at setup. Authorize the launching app
