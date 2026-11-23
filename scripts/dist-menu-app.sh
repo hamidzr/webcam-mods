@@ -29,8 +29,14 @@ fi
 
 rm -rf "$app" "$zip"
 mkdir -p "$out"
-# the checkout venv passes the import check; the app records the Homebrew path
+# self-test a copy that runs the checkout venv; the release copy records the Homebrew
+# path, which need not exist on the build Mac
 uv sync --locked --python 3.14 --extra macos >/dev/null
+selftest="$out/selftest/WebcamMods.app"
+rm -rf "$out/selftest"
+sh macos/build-menu-app.sh --python "$PWD/.venv/bin/python" --output "$selftest" >/dev/null
+"$selftest/Contents/MacOS/WebcamMods" --self-test >/dev/null
+rm -rf "$out/selftest"
 sh macos/build-menu-app.sh --python "$PWD/.venv/bin/python" --record-python "$brew_python" --output "$app" >/dev/null
 
 # the password goes through a file, never argv (security -p shows up in ps); relock on exit
@@ -44,7 +50,6 @@ if [[ "$req" != *"= H\"$sign_cert\""* ]]; then
     exit 1
 fi
 codesign --verify --strict "$app"
-"$app/Contents/MacOS/WebcamMods" --self-test >/dev/null
 
 ditto -c -k --keepParent "$app" "$zip"
 shasum -a 256 "$zip"
